@@ -1,0 +1,468 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
+using Godot;
+using PaxPixelia.Core;
+using PaxPixelia.Map;
+using PaxPixelia.Sim;
+using PaxPixelia.UI;
+
+namespace PaxPixelia.Dev;
+
+/// <summary>
+/// --selftest: drives the real game (world, map, UI, sim) through the player flows and prints one PASS/FAIL line per
+/// check, then quits with the number of failures as the exit code.
+///   --selftest-shots=DIR   also save a screenshot at each checkpoint (DIR/NN_name.png)
+/// Flows: boot → map modes → zoom ×1/×3/×6/×8 + wrap seam → hover tooltip → panel variants → claim → build → survey →
+/// scouts (targeting, manual + auto, fog reveal) → pause / speed keys → observer → leaderboard → «Новый мир» (mid-action,
+/// double click, then three more worlds checked for leaks) → 1280×720 window.
+/// </summary>
+public partial class SelfTest : Node
+{
+    readonly Main _main;
+    readonly string _shots = Cli.Str("selftest-shots");
+    int _pass, _fail, _shotNo;
+
+    // event recorders
+    readonly List<(string icon, string text)> _notes = new();
+    readonly List<(string text, ToastKind kind)> _toasts = new();
+    readonly List<IReadOnlyList<int>> _provChanges = new();
+    int _fogEvents, _worldReady;
+
+    Game G => Game.I;
+    Hud Hud => _main.Hud;
+
+    public SelfTest(Main main) => _main = main;
+
+    public override void _Ready()
+    {
+        Name = "SelfTest";
+        var g = G;
+        g.Notified += (i, t) => _notes.Add((i, t));
+        g.Toast += (t, _, k) => _toasts.Add((t, k));
+        g.ProvincesChanged += ps => _provChanges.Add(ps);
+        g.FogChanged += _ => _fogEvents++;
+        g.WorldReady += () => _worldReady++;
+        if (_shots != null) DirAccess.MakeDirRecursiveAbsolute(_shots);
+        Run();
+    }
+
+    async void Run()
+    {
+        try
+        {
+            while (!G.IsReady) await Frames(1);
+            await Seconds(.8);                         // loading fade + deferred capital selection
+            await Boot();
+            await Modes();
+            await Zoom();
+            await HoverTip();
+            await Panels();
+            await Claim();
+            await BuildAndSurvey();
+            await ScoutFlow();
+            await TimeControl();
+            await Observer();
+            await LeaderboardFlow();
+            await Regenerate();
+            await SmallWindow();
+        }
+        catch (Exception e)
+        {
+            Fail("exception", e.ToString());
+        }
+        GD.Print($"selftest: {_pass} passed, {_fail} failed");
+        GetTree().Quit(_fail);
+    }
+
+    // ------------------------------------------------------------------ flows
+
+    async Task Boot()
+    {
+        var s = G.State; int cap = Cap;
+        Check("boot: world ready", G.IsReady && G.World.P > 1000, $"P={G.World.P}, generation {G.LastGenerationMs} ms");
+        Check("boot: loading screen gone", !Hud.Loading.Visible);
+        Check("boot: capital selected, panel open", G.Selected == cap && Hud.Panel.Visible && Hud.Panel.Province == cap, $"selected={G.Selected} capital={cap}");
+        Check("boot: panel title is the capital", Hud.Panel.TitleText == G.World.PName[cap], Hud.Panel.TitleText);
+        Check("boot: map has the world", MapView.Current is { HasWorld: true });
+        Check("boot: camera published", G.CameraRect.Size.X > 0 && G.ZoomLevel == 3, $"rect={G.CameraRect} zoom={G.ZoomLevel}");
+        Check("boot: capital visible, some land explored", s.Fog[cap] == 2 && Explored() > 30, $"explored={Explored()}");
+        Check("boot: the player's queue is not already built", !(Simulation.Projects[s.ProjectIndex].Building is Data.Bld b && s.Buildings[cap].Contains(b)), s.QueueName);
+        await Shot("start");
+    }
+
+    async Task Modes()
+    {
+        foreach (var (m, tag) in new[] { (MapMode.Terrain, "ter"), (MapMode.Religion, "rel"), (MapMode.Trade, "trd"), (MapMode.Fertility, "fer"), (MapMode.Political, "pol") })
+        {
+            G.SetMode(m);
+            await Frames(3);
+            Check($"mode {tag}", G.Mode == m);
+            await Shot("mode_" + tag);
+        }
+    }
+
+    async Task Zoom()
+    {
+        var screen = GetViewport().GetVisibleRect().Size;
+        await ZoomTo(1);
+        Check("zoom ×1", G.ZoomLevel == 1 && (G.CameraRect.Size - screen).Length() < 1.5f, $"level={G.ZoomLevel} rect={G.CameraRect.Size}");
+        await Shot("zoom1");
+        await ZoomTo(6);
+        Check("zoom ×6", G.ZoomLevel == 6 && (G.CameraRect.Size * 6 - screen).Length() < 1.5f, $"level={G.ZoomLevel}");
+        await Shot("zoom6");
+        await ZoomTo(8);
+        Check("zoom ×8 (max)", G.ZoomLevel == 8);
+        G.RequestZoom(+1); await Seconds(.3);
+        Check("zoom stays at ×8", G.ZoomLevel == 8);
+        await ZoomTo(3);
+        // wrap seam: centre the view on x = 0 (fog off, so the terrain on both sides shows); the rect must straddle it
+        int cap = Cap;
+        G.SetFogEnabled(false);
+        G.JumpCamera(new Vector2(0, G.World.PCY[cap]));
+        await Seconds(.6);
+        var r = G.CameraRect;
+        float cx = Mathf.PosMod(r.Position.X + r.Size.X / 2 + G.World.W / 2f, G.World.W) - G.World.W / 2f;
+        Check("wrap: view centred on the seam", Mathf.Abs(cx) < 2, $"rect={r}");
+        await Shot("wrap_seam");
+        G.SetFogEnabled(true);
+        G.JumpCamera(new Vector2(G.World.PCX[cap], G.World.PCY[cap]));
+        await Seconds(.6);
+    }
+
+    async Task ZoomTo(int level)
+    {
+        for (int i = 0; i < 10 && G.ZoomLevel != level; i++)
+        {
+            G.RequestZoom(G.ZoomLevel < level ? 1 : -1);
+            await Seconds(.22);
+        }
+        await Seconds(.25);
+    }
+
+    async Task HoverTip()
+    {
+        int p = FirstVisible(q => G.State.Owner[q] > 0) ;
+        if (p < 0) p = FirstVisible(q => G.World.PLand[q] == 1 && q != Cap);
+        Hud.FakeMouse = new Vector2(700, 450);
+        G.Hover(p);
+        await Frames(3);
+        Check("hover: province tooltip shown", Hud.Tip.Visible, $"p={p} {G.World.PName[p]}");
+        await Shot("hover_tip");
+        G.Hover(-1);
+        await Frames(2);
+        Check("hover: tooltip hides", !Hud.Tip.Visible);
+        Hud.FakeMouse = null;
+    }
+
+    async Task Panels()
+    {
+        var w = G.World; var s = G.State;
+        int foreign = FirstKnown(q => s.Owner[q] > 0);
+        int unowned = FirstKnown(q => w.PLand[q] == 1 && s.Owner[q] < 0);
+        int sea = FirstKnown(q => w.PLand[q] == 0);
+        int fog = First(q => w.PLand[q] == 1 && s.Fog[q] == 0 && w.SameBody(q, Cap));
+        await ShowPanel("foreign", foreign, p => w.PName[p]);
+        await ShowPanel("unowned", unowned, p => w.PName[p]);
+        await ShowPanel("sea", sea, p => w.PName[p]);
+        await ShowPanel("fog", fog, _ => "Неизведанные земли");
+        G.Select(-1); await Frames(2);
+        Check("panel: deselect closes it", !Hud.Panel.Visible);
+    }
+
+    async Task ShowPanel(string tag, int p, Func<int, string> titleOf)
+    {
+        if (p < 0) { Pass($"panel {tag} (skipped: none known in this world)"); return; }
+        string title = titleOf(p);
+        G.Select(p);
+        G.JumpCamera(new Vector2(G.World.PCX[p], G.World.PCY[p]));
+        await Seconds(.45);
+        Check($"panel {tag}", Hud.Panel.Visible && Hud.Panel.Province == p && Hud.Panel.TitleText == title, $"p={p} title={Hud.Panel.TitleText}");
+        await Shot("panel_" + tag);
+    }
+
+    async Task Claim()
+    {
+        var w = G.World; var s = G.State;
+        int p = First(G.CanClaim);
+        if (p < 0) { Fail("claim", "nothing claimable"); return; }
+        int notes = _notes.Count, changes = _provChanges.Count;
+        G.Select(p);
+        G.JumpCamera(new Vector2(w.PCX[p], w.PCY[p]));
+        await Seconds(.4);
+        double gold = s.Gold;
+        G.Claim(p);
+        double charged = gold - s.Gold;   // read now: a year may tick during the frames below
+        await Frames(3);
+        Check("claim: province joins", s.Owner[p] == GameState.LocalPlayer, w.PName[p]);
+        Check("claim: gold charged", Math.Abs(charged - Game.ClaimCost) < .01, $"−{charged:F0}");
+        Check("claim: chronicle entry", _notes.Skip(notes).Any(n => n.icon == "flag"));
+        Check("claim: ProvincesChanged raised", _provChanges.Skip(changes).Any(ps => ps != null && ps.Contains(p)));
+        Check("claim: panel shows own province", Hud.Panel.Visible && Hud.Panel.Province == p && Hud.Panel.TitleText == w.PName[p]);
+        await Shot("claimed");
+
+        int far = First(q => w.PLand[q] == 1 && s.Owner[q] < 0 && s.Explored[q] && !Rules.Borders(w, s, q, GameState.LocalPlayer));
+        int toasts = _toasts.Count;
+        if (far >= 0) G.Claim(far);
+        Check("claim refused far away (red toast)", far >= 0 && s.Owner[far] < 0 && _toasts.Skip(toasts).Any(t => t.kind == ToastKind.Error));
+    }
+
+    async Task BuildAndSurvey()
+    {
+        var w = G.World; var s = G.State;
+        int p = First(q => s.Owner[q] == GameState.LocalPlayer && G.BuildOptions(q).Count > 0);
+        if (p < 0) { Fail("build", "no free plot"); return; }
+        var b = G.BuildOptions(p)[0];
+        int notes = _notes.Count;
+        G.Select(p);
+        await Frames(2);
+        double gold = s.Gold;
+        G.Build(p, b);
+        double charged = gold - s.Gold;
+        await Frames(3);
+        Check("build: building added", s.Buildings[p].Contains(b), $"{Data.BldName[(int)b]} in {w.PName[p]}");
+        Check("build: gold charged", Math.Abs(charged - G.BuildCost(b)) < .01, $"−{charged:F0}");
+        Check("build: chronicle entry", _notes.Skip(notes).Any(n => n.icon == "hammer"));
+        await Shot("built");
+
+        int toasts = _toasts.Count;
+        int foreign = First(q => s.Owner[q] > 0);
+        G.Build(foreign, Data.Bld.Shrine);
+        Check("build refused abroad (red toast)", !s.Buildings[foreign].Contains(Data.Bld.Shrine) || _toasts.Skip(toasts).Any(t => t.kind == ToastKind.Error));
+
+        int ore = First(q => s.Owner[q] == GameState.LocalPlayer && !s.OreFound[q] && G.MayHaveOre(q));
+        if (ore < 0) ore = ClaimTowardsHills();
+        if (ore < 0) { Pass("survey (skipped: no hills within reach)"); return; }
+        notes = _notes.Count;
+        G.Select(ore);
+        await Frames(2);
+        G.Survey(ore);
+        await Frames(3);
+        Check("survey: done", s.OreFound[ore] && _notes.Skip(notes).Any(n => n.icon == "shovel"), _notes.LastOrDefault().text);
+        await Shot("surveyed");
+    }
+
+    /// <summary>No hills at home: claim a chain of explored tribal land up to the nearest hill province.</summary>
+    int ClaimTowardsHills()
+    {
+        var w = G.World; var s = G.State;
+        var prev = new int[w.P]; Array.Fill(prev, -2);
+        var q = new Queue<int>();
+        for (int p = 0; p < w.P; p++) if (s.Owner[p] == GameState.LocalPlayer) { prev[p] = -1; q.Enqueue(p); }
+        while (q.Count > 0)
+        {
+            int p = q.Dequeue();
+            if (s.Owner[p] < 0 && G.MayHaveOre(p))
+            {
+                var chain = new List<int>();
+                for (int c = p; c >= 0 && s.Owner[c] < 0; c = prev[c]) chain.Add(c);
+                chain.Reverse();
+                if (chain.Count * Game.ClaimCost > s.Gold) return -1;   // too far to afford
+                foreach (int c in chain) { if (!G.CanClaim(c)) return -1; G.Claim(c); }
+                return p;
+            }
+            foreach (int n in w.Adj[p])
+                if (prev[n] == -2 && w.PLand[n] == 1 && s.Owner[n] < 0 && s.Explored[n]) { prev[n] = p; q.Enqueue(n); }
+        }
+        return -1;
+    }
+
+    async Task ScoutFlow()
+    {
+        var w = G.World; var s = G.State; int cap = Cap;
+        G.Select(cap);
+        G.JumpCamera(new Vector2(w.PCX[cap], w.PCY[cap]));
+        await ZoomTo(2);
+        int toasts = _toasts.Count;
+        G.BeginScoutTargeting();
+        await Frames(2);
+        Check("scouts: targeting on, pick toast", G.IsTargeting && _toasts.Skip(toasts).Any(t => t.kind == ToastKind.Pick));
+        await Shot("targeting");
+        int sea = First(q => w.PLand[q] == 0);
+        toasts = _toasts.Count;
+        G.SendScout(sea);
+        Check("scouts: sea refused, still targeting", G.IsTargeting && s.Scouts.Count == 0 && _toasts.Skip(toasts).Any(t => t.kind == ToastKind.Error));
+        PressKey(Key.Escape);
+        await Frames(3);
+        Check("scouts: Esc cancels targeting", !G.IsTargeting);
+
+        // a far unexplored target on the home continent
+        int target = -1; float best = 0;
+        for (int q = 0; q < w.P; q++)
+            if (w.PLand[q] == 1 && s.Fog[q] == 0 && w.SameBody(q, cap))
+            {
+                float d = Simulation.Distance(w, q, cap);
+                if (d < 420 && d > best) { best = d; target = q; }
+            }
+        if (target < 0) { Fail("scouts: target", "no unexplored land on the continent"); return; }
+        G.BeginScoutTargeting();
+        bool sent = G.SendScout(target);
+        bool auto = G.SendScoutAuto();
+        toasts = _toasts.Count;
+        bool third = G.SendScoutAuto();
+        await Frames(2);
+        Check("scouts: manual + auto sent", sent && auto && s.Scouts.Count == 2 && !G.IsTargeting);
+        Check("scouts: third party refused", !third && _toasts.Skip(toasts).Any(t => t.kind == ToastKind.Error));
+
+        int explored0 = Explored(), fog0 = _fogEvents, notes = _notes.Count;
+        G.SetSpeed(5);
+        await Seconds(1.2);
+        await Shot("scouts_walking");
+        var t0 = Time.GetTicksMsec();
+        while (s.Scouts.Count > 0 && Time.GetTicksMsec() - t0 < 45000) await Frames(10);
+        G.SetSpeed(2);
+        Check("scouts: both parties returned", s.Scouts.Count == 0, $"{(Time.GetTicksMsec() - t0) / 1000.0:F1} s at speed 5");
+        Check("scouts: fog revealed", Explored() > explored0 && _fogEvents > fog0, $"explored {explored0} → {Explored()}, {_fogEvents - fog0} fog events");
+        Check("scouts: target now on the map", s.Fog[target] != 0, w.PName[target]);
+        Check("scouts: two «вернулись» notes", _notes.Skip(notes).Count(n => n.icon == "map-2") == 2);
+        await ZoomTo(1);
+        await Shot("scouts_done");
+        await ZoomTo(3);
+    }
+
+    async Task TimeControl()
+    {
+        var s = G.State;
+        G.SetPaused(true);
+        int y = s.Year;
+        await Seconds(1.1);
+        Check("pause: the year stands still", s.Year == y && s.Paused);
+        await Shot("paused");
+        PressKey(Key.Space);
+        await Frames(2);
+        Check("Space resumes", !s.Paused);
+        PressKey(Key.Key5);
+        await Frames(2);
+        Check("key 5 → speed 5", s.Speed == 5);
+        y = s.Year;
+        await Seconds(1.05);
+        Check("speed 5: ~10 years a second", s.Year - y >= 8, $"{s.Year - y} years");
+        PressKey(Key.Key2);
+        await Frames(2);
+        Check("key 2 → speed 2", s.Speed == 2);
+    }
+
+    async Task Observer()
+    {
+        int metBefore = G.Leaderboard().Count;
+        G.SetFogEnabled(false);
+        await Frames(3);
+        Check("observer: every nation listed", G.Leaderboard().Count == Data.Nations.Length && G.UnmetNations == 0);
+        await ZoomTo(1);
+        await Shot("observer");
+        G.SetFogEnabled(true);
+        await Frames(3);
+        Check("observer off: back to met nations", G.Leaderboard().Count == metBefore, $"{metBefore} met");
+        await ZoomTo(3);
+    }
+
+    async Task LeaderboardFlow()
+    {
+        Hud.DebugToggleLead();
+        await Seconds(.3);
+        Check("leaderboard opens", Hud.Lead.Visible);
+        await Shot("leaderboard");
+        PressKey(Key.Escape);
+        await Frames(3);
+        Check("Esc closes the leaderboard", !Hud.Lead.Visible);
+    }
+
+    async Task Regenerate()
+    {
+        var old = G.World; int ready = _worldReady;
+        // leave the old world busy: scouts out, targeting on, foreign selection, leaderboard open, paused, religion map
+        G.SendScoutAuto();
+        G.Select(First(q => G.State.Owner[q] > 0));
+        Hud.DebugToggleLead();
+        G.SetMode(MapMode.Religion);
+        G.SetPaused(true);
+        G.BeginScoutTargeting();
+        await Frames(3);
+
+        var regen = (BaseButton)Hud.Mini.DebugTarget("regen");
+        regen.EmitSignal(BaseButton.SignalName.Pressed);
+        await Frames(2);
+        Check("regen: loading screen shown", Hud.Loading.Visible && !G.IsReady);
+        await Shot("regen_loading");
+        regen.EmitSignal(BaseButton.SignalName.Pressed);   // an impatient second click supersedes the first
+        var t0 = Time.GetTicksMsec();
+        while (_worldReady == ready && Time.GetTicksMsec() - t0 < 15000) await Frames(2);
+        await Seconds(.8);
+        Check("regen: exactly one new world", _worldReady == ready + 1 && G.IsReady && G.World != old && G.World.Seed == G.Seed, $"ready events {_worldReady - ready}, seed {G.Seed}");
+        var s = G.State; int cap = Cap;
+        Check("regen: clean state", s.Scouts.Count == 0 && !G.IsTargeting && !s.Paused && s.Year <= -1245, $"year {s.Year}, scouts {s.Scouts.Count}");
+        Check("regen: capital selected again", G.Selected == cap && Hud.Panel.Visible && Hud.Panel.TitleText == G.World.PName[cap]);
+        Check("regen: overlays closed", !Hud.Lead.Visible && !Hud.Loading.Visible);
+        Check("regen: map rebuilt", MapView.Current is { HasWorld: true } && G.CameraRect.Size.X > 0);
+        Check("regen: fog of the new world", s.Fog[cap] == 2 && Explored() < G.World.P / 2);
+        G.SetMode(MapMode.Political);
+        await Frames(3);
+        await Shot("regen_done");
+
+        // three more worlds in a row: nodes, objects and memory must not pile up
+        var (objects0, nodes0, managed0) = Footprint();
+        for (int k = 0; k < 3; k++)
+        {
+            ready = _worldReady;
+            G.RegenerateWorld(4242 + k);
+            t0 = Time.GetTicksMsec();
+            while (_worldReady == ready && Time.GetTicksMsec() - t0 < 15000) await Frames(2);
+            await Seconds(.6);
+        }
+        var (objects1, nodes1, managed1) = Footprint();
+        Check("regen ×3: nothing piles up", objects1 - objects0 < 200 && nodes1 - nodes0 < 20 && managed1 - managed0 < 40,
+            $"objects {objects0} → {objects1}, nodes {nodes0} → {nodes1}, managed {managed0:F0} → {managed1:F0} MB");
+    }
+
+    static (int objects, int nodes, double managedMb) Footprint()
+    {
+        GC.Collect(); GC.WaitForPendingFinalizers(); GC.Collect();
+        return ((int)Performance.GetMonitor(Performance.Monitor.ObjectCount), (int)Performance.GetMonitor(Performance.Monitor.ObjectNodeCount),
+            GC.GetTotalMemory(true) / (1024.0 * 1024.0));
+    }
+
+    async Task SmallWindow()
+    {
+        var win = GetWindow();
+        var old = win.Size;
+        win.Size = new Vector2I(1280, 720);
+        await Seconds(.5);
+        var screen = GetViewport().GetVisibleRect().Size;
+        Check("1280×720: viewport follows the window", screen == new Vector2(1280, 720), $"{screen}");
+        Check("1280×720: camera covers the screen", (G.CameraRect.Size * G.ZoomLevel - screen).Length() < 1.5f, $"{G.CameraRect.Size}");
+        Check("1280×720: panel fits", Hud.Panel.Visible && Hud.Panel.GetGlobalRect().End.Y <= 720 && Hud.Panel.GetGlobalRect().End.X <= 1280);
+        await Shot("small_window");
+        win.Size = old;
+        await Frames(4);
+    }
+
+    // ------------------------------------------------------------------ helpers
+
+    int Cap => G.State.NationCapital[GameState.LocalPlayer];
+    int Explored() { int n = 0; foreach (var e in G.State.Explored) if (e) n++; return n; }
+
+    int First(Func<int, bool> pred) { for (int p = 0; p < G.World.P; p++) if (pred(p)) return p; return -1; }
+    int FirstKnown(Func<int, bool> pred) => First(p => G.State.Fog[p] != 0 && pred(p));
+    int FirstVisible(Func<int, bool> pred) => First(p => G.State.Fog[p] == 2 && pred(p));
+
+    void Check(string name, bool ok, string detail = null) { if (ok) Pass(name, detail); else Fail(name, detail); }
+    void Pass(string name, string detail = null) { _pass++; GD.Print($"selftest PASS {name}{(detail != null ? "  · " + detail : "")}"); }
+    void Fail(string name, string detail = null) { _fail++; GD.PrintErr($"selftest FAIL {name}{(detail != null ? "  · " + detail : "")}"); }
+
+    static void PressKey(Key k)
+    {
+        Input.ParseInputEvent(new InputEventKey { Keycode = k, PhysicalKeycode = k, Pressed = true });
+        Input.ParseInputEvent(new InputEventKey { Keycode = k, PhysicalKeycode = k, Pressed = false });
+    }
+
+    async Task Frames(int n) { for (int i = 0; i < n; i++) await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame); }
+    async Task Seconds(double s) => await ToSignal(GetTree().CreateTimer(s), SceneTreeTimer.SignalName.Timeout);
+
+    async Task Shot(string name)
+    {
+        if (_shots == null) return;
+        await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
+        GetViewport().GetTexture().GetImage().SavePng($"{_shots}/{++_shotNo:00}_{name}.png");
+    }
+}

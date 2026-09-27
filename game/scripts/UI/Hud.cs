@@ -1,0 +1,329 @@
+using System.Collections.Generic;
+using Godot;
+using PaxPixelia.Core;
+using PaxPixelia.Sim;
+
+namespace PaxPixelia.UI;
+
+/// <summary>
+/// All screen-space UI in the gray-white «Мрамор и графит» design (design_final + DESIGN_NOTES.md), built in code:
+/// top bar, notifications, map-mode strip + minimap, province panel, leaderboard, toast, tooltip, loading screen.
+/// Talks to the rest of the game only through <see cref="Game.I"/> events and actions.
+/// Keyboard: Space pause, 1–5 speed, Esc cancels scout targeting → closes the leaderboard → closes the panel.
+/// </summary>
+public partial class Hud : CanvasLayer
+{
+    Control _root;
+    TopBar _top;
+    Notifications _notes;
+    ModeStrip _modes;
+    Minimap _mini;
+    ProvincePanel _panel;
+    Leaderboard _lead;
+    Toast _toast;
+    TipCard _tip;
+    LoadingScreen _loading;
+
+    Control _tipOwner;
+    int _tipProvince = -1;
+    bool _tipDirty;
+    // heavy refreshes are coalesced: fog/ownership events may arrive every tick at speed 5
+    bool _miniDirty, _leadDirty;
+    double _miniCooldown, _leadCooldown;
+
+    /// <summary>Debug hooks (UiDebug): a fixed mouse position for screenshots and the control whose tip is forced.</summary>
+    internal Vector2? FakeMouse;
+    internal Control ForcedTip;
+    internal ProvincePanel Panel => _panel;
+    internal Leaderboard Lead => _lead;
+    internal LoadingScreen Loading => _loading;
+    internal TopBar Top => _top;
+    internal Notifications Notes => _notes;
+    internal Toast ToastView => _toast;
+    internal TipCard Tip => _tip;
+    internal Minimap Mini => _mini;
+    internal bool KeepLoading;
+    internal Control DebugTarget(string name) => _top.DebugTarget(name) ?? _modes.DebugTarget(name) ?? _mini.DebugTarget(name);
+    internal void DebugToggleLead() => ToggleLeaderboard();
+
+    public override void _Ready()
+    {
+        Layer = 10;
+        _root = new Control { MouseFilter = Control.MouseFilterEnum.Ignore, Theme = UiTheme.Build(), TextureFilter = CanvasItem.TextureFilterEnum.Linear };
+        _root.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+        AddChild(_root);
+
+        _top = new TopBar();
+        _top.SetAnchorsPreset(Control.LayoutPreset.TopWide);
+        _top.LeaderboardToggled += ToggleLeaderboard;
+        _top.PauseClicked += TogglePause;
+        _root.AddChild(_top);
+
+        _notes = new Notifications();
+        _root.AddChild(_notes);
+
+        _modes = new ModeStrip();
+        _modes.FogToggled += ToggleFog;
+        _mini = new Minimap(RegenerateWorld);
+        var bottomLeft = Ui.VBox(6, _modes, _mini);
+        bottomLeft.AnchorTop = bottomLeft.AnchorBottom = 1;
+        bottomLeft.OffsetLeft = 12; bottomLeft.OffsetBottom = -12; bottomLeft.OffsetTop = -12;
+        bottomLeft.GrowVertical = Control.GrowDirection.Begin;
+        _root.AddChild(bottomLeft);
+
+        _panel = new ProvincePanel();
+        _root.AddChild(_panel);
+        _lead = new Leaderboard();
+        _root.AddChild(_lead);
+        _toast = new Toast();
+        _root.AddChild(_toast);
+        _tip = new TipCard();
+        _root.AddChild(_tip);
+        _loading = new LoadingScreen();
+        _root.AddChild(_loading);
+
+        Subscribe(true);
+        GetViewport().SizeChanged += OnResize;
+        OnResize();
+        _modes.Refresh();
+        if (Game.I.IsReady) OnWorldReady(); else _loading.ShowNow();
+        UiDebug.Setup(this);
+    }
+
+    public override void _ExitTree()
+    {
+        GetViewport().SizeChanged -= OnResize;
+        if (Game.I != null) Subscribe(false);
+    }
+
+    void Subscribe(bool on)
+    {
+        var g = Game.I;
+        if (on)
+        {
+            g.GenerationProgress += OnProgress; g.WorldReady += OnWorldReady; g.ProvinceSelected += OnSelected;
+            g.MapModeChanged += OnModeChanged; g.ProvincesChanged += OnProvincesChanged; g.FogChanged += OnFogChanged;
+            g.YearTick += OnYearTick; g.TimeControlChanged += OnTimeControl; g.Notified += OnNotified; g.Toast += OnToast;
+            g.CameraMoved += OnCameraMoved; g.TargetingChanged += OnTargeting;
+            g.ScoutsChanged += OnScoutsChanged;
+        }
+        else
+        {
+            g.GenerationProgress -= OnProgress; g.WorldReady -= OnWorldReady; g.ProvinceSelected -= OnSelected;
+            g.MapModeChanged -= OnModeChanged; g.ProvincesChanged -= OnProvincesChanged; g.FogChanged -= OnFogChanged;
+            g.YearTick -= OnYearTick; g.TimeControlChanged -= OnTimeControl; g.Notified -= OnNotified; g.Toast -= OnToast;
+            g.CameraMoved -= OnCameraMoved; g.TargetingChanged -= OnTargeting;
+            g.ScoutsChanged -= OnScoutsChanged;
+        }
+    }
+
+    // ---------------- game events ----------------
+    void OnProgress(string text)
+    {
+        if (!_loading.Visible || _loading.Modulate.A < 1) _loading.ShowNow();
+        _loading.SetStatus($"{text} · зерно {Game.I.Seed}");
+    }
+
+    void OnWorldReady()
+    {
+        _top.OnWorldReady();
+        _mini.View.Resample();
+        _mini.OnCameraMoved();
+        _modes.Refresh();
+        _panel.Close();
+        _notes.Clear();
+        _lead.Refresh();
+        _tipDirty = true;
+        if (!KeepLoading) _loading.FadeOut();
+        if (!Cli.Has("noselect") && !Cli.Has("select")) Callable.From(SelectCapital).CallDeferred();   // --select wins
+    }
+
+    static void SelectCapital()
+    {
+        if (!Game.I.IsReady) return;
+        Game.I.Select(Game.I.State.NationCapital[GameState.LocalPlayer]);
+    }
+
+    void OnSelected(int p) { if (p >= 0) _panel.Open(p); else _panel.Close(); }
+
+    void OnModeChanged(MapMode m)
+    {
+        _modes.Refresh();
+        _mini.View.Recolor();
+    }
+
+    void OnProvincesChanged(IReadOnlyList<int> ps)
+    {
+        _miniDirty = _leadDirty = _tipDirty = true;
+        _top.RefreshResources();
+        _panel.OnProvincesChanged(ps);
+    }
+
+    void OnFogChanged(IReadOnlyList<int> ps)
+    {
+        _miniDirty = _leadDirty = _tipDirty = true;
+        _modes.Refresh();
+        _panel.OnFogChanged();
+    }
+
+    void OnYearTick()
+    {
+        _top.OnYearTick();
+        _panel.OnYearTick();
+        _mini.View.QueueRedraw();
+        _leadDirty = _tipDirty = true;   // province tips update in place, UI tips rebuild: both cheap once a year
+    }
+
+    void OnTimeControl(bool paused, int speed)
+    {
+        _top.RefreshClock();
+        _tipDirty = true;
+    }
+
+    void OnNotified(string icon, string text) => _notes.Add(icon, text);
+
+    void OnToast(string text, float seconds, ToastKind kind) => _toast.Display(text, seconds, kind);
+    void OnCameraMoved() => _mini.OnCameraMoved();
+
+    void OnTargeting(bool on)
+    {
+        _panel.OnTargetingChanged();
+        _tipDirty = true;
+        if (!on && _toast.Visible && _toast.Kind != ToastKind.Info) _toast.HideNow();   // the sim toasts the outcome
+    }
+
+    void OnScoutsChanged()
+    {
+        _panel.OnScoutsChanged();
+        _mini.View.QueueRedraw();
+        _leadDirty = true;
+    }
+
+    // ---------------- actions ----------------
+    void TogglePause()
+    {
+        if (!Game.I.IsReady) return;
+        bool paused = !Game.I.State.Paused;
+        Game.I.SetPaused(paused);
+        if (paused) Game.I.ShowToast("Пауза. В сетевой игре все видят, кто её поставил.");
+    }
+
+    void ToggleFog()
+    {
+        if (!Game.I.IsReady) return;
+        Game.I.SetFogEnabled(!Game.I.State.FogEnabled);   // the sim toasts and drops a selection that went dark
+        _modes.Refresh();
+        _tipDirty = true;
+    }
+
+    void ToggleLeaderboard()
+    {
+        bool open = _lead.Toggle();
+        _top.SetLeaderboardOpen(open);
+        if (open) { _leadCooldown = 1; PlaceLeaderboard(); }
+    }
+
+    void PlaceLeaderboard() => _lead.Place(_top.Trophy.GetGlobalRect(), _root.Size);
+
+    void RegenerateWorld()
+    {
+        int seed = (int)(GD.Randi() % 1_000_000);
+        if (Game.I.IsTargeting) Game.I.CancelScoutTargeting();
+        _panel.Close();
+        if (_lead.Visible) ToggleLeaderboard();
+        _toast.HideNow();
+        _loading.ShowNow();
+        _loading.SetStatus($"Генерация мира · зерно {seed}");
+        Game.I.RegenerateWorld(seed);
+    }
+
+    // ---------------- keyboard ----------------
+    public override void _UnhandledInput(InputEvent e)
+    {
+        if (e is not InputEventKey { Pressed: true, Echo: false } k) return;
+        switch (k.Keycode)
+        {
+            case Key.Space:
+                TogglePause();
+                break;
+            case >= Key.Key1 and <= Key.Key5:
+                if (Game.I.IsReady) Game.I.SetSpeed((int)(k.Keycode - Key.Key0));
+                break;
+            case >= Key.Kp1 and <= Key.Kp5:
+                if (Game.I.IsReady) Game.I.SetSpeed((int)(k.Keycode - Key.Kp0));
+                break;
+            case Key.Escape:
+                if (Game.I.IsTargeting) Game.I.CancelScoutTargeting();
+                else if (_lead.Visible) ToggleLeaderboard();
+                else if (_panel.Visible) Game.I.Select(-1);
+                else return;
+                break;
+            default:
+                return;
+        }
+        GetViewport().SetInputAsHandled();
+    }
+
+    // ---------------- layout ----------------
+    void OnResize()
+    {
+        var size = GetViewport().GetVisibleRect().Size;
+        _top.SetDensity(size.X <= 1440, size.X <= 1180);
+        bool shortScreen = size.Y <= 800;
+        int mw = shortScreen ? 240 : 288, mh = shortScreen ? 135 : 162;
+        _mini.View.SetMapSize(mw, mh);
+        _modes.SetWidth(mw + 14);
+        _panel.SetViewport(size);
+        if (_lead.Visible) Callable.From(PlaceLeaderboard).CallDeferred();
+    }
+
+    // ---------------- tooltip ----------------
+    public override void _Process(double delta)
+    {
+        UpdateTip();
+        _miniCooldown -= delta;
+        if (_miniDirty && _miniCooldown <= 0) { _miniDirty = false; _miniCooldown = .25; _mini.View.Recolor(); }
+        if (_lead.Visible)
+        {
+            _leadCooldown -= delta;
+            if (_leadDirty && _leadCooldown <= 0) { _leadDirty = false; _leadCooldown = 1; _lead.Refresh(); }
+            PlaceLeaderboard();
+        }
+    }
+
+    void UpdateTip()
+    {
+        var vp = GetViewport();
+        var mouse = FakeMouse ?? vp.GetMousePosition();
+        var screen = _root.Size;
+        var hovered = ForcedTip ?? vp.GuiGetHoveredControl();
+        if (hovered != null && !_loading.Visible)
+        {
+            if (Tips.TryFind(hovered, out var owner, out var build))
+            {
+                if (owner != _tipOwner || _tipDirty) { _tip.Build(build); _tipOwner = owner; _tipProvince = -1; _tipDirty = false; }
+                if (ForcedTip != null && FakeMouse == null) mouse = owner.GetGlobalRect().Position + owner.Size * new Vector2(.5f, 1);
+                _tip.ShowAt(mouse, screen);
+            }
+            else HideTip();
+            return;
+        }
+        int p = Game.I.IsReady && !_loading.Visible ? Game.I.Hovered : -1;
+        bool inside = mouse.X >= 0 && mouse.Y >= 0 && mouse.X < screen.X && mouse.Y < screen.Y;
+        if (p < 0 || !inside || (FakeMouse == null && Input.IsMouseButtonPressed(MouseButton.Left))) { HideTip(); return; }
+        if (p != _tipProvince || _tipOwner != null || _tipDirty)
+        {
+            _tipOwner = null; _tipDirty = false;
+            _tipProvince = _tip.BuildProvince(p) ? p : -1;
+            if (_tipProvince < 0) { HideTip(); return; }
+        }
+        _tip.ShowAt(mouse, screen);
+    }
+
+    void HideTip()
+    {
+        _tip.Visible = false;
+        _tipOwner = null;
+        _tipProvince = -1;
+    }
+}

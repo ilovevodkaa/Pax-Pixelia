@@ -1,0 +1,13 @@
+<Project Sdk="Godot.NET.Sdk/4.7.1">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <EnableDynamicLoading>true</EnableDynamicLoading>
+    <RootNamespace>PaxPixelia</RootNamespace>
+    <Nullable>disable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!-- Godot runs the Debug build; without this the JIT skips optimisation for the whole assembly and
+         world generation takes ~0.76 s instead of ~0.27 s. Breakpoints still work. -->
+    <Optimize>true</Optimize>
+  </PropertyGroup>
+</Project>

@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Pax Pixelia — главный экран (макет)</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 16 16%27%3E%3Crect width=%2716%27 height=%2716%27 rx=%273%27 fill=%27%232a2f35%27/%3E%3Cpath d=%27M4 4h3v3H4zM9 4h3v3H9zM4 9h3v3H4z%27 fill=%27%23f4f5f6%27/%3E%3Cpath d=%27M9 9h3v3H9z%27 fill=%27%239aa1a9%27/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link id="fontlink" rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alegreya+SC:wght@500;700;800&family=Fira+Sans+Condensed:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<canvas id="map"></canvas>
+<canvas id="ov"></canvas>
+
+<header id="top">
+  <div class="nation">
+    <canvas id="flag" width="18" height="12"></canvas>
+    <div><div class="nname" id="nname">Ардания</div><div class="nsub">Вождество <span class="dot"></span> Древний мир</div></div>
+  </div>
+  <div class="resbar">
+    <div class="res" data-tip="<b>Казна</b><br>Налоги +18 · Содержание −6<br><span class='mu'>в год</span>"><i class="ti ti-coins"></i><div><span class="cap">Казна</span><span class="v"><b id="r-gold">1 240</b><small class="ok">+12</small></span></div></div>
+    <div class="res" data-tip="<b>Наука</b><br>Жрецы +22 · Святилища +10 · Соседи +6"><i class="ti ti-flask"></i><div><span class="cap">Наука</span><span class="v"><b>38</b><small class="ok">+4</small></span></div></div>
+    <div class="res" data-tip="<b>Население</b><br>Во всех провинциях державы"><i class="ti ti-users"></i><div><span class="cap">Население</span><span class="v"><b id="r-pop">0</b></span></div></div>
+    <div class="res" data-tip="<b>Стабильность</b><br>Довольство попов · законы · вера"><i class="ti ti-scale"></i><div><span class="cap">Стабильность</span><span class="v"><b>62%</b></span></div></div>
+    <div class="res" data-tip="<b>Влияние</b><br>Тратится на законы и дипломатию"><i class="ti ti-feather"></i><div><span class="cap">Влияние</span><span class="v"><b>14</b></span></div></div>
+  </div>
+  <div class="sp"></div>
+  <div class="screens">
+    <button class="ib" data-screen="Технологии" data-tip="Технологии"><i class="ti ti-atom"></i></button>
+    <button class="ib" data-screen="Политика и законы" data-tip="Политика и законы"><i class="ti ti-building-bank"></i></button>
+    <button class="ib" data-screen="Рынок" data-tip="Рынок"><i class="ti ti-building-store"></i></button>
+    <button class="ib" data-screen="Дипломатия" data-tip="Дипломатия"><i class="ti ti-affiliate"></i></button>
+    <button class="ib" data-screen="Религия" data-tip="Религия"><i class="ti ti-sun"></i></button>
+    <button class="ib" id="leadbtn" data-tip="Таблица лидеров"><i class="ti ti-trophy"></i></button>
+  </div>
+  <div class="clock" data-tip="<b>Время</b><br>Древний мир: 1 день игры ≈ 1 год.<br><span class='mu'>Пробел — пауза, 1–5 — скорость</span>">
+    <div id="date">1250 до н. э.</div>
+    <div class="speed"><button id="pause"><i class="ti ti-player-pause"></i></button><div id="pips"></div></div>
+  </div>
+  <button id="session" data-tip="Сколько ты уже играешь"><i class="ti ti-hourglass"></i><span id="sess" class="num">2:14</span></button>
+</header>
+
+<div id="modes" class="pn">
+  <button class="ib" data-m="ter" data-tip="Рельеф"><i class="ti ti-mountain"></i></button>
+  <button class="ib on" data-m="pol" data-tip="Политическая карта"><i class="ti ti-flag"></i></button>
+  <button class="ib" data-m="rel" data-tip="Религии"><i class="ti ti-sun"></i></button>
+  <button class="ib" data-m="trd" data-tip="Торговые пути"><i class="ti ti-route"></i></button>
+  <button class="ib" data-m="fer" data-tip="Плодородие"><i class="ti ti-plant"></i></button>
+  <div class="sep"></div>
+  <button class="ib" id="fogbtn" data-tip="<b>Туман войны</b><br>Видны только разведанные земли"><i class="ti ti-eye-off"></i></button>
+</div>
+
+<aside id="panel" class="pn" hidden></aside>
+<div id="notes"></div>
+<div id="mini" class="pn">
+  <canvas id="minicv" width="256" height="144"></canvas>
+  <div class="mbar">
+    <button id="zout" data-tip="Отдалить"><i class="ti ti-minus"></i></button><span class="z" id="zl">×3</span><button id="zin" data-tip="Приблизить"><i class="ti ti-plus"></i></button>
+    <span class="sp"></span>
+    <button id="regen" data-tip="Сгенерировать новый мир"><i class="ti ti-refresh"></i> Новый мир</button>
+  </div>
+</div>
+<div id="tip" class="pn" hidden></div>
+<div id="toast" class="pn" hidden></div>
+<div id="lead" class="pn" hidden></div>
+<div id="loading"><div class="ld">
+  <svg class="rose" viewBox="-50 -50 100 100" aria-hidden="true">
+    <circle r="47" class="h"/><circle r="43" class="h"/><circle r="17" class="h"/>
+    <circle r="45" class="tk"/><circle r="45" class="tk2"/>
+    <g class="needle">
+      <path d="M0-40L5.5-5.5 0 0Z" class="f"/><path d="M0-40L-5.5-5.5 0 0Z" class="o"/>
+      <path d="M40 0L5.5 5.5 0 0Z" class="f"/><path d="M40 0L5.5-5.5 0 0Z" class="o"/>
+      <path d="M0 40L-5.5 5.5 0 0Z" class="f"/><path d="M0 40L5.5 5.5 0 0Z" class="o"/>
+      <path d="M-40 0L-5.5-5.5 0 0Z" class="f"/><path d="M-40 0L-5.5 5.5 0 0Z" class="o"/>
+      <g transform="rotate(45)"><path d="M0-27L3.5-3.5 0 0Z" class="f"/><path d="M0-27L-3.5-3.5 0 0Z" class="o"/><path d="M27 0L3.5 3.5 0 0Z" class="f"/><path d="M27 0L3.5-3.5 0 0Z" class="o"/><path d="M0 27L-3.5 3.5 0 0Z" class="f"/><path d="M0 27L3.5 3.5 0 0Z" class="o"/><path d="M-27 0L-3.5-3.5 0 0Z" class="f"/><path d="M-27 0L-3.5 3.5 0 0Z" class="o"/></g>
+      <circle r="2.2" class="f"/>
+    </g>
+  </svg>
+  <div class="kick">Глобальная стратегия</div>
+  <div class="big">Pax Pixelia</div>
+  <div class="orn"><i></i><b></b><i></i></div>
+  <div class="sm" id="loadtxt">Генерация мира…</div>
+  <div class="lbar"><span></span></div>
+</div></div>
+
+<script src="js/core.js"></script>
+<script src="js/worldgen.js"></script>
+<script src="js/fog.js"></script>
+<script src="js/render.js"></script>
+<script src="js/ui.js"></script>
+</body>
+</html>

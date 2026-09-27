@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Pure C# console tests for the world generator. Lives outside game/ so Godot doesn't compile it.
+       Compiles the generator sources straight from the game project; override with -p:GameDir=<path to a game copy>/ -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>disable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <Configuration Condition="'$(Configuration)' == ''">Release</Configuration>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <GameDir Condition="'$(GameDir)' == ''">$(MSBuildThisFileDirectory)../../game/</GameDir>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="$(GameDir)scripts/Core/Noise.cs" Link="Game/Core/Noise.cs" />
+    <Compile Include="$(GameDir)scripts/Core/Data.cs" Link="Game/Core/Data.cs" />
+    <Compile Include="$(GameDir)scripts/World/**/*.cs" Link="Game/World/%(RecursiveDir)%(Filename)%(Extension)" />
+    <Compile Include="$(GameDir)scripts/Sim/GameState.cs" Link="Game/Sim/GameState.cs" />
+    <Compile Include="$(GameDir)scripts/Sim/NationGen.cs" Link="Game/Sim/NationGen.cs" />
+    <!-- per-array hashes of the JS mockup generator (node jsdump.js "" SEED > reference/js_SEED.txt) -->
+    <None Include="reference/*.txt" CopyToOutputDirectory="PreserveNewest" LinkBase="reference" />
+  </ItemGroup>
+</Project>

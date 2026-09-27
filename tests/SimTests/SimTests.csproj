@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Pure-C# tests of the simulation (no Godot runtime): links the engine-free sources of the game.
+    Run from D:/supergae:  dotnet run -c Release (project tests/SimTests), optional program argument seed=N
+    Test another copy of the game:  add -p:GameDir=path/to/game
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>disable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <RootNamespace>PaxPixelia.Tests</RootNamespace>
+    <GameDir Condition="'$(GameDir)' == ''">$(MSBuildThisFileDirectory)../../game</GameDir>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="*.cs" />
+    <Compile Include="$(GameDir)/scripts/Core/Data.cs;$(GameDir)/scripts/Core/Noise.cs" Link="Game/Core/%(Filename)%(Extension)" />
+    <Compile Include="$(GameDir)/scripts/World/**/*.cs" Link="Game/World/%(RecursiveDir)%(Filename)%(Extension)" />
+    <!-- Godot-side files of Sim (Game partial, Node driver, debug overlay, YearTick adapter) are left out -->
+    <Compile Include="$(GameDir)/scripts/Sim/**/*.cs"
+             Exclude="$(GameDir)/scripts/Sim/GameActions.cs;$(GameDir)/scripts/Sim/SimDriver.cs;$(GameDir)/scripts/Sim/SimDebugOverlay.cs;$(GameDir)/scripts/Sim/Simulation.cs"
+             Link="Game/Sim/%(RecursiveDir)%(Filename)%(Extension)" />
+  </ItemGroup>
+</Project>
