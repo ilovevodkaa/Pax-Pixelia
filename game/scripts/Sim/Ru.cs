@@ -1,12 +1,8 @@
-using System.Globalization;
-
 namespace PaxPixelia.Sim;
 
 /// <summary>Russian text helpers for generated messages.</summary>
 public static class Ru
 {
-    static readonly NumberFormatInfo Nf = new() { NumberGroupSeparator = " ", NumberDecimalSeparator = "," };
-
     /// <summary>Plural form: Plural(n, "провинция", "провинции", "провинций").</summary>
     public static string Plural(int n, string one, string few, string many)
     {
@@ -16,9 +12,6 @@ public static class Ru
 
     /// <summary>"5 провинций".</summary>
     public static string Count(int n, string one, string few, string many) => $"{n} {Plural(n, one, few, many)}";
-
-    /// <summary>Rounded integer grouped with non-breaking spaces: «12 345».</summary>
-    public static string Num(double v) => System.Math.Round(v).ToString("#,0", Nf);
 
     /// <summary>
     /// Genitive of a state name for «вошла в состав …»: «Ардания» → «Ардании», «Торн» → «Торна», «Кесарат Мирры» → «Кесарата Мирры».

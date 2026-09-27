@@ -62,6 +62,23 @@ internal static class RouteMesh
         pts.Clear(); pts.AddRange(tmp);
     }
 
+    /// <summary>A route as a smooth polyline in world px (x unwrapped along the way, starting in [0, W)).</summary>
+    public static void Polyline(WorldData w, int[] path, List<Vector2> pts)
+    {
+        pts.Clear();
+        float prevX = w.PCX[path[0]] + .5f;
+        pts.Add(new Vector2(prevX, w.PCY[path[0]] + .5f));
+        for (int k = 1; k < path.Length; k++)
+        {
+            float x = w.PCX[path[k]] + .5f;
+            while (x - prevX > w.W / 2f) x -= w.W;
+            while (prevX - x > w.W / 2f) x += w.W;
+            pts.Add(new Vector2(x, w.PCY[path[k]] + .5f));
+            prevX = x;
+        }
+        Chaikin(pts, _tmp); Chaikin(pts, _tmp);          // soften the corners at province centres
+    }
+
     public static ArrayMesh Build(WorldData w, GameState s)
     {
         if (w == null || s?.Routes == null || s.Routes.Count == 0) return null;
@@ -70,18 +87,7 @@ internal static class RouteMesh
         foreach (var path in s.Routes)
         {
             if (path == null || path.Length < 2) continue;
-            pts.Clear();
-            float prevX = w.PCX[path[0]] + .5f;
-            pts.Add(new Vector2(prevX, w.PCY[path[0]] + .5f));
-            for (int k = 1; k < path.Length; k++)
-            {
-                float x = w.PCX[path[k]] + .5f;
-                while (x - prevX > w.W / 2f) x -= w.W;
-                while (prevX - x > w.W / 2f) x += w.W;
-                pts.Add(new Vector2(x, w.PCY[path[k]] + .5f));
-                prevX = x;
-            }
-            Chaikin(pts, _tmp); Chaikin(pts, _tmp);          // soften the corners at province centres
+            Polyline(w, path, pts);
             for (int c = -1; c <= 1; c++) strip.Add(pts, c * w.W, static (_, _) => 1f);
         }
         return strip.Build();

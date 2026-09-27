@@ -1,5 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!-- Pure C# console tests for the world generator. Lives outside game/ so Godot doesn't compile it.
+  <!-- Pure C# console tests for the world generator (world only; nations are covered by SimTests). Lives outside game/ so Godot doesn't compile it.
        Compiles the generator sources straight from the game project; override with -p:GameDir=<path to a game copy>/ -->
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -14,10 +14,10 @@
   <ItemGroup>
     <Compile Include="$(GameDir)scripts/Core/Noise.cs" Link="Game/Core/Noise.cs" />
     <Compile Include="$(GameDir)scripts/Core/Data.cs" Link="Game/Core/Data.cs" />
+    <!-- Data.Nation carries a FlagSpec -->
+    <Compile Include="$(GameDir)scripts/Core/Flags/FlagSpec.cs;$(GameDir)scripts/Core/Flags/FlagPatterns.cs" Link="Game/Core/Flags/%(Filename)%(Extension)" />
     <Compile Include="$(GameDir)scripts/World/**/*.cs" Link="Game/World/%(RecursiveDir)%(Filename)%(Extension)" />
-    <Compile Include="$(GameDir)scripts/Sim/GameState.cs" Link="Game/Sim/GameState.cs" />
-    <Compile Include="$(GameDir)scripts/Sim/NationGen.cs" Link="Game/Sim/NationGen.cs" />
-    <!-- per-array hashes of the JS mockup generator (node jsdump.js "" SEED > reference/js_SEED.txt) -->
+    <!-- golden per-array hashes of the last blessed generator: rewritten by running with the bless flag -->
     <None Include="reference/*.txt" CopyToOutputDirectory="PreserveNewest" LinkBase="reference" />
   </ItemGroup>
 </Project>

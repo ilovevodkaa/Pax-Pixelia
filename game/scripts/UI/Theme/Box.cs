@@ -5,234 +5,169 @@ using Godot;
 namespace PaxPixelia.UI;
 
 /// <summary>
-/// The surface primitive of the design: gradient fill (vertical or horizontal), 1px hairline border (solid or dashed,
-/// per side), per-corner radius, stacked soft shadows, inset rules (the top bar's double rule, 3px nation-colour accents)
-/// and an optional inner frame. A single StyleBoxFlat can do none of the stacking, so Box composes a few of them.
-/// Configure with the fluent setters before handing it to a control; only <see cref="SetAccent"/> is meant for later changes.
+/// The pixel surface primitive: square corners only, solid fill, optional Bayer-dithered gradient band and film grain,
+/// 2px frames (solid or pixel-dashed, per side), a HARD offset shadow (an L of solid pixels, never blurred),
+/// inset rules and the hover accent bar at the left. Configure with the fluent setters before handing it to a control.
+/// Drawing is a handful of rects per box; textures (dither bands, grain) are generated once and cached.
 /// </summary>
 public partial class Box : StyleBox
 {
-    Color _top = Colors.Transparent, _bottom = Colors.Transparent;
-    bool _horizontal;
+    Color _fill = Colors.Transparent;
     Color _border = Colors.Transparent;
     int _bl, _bt, _br, _bb;
-    bool _dashed;
-    int _rtl, _rtr, _rbr, _rbl;
-    readonly List<(Color Color, int Size, Vector2 Offset)> _shadows = new();
+    int _dash;
+    Vector2I _shadow;
+    Color _shadowColor = Pal.Shadow;
     readonly List<(int Y, int H, Color Color, bool FromBottom)> _rules = new();
-    (int H, Color Color) _accent;
-    (int Inset, Color Color) _inner;
+    (int W, Color Color) _accentLeft;
+    (Color Top, Color Bottom, int Band, int Px) _dither;
+    Texture2D _ditherTex;
+    bool _grain;
 
-    StyleBoxFlat[] _shadowBoxes = Array.Empty<StyleBoxFlat>();
-    StyleBoxFlat _fill, _edge, _innerEdge;
-    bool _dirty = true;
-
-    // polygon cache for the gradient overlay (last rect drawn)
-    Rect2 _polyRect;
-    Vector2[] _poly;
-    Color[] _polyCol;
+    public Box() { ContentMarginLeft = ContentMarginTop = ContentMarginRight = ContentMarginBottom = 0; }
 
     // ---------------- fluent configuration ----------------
-    public Box Fill(Color c) { _top = _bottom = c; return Touch(); }
-    public Box Fill(Color top, Color bottom, bool horizontal = false) { _top = top; _bottom = bottom; _horizontal = horizontal; return Touch(); }
-    public Box Border(Color c, int w = 1) => Border(c, w, w, w, w);
-    public Box Border(Color c, int l, int t, int r, int b) { _border = c; _bl = l; _bt = t; _br = r; _bb = b; return Touch(); }
-    public Box Dashed() { _dashed = true; return Touch(); }
-    public Box Radius(int r) => Radius(r, r, r, r);
-    public Box Radius(int tl, int tr, int br, int bl) { _rtl = tl; _rtr = tr; _rbr = br; _rbl = bl; return Touch(); }
-    public Box Shadow(Color c, int size, float offsetY = 0) { _shadows.Add((c, size, new Vector2(0, offsetY))); return Touch(); }
-    /// <summary>Horizontal band inside the box, drawn under the border; y from the top (or from the bottom).</summary>
-    public Box Rule(int y, int h, Color c, bool fromBottom = false) { _rules.Add((y, h, c, fromBottom)); return Touch(); }
-    /// <summary>Band of <paramref name="h"/> px at the very bottom, drawn over the border (the 3px owner-colour rule).</summary>
-    public Box Accent(Color c, int h = 3) { _accent = (h, c); return Touch(); }
-    /// <summary>1px frame inset from the outer edge (the loading plate's double frame).</summary>
-    public Box Inner(int inset, Color c) { _inner = (inset, c); return Touch(); }
+    public Box Fill(Color c) { _fill = c; return this; }
+    /// <summary>Vertical gradient over the top <paramref name="band"/> px, quantised to 4 tones with a 4×4 Bayer
+    /// pattern in <paramref name="px"/>-sized virtual pixels (the Mr. President skies, on a panel).</summary>
+    public Box Dither(Color top, Color bottom, int band, int px = 2) { _dither = (top, bottom, band, px); _ditherTex = null; return this; }
+    public Box Grain(bool on = true) { _grain = on; return this; }
+    public Box Border(Color c, int w = 2) => Border(c, w, w, w, w);
+    public Box Border(Color c, int l, int t, int r, int b) { _border = c; _bl = l; _bt = t; _br = r; _bb = b; return this; }
+    /// <summary>Pixel-dashed frame: dashes and gaps of <paramref name="dash"/> px.</summary>
+    public Box Dashed(int dash = 4) { _dash = dash; return this; }
+    /// <summary>Hard drop shadow offset right/down by (x, y) — solid, no blur.</summary>
+    public Box Shadow(int x = 4, int y = -1, Color? c = null) { _shadow = new Vector2I(x, y < 0 ? x : y); if (c is { } cc) _shadowColor = cc; return this; }
+    /// <summary>Horizontal band inside the frame; y from the top (or from the bottom).</summary>
+    public Box Rule(int y, int h, Color c, bool fromBottom = false) { _rules.Add((y, h, c, fromBottom)); return this; }
+    /// <summary>Bar of <paramref name="w"/> px along the left edge, over the frame (the BigButton hover accent).</summary>
+    public Box AccentLeft(Color c, int w = 4) { _accentLeft = (w, c); return this; }
     public Box Pad(float all) => Pad(all, all, all, all);
+    public Box Pad(float h, float v) => Pad(h, v, h, v);
     public Box Pad(float l, float t, float r, float b)
     {
         ContentMarginLeft = l; ContentMarginTop = t; ContentMarginRight = r; ContentMarginBottom = b;
         return this;
     }
 
-    public void SetAccent(Color c)
-    {
-        if (_accent.Color == c) return;
-        _accent.Color = c;
-        EmitChanged();
-    }
-
-    Box Touch() { _dirty = true; _polyRect = default; return this; }
-
-    public Box()
-    {
-        ContentMarginLeft = ContentMarginTop = ContentMarginRight = ContentMarginBottom = 0;
-    }
 
     // ---------------- drawing ----------------
-    public override Rect2 _GetDrawRect(Rect2 rect)
-    {
-        var r = rect;
-        foreach (var s in _shadows) r = r.Merge(new Rect2(rect.Position + s.Offset, rect.Size).Grow(s.Size));
-        return r;
-    }
+    public override Rect2 _GetDrawRect(Rect2 rect) => new(rect.Position, rect.Size + new Vector2(_shadow.X, _shadow.Y));
 
     public override void _Draw(Rid ci, Rect2 rect)
     {
-        if (_dirty) Bake();
-        foreach (var s in _shadowBoxes) s.Draw(ci, rect);
-
-        if (_fill != null)
+        rect = new Rect2(rect.Position.Round(), rect.Size.Round());
+        float x0 = rect.Position.X, y0 = rect.Position.Y, x1 = rect.End.X, y1 = rect.End.Y;
+        if (_shadow != Vector2I.Zero && _shadowColor.A > 0)
         {
-            _fill.Draw(ci, rect);
-            if (_top != _bottom) DrawGradient(ci, rect);
+            // the L below and right of the box only: a translucent card must not darken over its own shadow
+            Rect(ci, x0 + _shadow.X, y1, rect.Size.X, _shadow.Y, _shadowColor);
+            Rect(ci, x1, y0 + _shadow.Y, _shadow.X, rect.Size.Y - _shadow.Y, _shadowColor);
         }
+        if (_fill.A > 0) Rect(ci, x0, y0, rect.Size.X, rect.Size.Y, _fill);
+
+        var inner = new Rect2(x0 + _bl, y0 + _bt, rect.Size.X - _bl - _br, rect.Size.Y - _bt - _bb);
+        if (_dither.Band > 0 && inner.Size.X > 0)
+        {
+            _ditherTex ??= PixelTex.DitherBand(_dither.Top, _dither.Bottom, _dither.Band, _dither.Px);
+            float h = Math.Min(_dither.Band, inner.Size.Y);
+            RenderingServer.CanvasItemAddTextureRectRegion(ci, new Rect2(inner.Position, new Vector2(inner.Size.X, h)), _ditherTex.GetRid(),
+                new Rect2(0, 0, inner.Size.X, h));
+        }
+        if (_grain && inner.Size.X > 0)
+            RenderingServer.CanvasItemAddTextureRectRegion(ci, inner, PixelTex.Grain.GetRid(), new Rect2(Vector2.Zero, inner.Size));
 
         foreach (var (y, h, c, fromBottom) in _rules)
-        {
-            float top = fromBottom ? rect.End.Y - y - h : rect.Position.Y + y;
-            float l = rect.Position.X + _bl, w = rect.Size.X - _bl - _br;
-            RenderingServer.CanvasItemAddRect(ci, new Rect2(l, top, w, h), c);
-        }
+            Rect(ci, inner.Position.X, fromBottom ? y1 - _bb - y - h : y0 + _bt + y, inner.Size.X, h, c);
 
         if (_border.A > 0)
         {
-            if (_dashed) DrawDashed(ci, rect);
-            else _edge.Draw(ci, rect);
-        }
-
-        if (_innerEdge != null) _innerEdge.Draw(ci, rect.Grow(-_inner.Inset));
-
-        if (_accent.H > 0 && _accent.Color.A > 0)
-            RenderingServer.CanvasItemAddRect(ci, new Rect2(rect.Position.X, rect.End.Y - _accent.H, rect.Size.X, _accent.H), _accent.Color);
-    }
-
-    void Bake()
-    {
-        _dirty = false;
-        _shadowBoxes = new StyleBoxFlat[_shadows.Count];
-        for (int i = 0; i < _shadows.Count; i++)
-        {
-            var (c, size, off) = _shadows[i];
-            var sb = Flat(Colors.Transparent);
-            sb.ShadowColor = c; sb.ShadowSize = size; sb.ShadowOffset = off;
-            _shadowBoxes[i] = sb;
-        }
-        _fill = _top.A > 0 || _bottom.A > 0 ? Flat(_bottom) : null;
-        _edge = null;
-        if (_border.A > 0 && !_dashed)
-        {
-            _edge = Flat(Colors.Transparent);
-            _edge.DrawCenter = false;
-            _edge.BorderColor = _border;
-            _edge.BorderWidthLeft = _bl; _edge.BorderWidthTop = _bt; _edge.BorderWidthRight = _br; _edge.BorderWidthBottom = _bb;
-        }
-        _innerEdge = null;
-        if (_inner.Inset > 0)
-        {
-            _innerEdge = Flat(Colors.Transparent);
-            _innerEdge.DrawCenter = false;
-            _innerEdge.BorderColor = _inner.Color;
-            _innerEdge.SetBorderWidthAll(1);
-            _innerEdge.CornerRadiusTopLeft = Math.Max(0, _rtl - _inner.Inset); _innerEdge.CornerRadiusTopRight = Math.Max(0, _rtr - _inner.Inset);
-            _innerEdge.CornerRadiusBottomRight = Math.Max(0, _rbr - _inner.Inset); _innerEdge.CornerRadiusBottomLeft = Math.Max(0, _rbl - _inner.Inset);
-        }
-    }
-
-    StyleBoxFlat Flat(Color bg)
-    {
-        var sb = new StyleBoxFlat
-        {
-            BgColor = bg,
-            CornerRadiusTopLeft = _rtl, CornerRadiusTopRight = _rtr, CornerRadiusBottomRight = _rbr, CornerRadiusBottomLeft = _rbl,
-            CornerDetail = 6,
-            AntiAliasing = _rtl + _rtr + _rbr + _rbl > 0,
-            AntiAliasingSize = .6f,
-        };
-        return sb;
-    }
-
-    /// <summary>
-    /// Gradient overlay: a rounded polygon inset by the border (at least 1px) so the anti-aliased edge of the flat
-    /// fill underneath stays visible and the aliased polygon edge only ever meets a nearly identical colour.
-    /// </summary>
-    void DrawGradient(Rid ci, Rect2 rect)
-    {
-        if (rect != _polyRect || _poly == null)
-        {
-            _polyRect = rect;
-            int inset = Math.Max(1, Math.Max(Math.Max(_bl, _bt), Math.Max(_br, _bb)));
-            if (_bl + _bt + _br + _bb == 0 && _rtl + _rtr + _rbr + _rbl == 0) inset = 0;
-            var r = rect.Grow(-inset);
-            int max = (int)(Mathf.Min(r.Size.X, r.Size.Y) / 2);
-            if (max <= 0) return;
-            var pts = new List<Vector2>(40);
-            Corner(pts, new Vector2(r.Position.X, r.Position.Y), Math.Min(max, _rtl - inset), 1, 1, Mathf.Pi);
-            Corner(pts, new Vector2(r.End.X, r.Position.Y), Math.Min(max, _rtr - inset), -1, 1, Mathf.Pi * 1.5f);
-            Corner(pts, new Vector2(r.End.X, r.End.Y), Math.Min(max, _rbr - inset), -1, -1, 0);
-            Corner(pts, new Vector2(r.Position.X, r.End.Y), Math.Min(max, _rbl - inset), 1, -1, Mathf.Pi * .5f);
-            // arcs of neighbouring corners may meet in one point (pill/round shapes): drop duplicates or triangulation fails
-            for (int i = pts.Count - 1; i > 0; i--) if (pts[i].DistanceSquaredTo(pts[i - 1]) < 1e-4f) pts.RemoveAt(i);
-            if (pts.Count > 1 && pts[0].DistanceSquaredTo(pts[^1]) < 1e-4f) pts.RemoveAt(pts.Count - 1);
-            _poly = pts.ToArray();
-            _polyCol = new Color[_poly.Length];
-            for (int i = 0; i < _poly.Length; i++)
+            if (_dash > 0) Dashes(ci, rect);
+            else
             {
-                float t = _horizontal ? (_poly[i].X - rect.Position.X) / Math.Max(1, rect.Size.X) : (_poly[i].Y - rect.Position.Y) / Math.Max(1, rect.Size.Y);
-                _polyCol[i] = _top.Lerp(_bottom, Mathf.Clamp(t, 0, 1));
+                if (_bt > 0) Rect(ci, x0, y0, rect.Size.X, _bt, _border);
+                if (_bb > 0) Rect(ci, x0, y1 - _bb, rect.Size.X, _bb, _border);
+                if (_bl > 0) Rect(ci, x0, y0 + _bt, _bl, rect.Size.Y - _bt - _bb, _border);
+                if (_br > 0) Rect(ci, x1 - _br, y0 + _bt, _br, rect.Size.Y - _bt - _bb, _border);
             }
         }
-        RenderingServer.CanvasItemAddPolygon(ci, _poly, _polyCol);
+        if (_accentLeft.W > 0 && _accentLeft.Color.A > 0) Rect(ci, x0, y0, _accentLeft.W, rect.Size.Y, _accentLeft.Color);
     }
 
-    /// <summary>Arc points of one rounded corner (clockwise). sx/sy point from the corner towards the arc centre.</summary>
-    static void Corner(List<Vector2> pts, Vector2 corner, int radius, int sx, int sy, float a0)
+    static void Rect(Rid ci, float x, float y, float w, float h, Color c)
     {
-        if (radius <= 0) { pts.Add(corner); return; }
-        var c = corner + new Vector2(sx * radius, sy * radius);
-        int seg = radius <= 3 ? 2 : radius <= 8 ? 4 : 8;
-        for (int i = 0; i <= seg; i++)
-        {
-            float a = a0 + Mathf.Pi * .5f * i / seg;
-            pts.Add(c + new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * radius);
-        }
+        if (w > 0 && h > 0) RenderingServer.CanvasItemAddRect(ci, new Rect2(x, y, w, h), c);
     }
 
-    /// <summary>CSS-like 1px dashed border (3px dash / 3px gap) with solid anti-aliased corner arcs.</summary>
-    void DrawDashed(Rid ci, Rect2 rect)
+    /// <summary>Square dashes along each framed side; corners are always solid so the frame reads as closed.</summary>
+    void Dashes(Rid ci, Rect2 rect)
     {
-        const int dash = 3, gap = 3;
         float x0 = rect.Position.X, y0 = rect.Position.Y, x1 = rect.End.X, y1 = rect.End.Y;
-        int r = _rtl; // dashed boxes use a uniform radius
-        for (float x = x0 + r; x < x1 - r; x += dash + gap)
+        int step = _dash * 2;
+        for (float x = x0; x < x1; x += step)
         {
-            float w = Math.Min(dash, x1 - r - x);
-            RenderingServer.CanvasItemAddRect(ci, new Rect2(x, y0, w, 1), _border);
-            RenderingServer.CanvasItemAddRect(ci, new Rect2(x, y1 - 1, w, 1), _border);
+            float w = Math.Min(_dash, x1 - x);
+            if (_bt > 0) Rect(ci, x, y0, w, _bt, _border);
+            if (_bb > 0) Rect(ci, x, y1 - _bb, w, _bb, _border);
         }
-        for (float y = y0 + r; y < y1 - r; y += dash + gap)
+        for (float y = y0; y < y1; y += step)
         {
-            float h = Math.Min(dash, y1 - r - y);
-            RenderingServer.CanvasItemAddRect(ci, new Rect2(x0, y, 1, h), _border);
-            RenderingServer.CanvasItemAddRect(ci, new Rect2(x1 - 1, y, 1, h), _border);
+            float h = Math.Min(_dash, y1 - y);
+            if (_bl > 0) Rect(ci, x0, y, _bl, h, _border);
+            if (_br > 0) Rect(ci, x1 - _br, y, _br, h, _border);
         }
-        if (r <= 0) return;
-        Span<Vector2> arc = stackalloc Vector2[5];
-        Span<Color> col = stackalloc Color[5];
-        col.Fill(_border);
-        float rr = r - .5f;
-        ArcAt(ci, arc, col, new Vector2(x0 + r, y0 + r), rr, Mathf.Pi);
-        ArcAt(ci, arc, col, new Vector2(x1 - r, y0 + r), rr, Mathf.Pi * 1.5f);
-        ArcAt(ci, arc, col, new Vector2(x1 - r, y1 - r), rr, 0);
-        ArcAt(ci, arc, col, new Vector2(x0 + r, y1 - r), rr, Mathf.Pi * .5f);
+        Rect(ci, x1 - _dash, y1 - Math.Max(_bb, 1), _dash, Math.Max(_bb, 1), _border);
+        Rect(ci, x1 - Math.Max(_br, 1), y1 - _dash, Math.Max(_br, 1), _dash, _border);
+    }
+}
+
+/// <summary>Generated pixel textures shared by the HUD (created once, cached): dither bands and film grain.</summary>
+public static class PixelTex
+{
+    static readonly int[] Bayer = { 0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5 };
+    static readonly Dictionary<(Color, Color, int, int), Texture2D> Bands = new();
+    static Texture2D _grain;
+
+    /// <summary>Bayer threshold 0..1 of a virtual pixel.</summary>
+    public static float Threshold(int x, int y) => (Bayer[(x & 3) + (y & 3) * 4] + .5f) / 16f;
+
+    /// <summary>Top→bottom gradient in 4 tones, 4×4 Bayer dithered in <paramref name="px"/>-sized pixels; tiles horizontally.</summary>
+    public static Texture2D DitherBand(Color top, Color bottom, int height, int px, int steps = 4)
+    {
+        var key = (top, bottom, height, px);
+        if (Bands.TryGetValue(key, out var tex)) return tex;
+        int w = 4 * px, vh = Math.Max(1, height / px);
+        var img = Image.CreateEmpty(w, height, false, Image.Format.Rgba8);
+        for (int y = 0; y < height; y++)
+        {
+            int vy = y / px;
+            float t = vh <= 1 ? 0 : (float)vy / (vh - 1);
+            for (int x = 0; x < w; x++)
+            {
+                float level = Mathf.Clamp(Mathf.Floor(t * steps + Threshold(x / px, vy)) / steps, 0, 1);
+                img.SetPixel(x, y, top.Lerp(bottom, level));
+            }
+        }
+        return Bands[key] = ImageTexture.CreateFromImage(img);
     }
 
-    static void ArcAt(Rid ci, Span<Vector2> arc, Span<Color> col, Vector2 c, float r, float a0)
+    /// <summary>64×64 tile of sparse light/dark 2px specks — the subtle «film grain» over cards.</summary>
+    public static Texture2D Grain
     {
-        for (int i = 0; i < arc.Length; i++)
+        get
         {
-            float a = a0 + Mathf.Pi * .5f * i / (arc.Length - 1);
-            arc[i] = c + new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * r;
+            if (_grain != null) return _grain;
+            var img = Image.CreateEmpty(64, 64, false, Image.Format.Rgba8);
+            uint h = 2166136261;
+            for (int y = 0; y < 32; y++)
+            for (int x = 0; x < 32; x++)
+            {
+                h = (h ^ (uint)(x * 73856093 ^ y * 19349663)) * 16777619;
+                uint r = (h >> 8) % 100;
+                var c = r < 7 ? new Color(1, 1, 1, .022f) : r < 16 ? new Color(0, 0, 0, .09f) : Colors.Transparent;
+                if (c.A > 0) img.FillRect(new Rect2I(x * 2, y * 2, 2, 2), c);
+            }
+            return _grain = ImageTexture.CreateFromImage(img);
         }
-        RenderingServer.CanvasItemAddPolyline(ci, arc, col, 1, true);
     }
 }

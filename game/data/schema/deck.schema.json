@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "deck.schema.json",
+  "title": "Pax Pixelia — настройки колоды и реестры (game/data/core/deck.json)",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "cyclesPerMinuteAtSpeed3": { "type": "integer", "minimum": 1 },
+    "gap": { "$ref": "#/$defs/range", "description": "Циклов между записями летописи (90–180 = 45–90 с на x3)" },
+    "choiceGap": { "$ref": "#/$defs/range", "description": "Циклов между событиями с выбором" },
+    "firstEvent": { "$ref": "#/$defs/range" },
+    "retry": { "type": "integer", "minimum": 1, "description": "Если подходящих событий нет — повторить через столько циклов" },
+    "choiceDeadline": { "type": "integer", "minimum": 1 },
+    "chronicleCooldown": { "type": "integer", "minimum": 1 },
+    "choiceCooldown": { "type": "integer", "minimum": 1 },
+    "jokeStreakAfter": { "type": "integer", "minimum": 1 },
+    "jokeStreakPercent": { "type": "integer", "minimum": 0 },
+    "threadBoostPercent": { "type": "integer", "minimum": 1 },
+    "guaranteedThreads": { "type": "integer", "minimum": 0 },
+    "guaranteedBoostPercent": { "type": "integer", "minimum": 1 },
+    "aiDefaults": { "type": "array", "items": { "type": "integer", "minimum": 1 } },
+    "systems": { "$ref": "#/$defs/ids" },
+    "buildings": { "$ref": "#/$defs/ids" },
+    "axes": { "$ref": "#/$defs/ids" },
+    "icons": { "$ref": "#/$defs/ids" },
+    "denylist": { "type": "array", "items": { "type": "string", "minLength": 3 } }
+  },
+  "$defs": {
+    "range": { "type": "array", "items": { "type": "integer", "minimum": 1 }, "minItems": 2, "maxItems": 2 },
+    "ids": { "type": "array", "items": { "type": "string" }, "uniqueItems": true }
+  }
+}

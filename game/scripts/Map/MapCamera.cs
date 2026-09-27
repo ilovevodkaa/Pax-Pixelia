@@ -329,13 +329,7 @@ public partial class MapCamera : Node
         var key = k.Keycode;
         if (key is Key.Equal or Key.Plus or Key.KpAdd) { ZoomAt(1, ScreenSize / 2); GetViewport().SetInputAsHandled(); }
         else if (key is Key.Minus or Key.KpSubtract) { ZoomAt(-1, ScreenSize / 2); GetViewport().SetInputAsHandled(); }
-        else if (key == Key.Escape)
-        {
-            if (Game.I.IsTargeting) Game.I.CancelScoutTargeting();
-            else if (Game.I.Selected >= 0) Game.I.Select(-1);
-            else return;
-            GetViewport().SetInputAsHandled();
-        }
+        // Esc belongs to the HUD's chain (targeting → leaderboard → panel → pause menu)
     }
 
     bool OverUi() => GetViewport().GuiGetHoveredControl() != null;

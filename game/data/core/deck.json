@@ -1,0 +1,41 @@
+{
+  "$schema": "../schema/deck.schema.json",
+  "cyclesPerMinuteAtSpeed3": 120,
+  "gap": [90, 180],
+  "choiceGap": [360, 480],
+  "firstEvent": [60, 120],
+  "retry": 30,
+  "choiceDeadline": 120,
+  "chronicleCooldown": 1500,
+  "choiceCooldown": 3600,
+  "jokeStreakAfter": 2,
+  "jokeStreakPercent": 20,
+  "threadBoostPercent": 500,
+  "guaranteedThreads": 2,
+  "guaranteedBoostPercent": 1000,
+  "aiDefaults": [50, 30, 20],
+  "systems": [
+    "religion", "trade_routes", "caravans", "techs", "leaders", "succession", "pop_classes", "unrest",
+    "food_market", "wonders", "character", "epidemics", "industry", "stock_market", "space", "world_events"
+  ],
+  "buildings": [
+    "farm", "lumber", "quarry", "fishery", "pasture", "shrine", "market", "granary",
+    "mine", "library", "temple", "school", "university", "port", "factory", "lab", "power_plant"
+  ],
+  "axes": [
+    "agrarian", "mercantile", "traditional", "innovative", "closed", "open", "pious", "secular", "communal", "free"
+  ],
+  "icons": [
+    "affiliate", "alert-triangle", "anchor", "atom", "book", "building-bank", "building-store", "building-warehouse",
+    "bulb", "cat", "cheese", "cloud-fog", "coins", "comet", "compass", "crown", "diamond", "droplet-off", "eye",
+    "feather", "flag", "flask", "hammer", "history", "home", "hourglass", "map-2", "mountain", "music", "paw",
+    "pick", "plant", "route", "scale", "sun", "torch", "trees", "trophy", "user", "users", "walk"
+  ],
+  "denylist": [
+    "христ", "церковь христ", "ислам", "мусульм", "будди", "будда", "иудаи", "индуи", "католи", "православ",
+    "протестант", "мечеть", "синагог", "аллах", "иисус", "библия", "коран",
+    "сталин", "хрущ", "брежнев", "горбач", "ельцин", "путин", "трамп", "байден", "обам", "клинтон",
+    "coca", "кока-кол", "pepsi", "пепси", "google", "гугл", "apple", "эппл", "айфон", "microsoft",
+    "майкрософт", "facebook", "фейсбук", "твиттер", "tesla", "тесла", "макдонал", "ikea", "икеа", "nokia"
+  ]
+}

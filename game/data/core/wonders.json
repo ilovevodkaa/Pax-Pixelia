@@ -1,0 +1,52 @@
+{
+  "$schema": "../schema/tables.schema.json",
+  "tierCost": [800, 2500, 8000],
+  "lines": [
+    { "id": "line_sky", "name": "Небесная", "tiers": [
+      { "id": "stone_circle", "name": "Каменный круг", "era": 0, "stage": "M2", "desc": "Засухи −50%" },
+      { "id": "observatory", "name": "Обсерватория", "era": 4, "stage": "Later", "desc": "Наука +10%" },
+      { "id": "radio_telescope", "name": "Радиотелескоп", "era": 9, "stage": "Later", "desc": "Весь мир изведан, остаётся только устаревший туман" } ] },
+    { "id": "line_knowledge", "name": "Знание", "tiers": [
+      { "id": "great_library", "name": "Великая библиотека", "era": 2, "stage": "M2", "desc": "Технологии, известные встреченным, ещё −10%" },
+      { "id": "first_university", "name": "Первый университет", "era": 3, "stage": "Later", "desc": "+1 слот науки" },
+      { "id": "world_network", "name": "Всемирная сеть", "era": 8, "stage": "Later", "desc": "Диффузия технологий ×2" } ] },
+    { "id": "line_lighthouse", "name": "Маяк", "tiers": [
+      { "id": "great_lighthouse", "name": "Великий маяк", "era": 1, "stage": "Later", "desc": "Морские разведчики +1 радиус, морские пути +10%" },
+      { "id": "great_harbour", "name": "Великая гавань", "era": 5, "stage": "Later", "desc": "Морская торговля и верфи столицы растут" },
+      { "id": "giant_port", "name": "Порт-гигант", "era": 6, "stage": "Later", "desc": "Крупнейший порт мира притягивает морские пути" } ] },
+    { "id": "line_gardens", "name": "Сады", "tiers": [
+      { "id": "hanging_gardens", "name": "Висячие сады", "era": 1, "stage": "M2", "desc": "Настроение +5 в радиусе 5 провинций" },
+      { "id": "botanical_garden", "name": "Ботанический сад", "era": 4, "stage": "Later", "desc": "Новые культуры приживаются без событий" },
+      { "id": "seed_vault", "name": "Хранилище семян", "era": 8, "stage": "Later", "desc": "Неурожаи −50%" } ] },
+    { "id": "line_faith", "name": "Вера", "tiers": [
+      { "id": "great_ziggurat", "name": "Великий зиккурат", "era": 1, "stage": "Later", "desc": "Вера +3" },
+      { "id": "slow_cathedral", "name": "Собор, который строят 300 лет", "era": 3, "stage": "Later", "desc": "Вкладываться могут все провинции этой веры, даже чужие" } ] },
+    { "id": "line_road", "name": "Дорога", "tiers": [
+      { "id": "great_road", "name": "Великая дорога", "era": 2, "stage": "Later", "desc": "Пути к столице +15%" },
+      { "id": "transcontinental", "name": "Трансконтинентальная магистраль", "era": 6, "stage": "Later", "desc": "Сухопутная торговля через весь материк" },
+      { "id": "hyperloop", "name": "Гиперпетля", "era": 10, "stage": "Later", "desc": "Столицы связаны почти мгновенно" } ] },
+    { "id": "line_spectacle", "name": "Зрелища", "tiers": [
+      { "id": "amphitheatre", "name": "Амфитеатр", "era": 2, "stage": "Later", "desc": "Настроение +4 в столице и соседних провинциях" },
+      { "id": "olympic_stadium", "name": "Олимпийский стадион", "era": 7, "stage": "Later", "desc": "Хозяин игр получает культуру" },
+      { "id": "cyber_arena", "name": "Киберарена", "era": 8, "stage": "Later", "desc": "Зрелища без границ: культура по всему миру" } ] },
+    { "id": "line_colossus", "name": "Колосс", "tiers": [
+      { "id": "colossus", "name": "Колосс", "era": 2, "stage": "Later", "desc": "Портовая торговля +20%" },
+      { "id": "beacon_statue", "name": "Статуя-маяк", "era": 5, "stage": "Later", "desc": "Иммиграция +25%" } ] }
+  ],
+  "singles": [
+    { "id": "great_wall", "name": "Великая стена", "era": 3, "stage": "Later", "desc": "Чужая культура не отодвигает границы" },
+    { "id": "grand_canal", "name": "Большой канал", "era": 5, "stage": "Later", "desc": "Прорывает перешеек: карта меняется для всех" },
+    { "id": "great_dam", "name": "Великая плотина", "era": 7, "stage": "Later", "desc": "Водохранилище и энергия" },
+    { "id": "crystal_palace", "name": "Хрустальный дворец", "era": 5, "stage": "Later", "desc": "Хозяин Всемирной выставки" },
+    { "id": "iron_tower", "name": "Железная башня", "era": 6, "stage": "Later", "desc": "«Временная»: через 20 циклов «Снести?»; оставить — культура ×2, снести — металл" },
+    { "id": "first_npp", "name": "Первая АЭС", "era": 7, "stage": "Later", "desc": "Энергия атома для всей державы" },
+    { "id": "orbital_station", "name": "Орбитальная станция", "era": 9, "stage": "Later", "desc": "Постоянный дом на орбите" },
+    { "id": "generation_ark", "name": "Ковчег поколений", "era": 10, "stage": "Later", "desc": "Корабль к другим звёздам" },
+    { "id": "digital_immortality", "name": "Цифровое бессмертие", "era": 10, "stage": "Later", "desc": "Правитель больше не умирает, портрет — голограмма" }
+  ],
+  "parodies": [
+    { "id": "potemkin_village", "name": "Потёмкинская деревня", "era": 4, "stage": "M2", "costPermille": 200, "desc": "Чудо в таблице лидеров, пока к нему не дошёл чужой разведчик или путь. Тогда «Фасады упали», культура −" },
+    { "id": "tsar_bell", "name": "Царь-колокол", "era": 3, "stage": "Later", "desc": "40% — трещина. Треснувший: культура ×1,5 («зато какой!»), целый: вера +3" },
+    { "id": "tsar_cannon", "name": "Царь-пушка", "era": 4, "stage": "Later", "desc": "Фаза 2: престиж +, урон 0" }
+  ]
+}

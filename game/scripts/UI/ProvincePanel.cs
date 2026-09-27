@@ -7,10 +7,10 @@ using PaxPixelia.Sim;
 namespace PaxPixelia.UI;
 
 /// <summary>
-/// #panel — the full-height right column for the selected province. Variants: unexplored (fog), sea zone, unclaimed
-/// tribes (claim), foreign nation, and own province (stats, class bar, buildings + build menu, ore survey, capital-only
-/// scouts and construction queue). Sticky header with the owner-colour rule, scrolling body with a bottom fade and a
-/// thin overlay scrollbar (the content keeps symmetric 16px margins whether it scrolls or not).
+/// The right-hand card for the selected province. Variants: unexplored (fog), sea zone, unclaimed tribes (claim),
+/// foreign nation, and own province (stats, class bar, buildings + build menu, ore survey, capital-only scouts and
+/// construction queue). Sticky header (dithered band, kicker, spaced pixel title, owner-colour bar), scrolling body
+/// with a Bayer-dithered bottom fade and a thin square overlay scrollbar.
 /// Rebuilt on selection / ownership / fog changes — never while a mouse button is held, so a press on one of its
 /// buttons is not lost; per-year values, button states and the scout rows update in place (<see cref="_live"/>).
 /// </summary>
@@ -22,9 +22,11 @@ public partial class ProvincePanel : PanelContainer
 
     public int Province { get; private set; } = -1;
 
-    readonly Box _headBox = St.Header().Pad(16, 14, 12, 12);
+    readonly Box _headBox = St.Header(56).Pad(16, 12, 10, 12);
+    readonly Label _kicker = Ui.Text("", "Kick");
     readonly Label _title = Ui.Text("", "PanelTitle");
-    readonly TextureRect _titleIcon = Ui.Icon("crown", 17, Pal.Mu);
+    readonly TextureRect _titleIcon = Ui.Icon("crown", 1, Pal.Ac);
+    readonly ColorRect _ownerBar = new() { CustomMinimumSize = new Vector2(48, 4), SizeFlagsHorizontal = SizeFlags.ShrinkBegin, MouseFilter = MouseFilterEnum.Ignore };
     readonly Label _sub = Ui.Text("", "Sub");
     readonly PanelContainer _head;
     readonly ScrollContainer _scroll;
@@ -52,13 +54,17 @@ public partial class ProvincePanel : PanelContainer
     {
         Visible = false;
         MouseFilter = MouseFilterEnum.Stop;
-        AddThemeStyleboxOverride("panel", St.Card().Pad(1));
+        AddThemeStyleboxOverride("panel", St.Card().Pad(2));
         CustomMinimumSize = new Vector2(Width, 0);
 
-        var close = Ui.IconButton("x", "X", 28, 28, 16, () => Game.I.Select(-1)).Tip("Закрыть", null, "Esc");
+        var close = Ui.IconButton("x", "X", 26, 26, 1, () => Game.I.Select(-1)).Tip("Закрыть", null, "Esc");
         close.SizeFlagsVertical = SizeFlags.ShrinkBegin;
+        _kicker.Uppercase = true;
+        _title.Uppercase = true;
+        _titleIcon.SizeFlagsVertical = SizeFlags.ShrinkCenter;
         var titleRow = Ui.HBox(8, _title, _titleIcon);
-        _head = Ui.Panel(_headBox, Ui.HBox(10, Ui.VBox(4, titleRow, _sub).Grow(), close));
+        var col = Ui.VBox(0, _kicker, Ui.Gap(0, 4), titleRow, Ui.Gap(0, 6), _ownerBar, Ui.Gap(0, 8), _sub).Grow();
+        _head = Ui.Panel(_headBox, Ui.HBox(8, col, close));
 
         _scroll = new ScrollContainer
         {
@@ -110,11 +116,16 @@ public partial class ProvincePanel : PanelContainer
     public void SetViewport(Vector2 size)
     {
         _maxHeight = size.Y - Top - 12;
-        _title.Sized(size.Y <= 800 ? 21 : 23);
     }
 
     // ---------------- events ----------------
-    public void OnYearTick() { foreach (var a in _live) a(); RefreshScouts(); }
+    /// <summary>Values that change with time (gold → button states, population, queue): in place, nothing rebuilt.</summary>
+    public void RefreshLive()
+    {
+        if (!Visible) return;
+        foreach (var a in _live) a();
+        RefreshScouts();
+    }
     /// <summary>Rebuild only when the change touches this province or a neighbour (claimability depends on them).</summary>
     public void OnProvincesChanged(IReadOnlyList<int> changed)
     {
@@ -182,29 +193,39 @@ public partial class ProvincePanel : PanelContainer
         int owner = s.VisibleOwner(p);
         string sub = $"{w.TerrainName(p)} · климат {Data.Climate(w.PBiome[p])}{(w.PRiver[p] != 0 ? " · река" : "")}{(w.PCoast[p] != 0 ? " · побережье" : "")}";
 
-        if (f == 0) { Head("Неизведанные земли", "Туман войны", "cloud-fog", null); FogBody(flow, p, land); }
-        else if (!land) { Head(w.PName[p], "Морская зона", "anchor", null); SeaBody(flow, p, f == 1); }
-        else if (owner < 0) { Head(w.PName[p], sub, null, Pal.Unowned); UnownedBody(flow, p, f == 1); }
-        else if (owner != GameState.LocalPlayer) { Head(w.PName[p], sub, s.CapitalOf[p] >= 0 ? "crown" : null, Pal.Nation(owner)); ForeignBody(flow, p, owner, f == 1); }
-        else { Head(w.PName[p], sub, s.CapitalOf[p] >= 0 ? "crown" : null, Pal.Nation(owner)); OwnBody(flow, p); }
+        bool cap = s.CapitalOf[p] >= 0;
+        // fog: nothing about the place is told — not even land or sea (the terrain class would leak through the sub-line)
+        if (f == 0) { Head("Туман войны", "Неизведанные земли", "Что там — узнают разведчики", "cloud-fog", Pal.Mu2); FogBody(flow, p, land); }
+        else if (!land) { Head("Морская зона", w.PName[p], "Рыба и морские пути", "anchor", Pal.Info); SeaBody(flow, p, f == 1); }
+        else if (owner < 0) { Head("Ничья земля", w.PName[p], sub, null, Pal.Unowned); UnownedBody(flow, p, f == 1); }
+        else
+        {
+            string who = Game.I.Nations[owner].Name + (cap ? " · столица" : owner == GameState.LocalPlayer ? " · провинция" : "");
+            Head(who, w.PName[p], sub, cap ? "crown" : null, Pal.Nation(owner));
+            if (owner == GameState.LocalPlayer) OwnBody(flow, p); else ForeignBody(flow, p, owner, f == 1);
+        }
     }
 
-    void Head(string title, string sub, string icon, Color? owner)
+    void Head(string kicker, string title, string sub, string icon, Color bar)
     {
+        _kicker.Text = kicker;
         _title.Text = title;
+        // long names step down to the next size instead of pushing the card wider than its column
+        const float room = Width - 4 - 16 - 10 - 8 - 26 - 8 - 13;   // frame, paddings, close button, crown
+        bool fits = UiFonts.Width(UiFonts.Spaced(1), title.ToUpperInvariant(), UiFonts.Title) <= room;
+        _title.Sized(fits ? UiFonts.Title : UiFonts.Value);
         _sub.Text = sub;
         _titleIcon.Visible = icon != null;
-        if (icon != null) _titleIcon.Texture = Icons.Get(icon, 17);
-        _headBox.SetAccent(owner ?? Colors.Transparent);
-        _head.QueueRedraw();
+        if (icon != null) _titleIcon.Texture = Icons.Get(icon, 1);
+        _ownerBar.Color = bar;
     }
 
     /// <summary>Population estimate; for a stale province nobody knows it now.</summary>
     Label LivePop(int p, bool stale)
     {
         if (stale) return Ui.Text("нет сведений", "Mu");
-        var l = Kit.Value("~" + Fmt.Int(Game.I.State.Pop[p]));
-        _live.Add(() => l.Text = "~" + Fmt.Int(Game.I.State.Pop[p]));
+        var l = Kit.Value("≈" + Fmt.Int(Game.I.State.Pop[p]));
+        _live.Add(() => l.Text = "≈" + Fmt.Int(Game.I.State.Pop[p]));
         return l;
     }
 
@@ -212,9 +233,9 @@ public partial class ProvincePanel : PanelContainer
     void FogBody(Flow flow, int p, bool land)
     {
         flow.Add(Kit.Para("Здесь могут быть племена, ресурсы и чужие державы. Туман рассеивается там, где проходят ваши разведчики, границы и торговые пути."), 10);
-        var send = Ui.Button("Отправить разведчиков сюда", "map-search", "Pri", () => Game.I.SendScout(p), 16, 32);
+        var send = Ui.Button("Отправить разведчиков сюда", "map-search", "Pri", () => Game.I.SendScout(p), 1, 34);
         flow.Add(Kit.Acts(send), 14);
-        var fine = flow.Add(Kit.Para("", true, 12), 8);
+        var fine = flow.Add(Kit.Para("", true, UiFonts.Small), 8);
         void Sync()
         {
             int n = Game.I.State.Scouts.Count, max = n + Game.I.FreeScouts;
@@ -239,8 +260,7 @@ public partial class ProvincePanel : PanelContainer
     {
         var w = Game.I.World; var s = Game.I.State;
         if (stale) flow.Add(Kit.Stale(), 0, 10);
-        flow.Add(Kit.Own(Kit.Chip("Ничья земля", Pal.Unowned), Kit.Tag("Кочевники")));
-        flow.Add(Kit.Grid(("Кочевые племена", LivePop(p, stale)), ("Плодородие", Kit.Fertility(w.PFert[p]))), 12);
+        flow.Add(Kit.Grid(("Кочевые племена", LivePop(p, stale)), ("Плодородие", Kit.Fertility(w.PFert[p]))), 0);
         flow.Add(Kit.H4("Присоединение"), 20, 10);
 
         bool near = false;
@@ -250,13 +270,13 @@ public partial class ProvincePanel : PanelContainer
             flow.Add(Kit.Para("Слишком далеко от ваших границ. Сначала присоедините соседние земли."), 0);
             return;
         }
-        string nation = Data.Nations[GameState.LocalPlayer].Name;
+        string nation = Game.I.Nations[GameState.LocalPlayer].Name;
         flow.Add(Kit.Para($"Граничит с державой {nation}. Племена можно убедить войти в её состав."), 0, 8);
-        var claim = Ui.Button($"Присоединить · {Game.ClaimCost} золота", "flag", "Pri", () => Game.I.Claim(p), 16, 32);
+        var claim = Ui.Button($"Присоединить · {Game.ClaimCost} золота", "flag", "Pri", () => Game.I.Claim(p), 1, 34);
         claim.Tip(t => t.Title("Присоединение").Line("Провинция войдёт в состав державы вместе с племенами.")
             .Kv("Стоимость", $"{Game.ClaimCost} золота").Kv("В казне", Fmt.Int(Game.I.State.Gold), Game.I.State.Gold >= Game.ClaimCost ? Pal.Ok : Pal.Bad));
         flow.Add(claim, 8);
-        var note = flow.Add(Kit.Para("", true, 12), 8);
+        var note = flow.Add(Kit.Para("", true, UiFonts.Small), 8);
         void Sync()
         {
             string why = Game.I.ClaimProblem(p);
@@ -271,9 +291,9 @@ public partial class ProvincePanel : PanelContainer
     void ForeignBody(Flow flow, int p, int o, bool stale)
     {
         var s = Game.I.State;
-        var n = Data.Nations[o];
+        var n = Game.I.Nations[o];
         if (stale) flow.Add(Kit.Stale(), 0, 10);
-        flow.Add(Kit.Own(Kit.Chip(n.Name, Pal.Nation(o)), Kit.Tag(n.Gov), s.CapitalOf[p] >= 0 ? Kit.Tag("Столица") : null));
+        flow.Add(Kit.Own(Kit.Tag(n.Gov)));
         var relation = o == 1 ? Kit.Value("Настороженные", Pal.Warn) : Kit.Value("Нейтральные", Pal.Mu);
         flow.Add(Kit.Grid(("Население", LivePop(p, stale)), ("Отношения", relation), ("Вера", Kit.Faith(s.Religion[p])), ("Культура", Kit.Value(n.CultureAdj))), 12);
         flow.Add(Kit.Acts(
@@ -285,7 +305,6 @@ public partial class ProvincePanel : PanelContainer
     {
         var w = Game.I.World; var s = Game.I.State;
         bool capital = s.CapitalOf[p] == GameState.LocalPlayer;
-        flow.Add(Kit.Own(Kit.Chip(Data.Nations[GameState.LocalPlayer].Name, Pal.Nation(GameState.LocalPlayer)), Kit.Tag(s.CapitalOf[p] >= 0 ? "Столица" : "Провинция")));
 
         var pop = Kit.Value(Fmt.Int(s.Pop[p]));
         var mood = Kit.Value(s.Mood[p] + "%");
@@ -299,7 +318,7 @@ public partial class ProvincePanel : PanelContainer
         }
         SyncStats();
         _live.Add(SyncStats);
-        flow.Add(Kit.Grid(("Население", pop), ("Довольство", mood), ("Плодородие", Kit.Fertility(w.PFert[p])), ("Налоги", Kit.ValueUnit(tax, "в год"))), 12);
+        flow.Add(Kit.Grid(("Население", pop), ("Довольство", mood), ("Плодородие", Kit.Fertility(w.PFert[p])), ("Налоги", Kit.ValueUnit(tax, "за цикл"))), 0);
 
         if (capital) { flow.Add(BuildScouts(), 20); RefreshScouts(); }
 
@@ -319,7 +338,7 @@ public partial class ProvincePanel : PanelContainer
         flow.Add(new ClassBar(parts, colors));
         flow.Add(Kit.Legend(names, colors, pcts), 9);
         int rel = s.Religion[p];
-        flow.Add(Kit.Kv(("Культура", Data.Nations[GameState.LocalPlayer].CultureAdj, null),
+        flow.Add(Kit.Kv(("Культура", Game.I.Nations[GameState.LocalPlayer].CultureAdj, null),
             ("Вера", rel >= 0 ? Data.Religions[rel].Name : "—", rel >= 0 ? Pal.Religion(rel) : null)), 10);
 
         // buildings
@@ -341,7 +360,7 @@ public partial class ProvincePanel : PanelContainer
                     if (blds.Contains(b)) continue;
                     var bb = b;
                     int cost = Game.I.BuildCost(b);
-                    var btn = Ui.Button(Data.BldName[(int)b], BuildingIcon(b), "Menu", () => { _buildOpen = false; Game.I.Build(p, bb); Rebuild(); }, 14, 28);
+                    var btn = Ui.Button(Data.BldName[(int)b], BuildingIcon(b), "Menu", () => { _buildOpen = false; Game.I.Build(p, bb); Rebuild(); }, 1, 28);
                     btn.Tip(t => t.Title(Data.BldName[(int)bb]).Kv("Стоимость", $"{cost} золота")
                         .Kv("В казне", Fmt.Int(Game.I.State.Gold), Game.I.State.Gold >= cost ? Pal.Ok : Pal.Bad));
                     void SyncBuild() => Ui.Enable(btn, Game.I.State.Gold >= cost);   // gold arrives every year
@@ -350,7 +369,7 @@ public partial class ProvincePanel : PanelContainer
                     buttons.Add(btn);
                 }
                 if (buttons.Count > 0) flow.Add(Kit.Menu(buttons), 0, 6);
-                else flow.Add(Kit.Para("Здесь пока нечего строить: нужны другие земли или технологии.", true, 12), 0, 6);
+                else flow.Add(Kit.Para("Здесь пока нечего строить: нужны другие земли или технологии.", true, UiFonts.Small), 0, 6);
             }
         }
 
@@ -362,7 +381,7 @@ public partial class ProvincePanel : PanelContainer
         else if (!Game.I.MayHaveOre(p)) flow.Add(Kit.Para("Холмов и гор нет — залежей не ожидается"), 0);
         else
         {
-            var survey = Ui.Button("Отправить геологов", "shovel", "Sm", () => { Game.I.Survey(p); Rebuild(); }, 14, 26);
+            var survey = Ui.Button("Отправить геологов", "shovel", "Sm", () => { Game.I.Survey(p); Rebuild(); }, 1, 26);
             survey.Tip(t => t.Title("Геологическая разведка").Line("Геологи осмотрят холмы и найдут залежи, если они есть.")
                 .Kv("Стоимость", $"{Game.SurveyCost} золота").Kv("В казне", Fmt.Int(Game.I.State.Gold), Game.I.State.Gold >= Game.SurveyCost ? Pal.Ok : Pal.Bad));
             void SyncSurvey() => Ui.Enable(survey, Game.I.State.Gold >= Game.SurveyCost);
@@ -410,7 +429,8 @@ public partial class ProvincePanel : PanelContainer
         _scoutAuto.Tip("Автоматическая разведка", "Разведчики сами пойдут к ближайшим неизведанным землям.");
         var acts = Kit.Acts(_scoutPick, _scoutAuto);
         _scoutPick.SizeFlagsStretchRatio = 1.6f;
-        _scouts = Ui.VBox(0, Kit.H4("Разведчики", "", out _scoutAside), Ui.Gap(0, 10), _scoutRows, _scoutRowsGap, acts);
+        // the buttons sit above the party rows: a party leaving or returning must not move them under the cursor
+        _scouts = Ui.VBox(0, Kit.H4("Разведчики", "", out _scoutAside), Ui.Gap(0, 10), acts, _scoutRowsGap, _scoutRows);
         return _scouts;
     }
 
@@ -441,13 +461,13 @@ public partial class ProvincePanel : PanelContainer
             if (sc.Path == null || sc.Path.Length == 0) continue;
             int target = sc.Path[^1], left = Math.Max(0, sc.Path.Length - 1 - sc.Step);
             var (text, meta) = _scoutRowLabels[i];
-            text.Text = sc.Auto ? "Свободный поиск" : "→ " + (FogOf(target) > 0 ? w.PName[target] : "неизведанные земли");
+            text.Text = sc.Auto ? "Свободный поиск" : "Цель: " + (FogOf(target) > 0 ? w.PName[target] : "неизведанные земли");
             meta.Text = sc.Auto ? $"разведано {Game.I.ScoutFound(sc)}" : $"ещё {left} {Fmt.Plural(left, "провинция", "провинции", "провинций")}";
         }
 
         bool targeting = Game.I.IsTargeting;
         _scoutPick.Caption = targeting ? "Выберите цель на карте" : "Отправить разведчиков";
-        _scoutPick.IconTexture = Icons.Get(targeting ? "crosshair" : "map-search", 16);
+        _scoutPick.IconTexture = Icons.Get(targeting ? "crosshair" : "map-search", 1, !targeting);
         var skin = targeting ? "On" : "";
         if (_scoutPick.ThemeTypeVariation != skin) _scoutPick.ThemeTypeVariation = skin;
         Ui.Enable(_scoutPick, targeting || free > 0);
@@ -461,30 +481,29 @@ public partial class ProvincePanel : PanelContainer
     };
 }
 
-/// <summary>Scroll hint at the bottom of the panel (#panel::after): transparent → card white.</summary>
+/// <summary>Scroll hint at the bottom of the panel: the card colour creeping up in a 4×4 Bayer dither (no alpha ramp).</summary>
 public partial class BottomFade : Control
 {
-    static readonly Color[] Cols = { new(Pal.P1s, 0), new(Pal.P1s, 0), Pal.P1s, Pal.P1s };
-    readonly Vector2[] _pts = new Vector2[4];
+    const int H = 28;
+    static Texture2D _tex;
 
     public BottomFade()
     {
-        CustomMinimumSize = new Vector2(0, 30);
+        CustomMinimumSize = new Vector2(0, H);
         MouseFilter = MouseFilterEnum.Ignore;
         Visible = false;
     }
 
     public override void _Draw()
     {
-        _pts[0] = new Vector2(0, 0); _pts[1] = new Vector2(Size.X - 10, 0);
-        _pts[2] = new Vector2(Size.X - 10, Size.Y); _pts[3] = new Vector2(0, Size.Y);
-        DrawPolygon(_pts, Cols);
+        _tex ??= PixelTex.DitherBand(Pal.A(Pal.Card, 0), Pal.Card, H, 2);
+        DrawTextureRectRegion(_tex, new Rect2(0, 0, Size.X - 10, H), new Rect2(0, 0, Size.X - 10, H));
     }
 }
 
 /// <summary>
-/// Thin overlay scrollbar of the panel (design_final: thin scrollbar, transparent track): a 4px thumb in the right
-/// padding, faint until hovered or dragged. It takes no layout width, so the content stays centred.
+/// Thin overlay scrollbar of the panel: a square 4px thumb in the right padding, dim until hovered or dragged.
+/// It takes no layout width, so the content stays centred.
 /// </summary>
 public partial class ThinScrollBar : Control
 {
@@ -518,11 +537,9 @@ public partial class ThinScrollBar : Control
     public override void _Draw()
     {
         if (!Overflows(out float top, out float len)) return;
-        var c = Pal.Ln3; c.A = _drag ? .95f : _hover ? .8f : .45f;
+        var c = _drag ? Pal.Ac : _hover ? Pal.Ln3 : Pal.Ln2;
         float x = Size.X - Right - Thumb;
-        DrawRect(new Rect2(x, top + Thumb / 2, Thumb, len - Thumb), c);
-        DrawCircle(new Vector2(x + Thumb / 2, top + Thumb / 2), Thumb / 2, c);
-        DrawCircle(new Vector2(x + Thumb / 2, top + len - Thumb / 2), Thumb / 2, c);
+        DrawRect(new Rect2(x, Mathf.Round(top), Thumb, Mathf.Round(len)), c);
     }
 
     public override void _GuiInput(InputEvent e)

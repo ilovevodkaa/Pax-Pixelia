@@ -6,13 +6,14 @@ using PaxPixelia.Core;
 namespace PaxPixelia.Map;
 
 /// <summary>
-/// HOI4-style nation names: widely spaced Alegreya SC capitals in a brightened nation colour with a dark halo, laid
-/// along the territory's main axis (tilted at most ~28°, gently arched), sized by territory and fitted to its length.
+/// HOI4-style nation names: widely spaced pixel-font capitals in a brightened nation colour with a hard dark shadow,
+/// stepped along the territory's main axis (tilted at most ~28°, gently arched), sized by territory and fitted to its
+/// length at the font's pixel-exact sizes (11 / 22 / 33 px, plus 16).
 /// Only met nations (all in observer mode); territory = the provinces the player's map shows as theirs.
 /// Placement (per zoom level, by <see cref="LabelPlan"/>): the first of a list of candidates — centroid, slid along
 /// the axis, stepped aside, then level above / below the capital, then the same at smaller sizes — that hits no city
 /// sprite or name nor another nation's name, and lies mostly over the nation's own land. The selected province is a
-/// soft obstacle. A name that fits nowhere (or would need less than 13 px; 11 px at ×1 and ×½) is left out, as HOI4 does.
+/// soft obstacle. A name that fits nowhere (or would need less than 11 px) is left out, as HOI4 does.
 /// </summary>
 internal sealed class NationLabels
 {
@@ -32,24 +33,32 @@ internal sealed class NationLabels
         public SpacedText Text;
     }
 
-    const int MaxFs = 38, MinFs = 13, MinFsFar = 11;      // at ×1 and ×½ a smaller name still reads over the plain map
+    const int MaxFs = 33, MinFs = 11;
     const int CoverSamples = 9;                      // per row: along the top and the bottom of the letters
     const float CoverShare = .7f;                    // share of those points that must lie over the nation's own land
-    static readonly float[] SizeSteps = { 1, .82f, .68f };
+    static readonly int[] PixelSizes = { 33, 22, 16, 11 };   // pixel-exact (×3, ×2, ×1) plus 16 between
 
     // candidate offsets: along the axis (× label width) and across it (× font size), nearest the centroid first
     static readonly (float along, float across)[] Offsets = BuildOffsets();
 
-    readonly Info[] _n;
-    readonly int[] _order;
+    Info[] _n = Array.Empty<Info>();
+    int[] _order = Array.Empty<int>();
+    Data.Nation[] _roster;
     readonly List<(Vector2 c, Vector2 u, float a, float b)> _placed = new();
 
-    public NationLabels()
+    /// <summary>Names of the running game's roster (Game.I.Nations; rebuilt when a new game brings another one).</summary>
+    void SyncRoster()
     {
-        _n = new Info[Data.Nations.Length];
-        _order = new int[_n.Length];
-        for (int i = 0; i < _n.Length; i++) { _n[i] = new Info { Text = new SpacedText(Data.Nations[i].Name.ToUpperInvariant()) }; _order[i] = i; }
+        var roster = Game.I.Nations;
+        if (roster == _roster && _n.Length == roster.Length) return;
+        _roster = roster;
+        _n = new Info[roster.Length];
+        _order = new int[roster.Length];
+        for (int i = 0; i < _n.Length; i++) { _n[i] = new Info { Text = new SpacedText(roster[i].Name.ToUpperInvariant()) }; _order[i] = i; }
     }
+
+    /// <summary>Letter spacing of a name: short names spread wider (ART_BIBLE §9), whole pixels.</summary>
+    float Spacing(int n, int fs) => MathF.Round(fs * (_n[n].Text.Chars.Length >= 6 ? .3f : .5f));
 
     static (float, float)[] BuildOffsets()
     {
@@ -65,6 +74,7 @@ internal sealed class NationLabels
     public void Refresh()
     {
         var g = Game.I; var w = g.World; var s = g.State;
+        SyncRoster();
         int nN = _n.Length;
         Span<double> sc = stackalloc double[nN], ss = stackalloc double[nN], sy = stackalloc double[nN], tot = stackalloc double[nN];
         bool fog = s.FogEnabled;
@@ -118,37 +128,36 @@ internal sealed class NationLabels
     // ------------------------------------------------------------------------------------------------ placement
 
     /// <summary>Place every nation name for a level (see the class summary). Names are shown up to ×4.</summary>
-    public void Layout(LabelPlan.Tier t, List<Rect2> cities, Rect2? soft, Func<int, bool> visible)
+    public void Layout(LabelPlan plan, LabelPlan.Tier t, List<Rect2> cities, Rect2? soft, Func<int, bool> visible)
     {
         _placed.Clear();
         for (int n = 0; n < t.Nations.Length; n++) t.Nations[n].Show = false;
         if (t.Level > 4) return;
         var g = Game.I; var w = g.World; var s = g.State;
+        SyncRoster();
         float z = t.Z, wrap = w.W * z;
-        int minFs = t.Level <= 1 ? MinFsFar : MinFs;
-        var font = MapFonts.Display700;
+        var font = MapFonts.Pixel;
         foreach (int n in _order)
         {
+            if (n >= t.Nations.Length) continue;
             var info = _n[n];
             if (!info.Show) continue;
-            if (info.Width32 < 0) info.Width32 = info.Text.Width(font, 32, 32 * .22f);
-            float fsRule = Math.Clamp(MathF.Sqrt(info.Tot) * z * .16f, minFs, MaxFs);
+            if (info.Width32 < 0) info.Width32 = info.Text.Width(font, 33, Spacing(n, 33)) / 33 * 32;
+            float fsRule = Math.Clamp(MathF.Sqrt(info.Tot) * z * .16f, MinFs, MaxFs);
             float fitFs = info.Extent * z * .9f / info.Width32 * 32;      // the spaced text over ~90% of the territory
-            if (fitFs < minFs * .8f) continue;                           // far too small a land for its name
-            int fs0 = (int)MathF.Round(Math.Clamp(Math.Min(fsRule, fitFs), minFs, MaxFs));
+            if (fitFs < MinFs * .8f) continue;                           // far too small a land for its name
+            float fs0 = Math.Clamp(Math.Min(fsRule, fitFs), MinFs, MaxFs);
             int cap = s.NationCapital != null && n < s.NationCapital.Length ? s.NationCapital[n] : -1;
             bool capShown = cap >= 0 && t.Level >= 2 && visible(cap);
 
             Place best = default; bool found = false, perfect = false;
-            int lastFs = 0;
-            foreach (float scale in SizeSteps)
+            int tries = 0;
+            foreach (int fs in PixelSizes)
             {
-                int fs = Math.Max(minFs, (int)MathF.Round(fs0 * scale));
-                if (perfect || fs == lastFs) continue;
-                lastFs = fs;
-                float spacing = fs * .22f, tw = info.Text.Width(font, fs, spacing);
+                if (perfect || fs > fs0 + 2 || tries++ >= 3) continue;
+                float spacing = Spacing(n, fs), tw = info.Text.Width(font, fs, spacing);
                 float angle = info.Angle, bend = tw > 0 ? info.Bend * .24f / (tw * .5f) : 0;
-                if (fs <= 14) { angle *= .5f; bend = 0; }
+                if (fs <= 16) { angle *= .5f; bend = 0; }
                 var c0 = new Vector2(info.Cx * z, info.Cy * z);
                 var u = new Vector2(MathF.Cos(angle), MathF.Sin(angle));
                 var nn = new Vector2(-u.Y, u.X);
@@ -156,8 +165,8 @@ internal sealed class NationLabels
                     if (Try(n, c0 + u * (al * tw) + nn * (ac * fs), angle, bend, fs, spacing, tw)) break;
                 if (perfect || !capShown) continue;
                 // level, just above or below the capital's sprite and name
-                var sr = LabelPlan.SpriteRect(w, cap, true, t.Level, z);
-                float top = sr.Position.Y, bottom = t.Level >= 3 ? sr.End.Y + 9 + LabelPlan.CapSize : sr.End.Y;
+                var sr = plan.SpriteRect(w, cap, true, t.Level, z);
+                float top = sr.Position.Y, bottom = t.Level >= 3 ? sr.End.Y + 3 + LabelPlan.CapSize : sr.End.Y;
                 float cx = (w.PCX[cap] + .5f) * z;
                 if (!Try(n, new Vector2(cx, top - fs * .6f - 3), 0, 0, fs, spacing, tw))
                     Try(n, new Vector2(cx, bottom + fs * .6f + 3), 0, 0, fs, spacing, tw);
@@ -243,28 +252,25 @@ internal sealed class NationLabels
 
     // ------------------------------------------------------------------------------------------------ drawing
 
-    /// <summary>Draw a level's names at the current view zoom (scaled while a zoom glide heads for that level) and add
-    /// their screen boxes to <paramref name="boxes"/> (sea names keep clear).</summary>
+    /// <summary>Draw a level's names at the current view zoom and add their screen boxes to <paramref name="boxes"/>
+    /// (sea names keep clear). During a zoom glide the text keeps its pixel size; only its position follows the map.</summary>
     public void Draw(CanvasItem ci, in MapViewport v, LabelPlan.Tier t, List<Rect2> boxes)
     {
-        float k = v.Zoom / t.Z;
-        var font = MapFonts.Display700;
-        for (int n = 0; n < t.Nations.Length; n++)
+        var font = MapFonts.Pixel;
+        for (int n = 0; n < t.Nations.Length && n < _n.Length; n++)
         {
             var p = t.Nations[n];
             if (!p.Show) continue;
-            int fs = Math.Max(1, (int)MathF.Round(p.Fs * k));
             float yy = v.ScreenY(p.Y / t.Z);
             if (yy < -80 || yy > v.Screen.Y + 80) continue;
-            float tw = p.Tw * k, spacing = p.Spacing * k, bend = k > 0 ? p.Bend / k : 0;
             var col = MapPalette.LabelColor(n);
-            int halo = Math.Max(3, (int)MathF.Round(fs / 6f));
-            float hw = (p.A * MathF.Abs(MathF.Cos(p.Angle)) + p.B * MathF.Abs(MathF.Sin(p.Angle))) * k;
-            float hh = (p.A * MathF.Abs(MathF.Sin(p.Angle)) + p.B * MathF.Abs(MathF.Cos(p.Angle))) * k;
+            int depth = p.Fs >= 22 ? 2 : 1;
+            float hw = p.A * MathF.Abs(MathF.Cos(p.Angle)) + p.B * MathF.Abs(MathF.Sin(p.Angle));
+            float hh = p.A * MathF.Abs(MathF.Sin(p.Angle)) + p.B * MathF.Abs(MathF.Cos(p.Angle));
             for (float sx = v.FirstX(p.X / t.Z, hw); sx < v.Screen.X + hw; sx += v.WZ)
             {
                 boxes.Add(new Rect2(sx - hw, yy - hh, hw * 2, hh * 2));
-                _n[n].Text.Draw(ci, font, fs, spacing, sx, yy, p.Angle, bend, col, halo, MapPalette.Halo);
+                _n[n].Text.Draw(ci, font, p.Fs, p.Spacing, sx, yy, p.Angle, p.Bend, col, TextFx.Shadow, depth);
             }
         }
     }

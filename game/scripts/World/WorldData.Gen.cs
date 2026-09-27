@@ -14,8 +14,12 @@ public sealed partial class WorldData
     /// <summary>True when both provinces lie on the same land mass (reachable on foot) or in the same water body.</summary>
     public bool SameBody(int a, int b) => PBody[a] == PBody[b];
 
-    /// <summary>Provinces renamed to keep names unique, with the mockup's original name (for the parity test).</summary>
+    /// <summary>Provinces renamed to keep names unique, with the name the generator first gave them.</summary>
     public List<(int Province, string MockupName)> Renamed = new();
+
+    /// <summary>Per pixel: terrain material (TerrainPalette; 0 = water, 1..14 = biomes, then sand, rock, snow …) and its
+    /// ramp step 0..4. BaseColor[i] = TerrainPalette.Ramps[TerrMaterial[i]][TerrStep[i]] — kept for a palette LUT.</summary>
+    public byte[] TerrMaterial, TerrStep;
 
     /// <summary>Wall-clock milliseconds per generation stage, in order (diagnostics / tests).</summary>
     public List<(string Stage, double Ms)> GenTimings = new();

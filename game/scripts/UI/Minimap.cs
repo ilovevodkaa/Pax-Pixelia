@@ -6,9 +6,8 @@ using PaxPixelia.Sim;
 namespace PaxPixelia.UI;
 
 /// <summary>
-/// #mini — the minimap card: a downsampled world in the current map mode (political tints, fog clouds) with the
-/// camera rectangle (drawn three times for the horizontal wrap), scout markers, and the bar
-/// [− | ×3 | +] · «Новый мир».
+/// The minimap card: a downsampled world in the current map mode (political tints, fog clouds) in a hard ink frame,
+/// the camera rectangle (drawn three times for the horizontal wrap), scout markers, and the bar [−][×3][+] · «Новый мир».
 /// </summary>
 public partial class Minimap : PanelContainer
 {
@@ -21,17 +20,16 @@ public partial class Minimap : PanelContainer
         MouseFilter = MouseFilterEnum.Stop;
         AddThemeStyleboxOverride("panel", St.Card().Pad(6));
 
-        var zout = Ui.IconButton("minus", "ZL", 30, 28, 14, () => Game.I.RequestZoom(-1)).Tip("Отдалить", null, "Колесо мыши · клавиша −");
-        var zin = Ui.IconButton("plus", "ZR", 30, 28, 14, () => Game.I.RequestZoom(+1)).Tip("Приблизить", null, "Колесо мыши · клавиша +");
+        var zout = Ui.IconButton("minus", "ZL", 28, 26, 1, () => Game.I.RequestZoom(-1)).Tip("Отдалить", null, "Колесо мыши · клавиша −");
+        var zin = Ui.IconButton("plus", "ZR", 28, 26, 1, () => Game.I.RequestZoom(+1)).Tip("Приблизить", null, "Колесо мыши · клавиша +");
         _zoom = Ui.Text("×3", "Semi");
         _zoom.HorizontalAlignment = HorizontalAlignment.Center;
-        var zbox = Ui.Panel(new Box().Fill(Colors.White).Border(Pal.Ln2, 0, 1, 0, 1), _zoom, MouseFilterEnum.Stop).MinSize(40, 28);
+        var zbox = Ui.Panel(new Box().Fill(Pal.Well).Border(Pal.Ln), _zoom, MouseFilterEnum.Stop).MinSize(40, 26);
         zbox.Tip("Масштаб карты", null, "×½ — весь мир, ×8 — пиксель к пикселю");
-        var regen = Ui.Button("Новый мир", "refresh", "Sm", onRegenerate, 14, 28).Tip("Сгенерировать новый мир", null, "Случайное зерно · текущая партия будет потеряна");
-        regen.AddThemeConstantOverride("h_separation", 5);
+        var regen = Ui.Button("Новый мир", "refresh", "Ghost", onRegenerate, 1, 26).Tip("Сгенерировать новый мир", null, "Случайное зерно · текущая партия будет потеряна");
         _regen = regen; _zbox = zbox;
-        var bar = Ui.HBox(0, zout, zbox, zin, Ui.Expand(), regen);
-        AddChild(Ui.VBox(6, View, bar));
+        var bar = Ui.HBox(4, zout, zbox, zin, Ui.Expand(), regen);
+        AddChild(Ui.VBox(8, View, bar));
     }
 
     internal Control DebugTarget(string name) => name switch { "regen" => _regen, "zoom" => _zbox, "minimap" => View, _ => null };
@@ -47,9 +45,9 @@ public partial class Minimap : PanelContainer
 /// <summary>The minimap picture itself. Colours are recomputed only on world/mode/ownership/fog events (≈46k samples).</summary>
 public partial class MiniMapView : Control
 {
-    static readonly Color Outline = new(20 / 255f, 24 / 255f, 29 / 255f, .55f);
-    // unexplored land and sea: flat slate in two calm tones (four cloud levels at this size read as dirty speckle)
-    static readonly Color[] FogTone = { Pal.Hex(0x2a2f35), Pal.Hex(0x2a2f35), Pal.Hex(0x30353c), Pal.Hex(0x30353c) };
+    static readonly Color Outline = Pal.Ink;
+    // unexplored land and sea: flat graphite in two calm tones (four cloud levels at this size read as dirty speckle)
+    static readonly Color[] FogTone = { Pal.Hex(0x1c1c20), Pal.Hex(0x1c1c20), Pal.Hex(0x232327), Pal.Hex(0x232327) };
 
     int _mw = 288, _mh = 162;
     int[] _sample;           // world pixel index per minimap pixel
@@ -66,7 +64,7 @@ public partial class MiniMapView : Control
         MouseDefaultCursorShape = CursorShape.PointingHand;
         ClipContents = true;
         TextureFilter = TextureFilterEnum.Nearest;
-        CustomMinimumSize = new Vector2(_mw + 2, _mh + 2);
+        CustomMinimumSize = new Vector2(_mw + 4, _mh + 4);
     }
 
     /// <summary>288×162 normally, 240×135 on short screens (≤800px).</summary>
@@ -74,7 +72,7 @@ public partial class MiniMapView : Control
     {
         if (w == _mw && h == _mh) return;
         _mw = w; _mh = h;
-        CustomMinimumSize = new Vector2(w + 2, h + 2);
+        CustomMinimumSize = new Vector2(w + 4, h + 4);
         if (Game.I.IsReady) Resample();
     }
 
@@ -165,7 +163,7 @@ public partial class MiniMapView : Control
         }
     }
 
-    static void Nat(int n, out float r, out float g, out float b) { var d = Data.Nations[n]; r = d.R; g = d.G; b = d.B; }
+    static void Nat(int n, out float r, out float g, out float b) { var d = Game.I.Nations[n]; r = d.R; g = d.G; b = d.B; }
     static void FertColor(float f, out float r, out float g, out float b)
     {
         if (f < .5f) { r = 200; g = 90 + f * 2 * 120; b = 70; }
@@ -177,9 +175,9 @@ public partial class MiniMapView : Control
 
     public override void _Draw()
     {
-        FrameRect(new Rect2(0, 0, _mw + 2, _mh + 2), Outline);
-        if (_tex == null) { DrawRect(new Rect2(1, 1, _mw, _mh), Pal.Rgb(62, 67, 74)); return; }
-        DrawTextureRect(_tex, new Rect2(1, 1, _mw, _mh), false);
+        DrawRect(new Rect2(0, 0, _mw + 4, _mh + 4), Outline);
+        if (_tex == null) { DrawRect(new Rect2(2, 2, _mw, _mh), Pal.Surface); return; }
+        DrawTextureRect(_tex, new Rect2(2, 2, _mw, _mh), false);
         var wd = Game.I.World; var s = Game.I.State;
         if (wd == null || s == null) return;
         float kx = (float)_mw / wd.W, ky = (float)_mh / wd.H;
@@ -188,9 +186,9 @@ public partial class MiniMapView : Control
         {
             if (sc.Path == null || sc.Path.Length == 0) continue;
             int p = sc.Path[Math.Clamp(sc.Step, 0, sc.Path.Length - 1)];
-            float mx = Mathf.Round(wd.PCX[p] * kx) + 1, my = Mathf.Round(wd.PCY[p] * ky) + 1;
-            DrawRect(new Rect2(mx - 2, my - 2, 5, 5), new Color(20 / 255f, 24 / 255f, 29 / 255f, .75f));
-            DrawRect(new Rect2(mx - 1, my - 1, 3, 3), Colors.White);
+            float mx = Mathf.Round(wd.PCX[p] * kx) + 2, my = Mathf.Round(wd.PCY[p] * ky) + 2;
+            DrawRect(new Rect2(mx - 2, my - 2, 5, 5), Pal.Ink);
+            DrawRect(new Rect2(mx - 1, my - 1, 3, 3), Pal.Hi);
         }
 
         var cam = Game.I.CameraRect;
@@ -198,9 +196,9 @@ public partial class MiniMapView : Control
         float x0 = cam.Position.X * kx, y0 = cam.Position.Y * ky, w = Mathf.Round(cam.Size.X * kx), h = Mathf.Round(cam.Size.Y * ky);
         for (int k = -1; k <= 1; k++)
         {
-            var r = new Rect2(Mathf.Round(x0 + k * _mw) + 1, Mathf.Round(y0) + 1, w, h);
+            var r = new Rect2(Mathf.Round(x0 + k * _mw) + 2, Mathf.Round(y0) + 2, w, h);
             FrameRect(r.Grow(1), Outline);
-            FrameRect(r, Colors.White);
+            FrameRect(r, Pal.Hi);
         }
     }
 
@@ -238,8 +236,8 @@ public partial class MiniMapView : Control
     {
         var wd = Game.I.World;
         if (wd == null) return;
-        float wx = Mathf.PosMod((local.X - 1) / _mw * wd.W, wd.W);
-        float wy = Mathf.Clamp((local.Y - 1) / _mh * wd.H, 0, wd.H - 1);
+        float wx = Mathf.PosMod((local.X - 2) / _mw * wd.W, wd.W);
+        float wy = Mathf.Clamp((local.Y - 2) / _mh * wd.H, 0, wd.H - 1);
         Game.I.JumpCamera(new Vector2(wx, wy));
     }
 }

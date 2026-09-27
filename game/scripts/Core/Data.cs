@@ -1,3 +1,5 @@
+using PaxPixelia.Core.Flags;
+
 namespace PaxPixelia.Core;
 
 /// <summary>Static game tables (pure C#). Colours are 0..255 RGB triples.</summary>
@@ -15,8 +17,9 @@ public static class Data
     public static readonly string[] Syl = { "ар","да","мир","ра","кес","ол","ва","тор","ин","ска","лу","бра","вен","ти","го","ря","зан","ель","мо","ши","ка","лин","дор","ас","эн","ул","ор","не","ви","са","ром","ли","тас","хе","бар","ну","гел","сим","та","ур","ис","ма","кор","те","вил","мер","сан","до","рик","ла" };
     public static readonly string[] Suf = { "", "", "", "ия", "ск", "ов", "ин", "ара", "ет", "он", "ея" };
 
-    // ---- nations (ancient era). index 0 = the local player ----
-    public record Nation(string Name, string Gov, byte R, byte G, byte B, string CultureAdj, int Religion);
+    // ---- nations (ancient era): the default roster. index 0 = the player's slot ----
+    // A game's own roster (the player's design at [0]) lives in GameState.Nations / Game.I.Nations — read that one.
+    public record Nation(string Name, string Gov, byte R, byte G, byte B, string CultureAdj, int Religion, FlagSpec Flag = default, byte Culture = 0);
     public static readonly Nation[] Nations = {
         new("Ардания","Вождество",190,72,60,"арданская",0), new("Кесарат Мирры","Кесарат",72,112,182,"мирранская",1),
         new("Торн","Племенной союз",112,152,58,"торнская",2), new("Ксилия","Царство",182,130,72,"ксильская",2),

@@ -18,7 +18,7 @@ internal sealed class SeaLabels
     float[] _score = Array.Empty<float>();
     bool[] _open = Array.Empty<bool>();
     SpacedText[] _text = Array.Empty<SpacedText>();
-    float[] _w13 = Array.Empty<float>(), _w14 = Array.Empty<float>();
+    float[] _w11 = Array.Empty<float>();
     object _forWorld;
 
     readonly List<int> _prev = new(), _next = new();
@@ -49,8 +49,8 @@ internal sealed class SeaLabels
         _order = new int[c.Count]; _score = new float[c.Count]; _open = new bool[c.Count];
         for (int i = 0; i < c.Count; i++) { _order[i] = c[i].p; _score[i] = c[i].s; _open[i] = c[i].open; }
         _text = new SpacedText[w.P];
-        _w13 = new float[w.P]; _w14 = new float[w.P];
-        Array.Fill(_w13, -1); Array.Fill(_w14, -1);
+        _w11 = new float[w.P];
+        Array.Fill(_w11, -1);
     }
 
     public void Draw(CanvasItem ci, in MapViewport v, List<Rect2> boxes, UiBlockers ui)
@@ -58,11 +58,11 @@ internal sealed class SeaLabels
         var g = Game.I; var w = g.World; var s = g.State;
         if (_forWorld != w) Rank();
         int z = v.Level;
-        int fs = z >= 3 ? 14 : 13;
-        float ls = fs * (z == 1 ? .22f : .16f);
+        const int fs = 11;                     // the pixel font 1:1, spaced caps like an old atlas
+        const float ls = 3;
         float sp = z == 1 ? 560 : z == 2 ? 460 : 520, sp2 = sp * sp;
         float lim = z == 1 && _order.Length > 0 ? _score[Math.Min(_order.Length - 1, _order.Length >> 3)] : 0;
-        var font = MapFonts.Display500;
+        var font = MapFonts.Pixel;
         bool fog = s.FogEnabled;
 
         _next.Clear();
@@ -80,9 +80,8 @@ internal sealed class SeaLabels
             if (sy - fs < TopUi || sy + fs > v.Screen.Y - BottomUi) continue;
             float sx = v.FirstX(w.PCX[p], 0);
             if (sx > v.Screen.X) continue;
-            var widths = fs == 13 ? _w13 : _w14;
-            if (widths[p] < 0) widths[p] = (_text[p] ??= new SpacedText(w.PName[p])).Width(font, fs, ls);
-            float tw = widths[p];
+            if (_w11[p] < 0) _w11[p] = (_text[p] ??= new SpacedText(w.PName[p].ToUpperInvariant())).Width(font, fs, ls);
+            float tw = _w11[p];
             float x0 = sx - tw / 2 - 10, y0 = sy - fs / 2f - 6, bw = tw + 20, bh = fs + 12;
             if (x0 < SideUi || x0 + bw > v.Screen.X - SideUi) continue;
             bool ok = true;
@@ -104,7 +103,7 @@ internal sealed class SeaLabels
         _prev.Clear();
         foreach (var o in _out) _prev.Add(o.p);
         _prevLevel = z;
-        foreach (var (p, x, y) in _out) _text[p].Draw(ci, font, fs, ls, x, y, 0, 0, MapPalette.SeaText, 0, default);
+        foreach (var (p, x, y) in _out) _text[p].Draw(ci, font, fs, ls, x, y, 0, 0, MapPalette.SeaText, TextFx.Shadow, 1);
     }
 
     static bool Water(in MapViewport v, float X, float Y, bool fog)

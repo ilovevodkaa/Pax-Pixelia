@@ -6,7 +6,8 @@ using PaxPixelia.Core;
 namespace PaxPixelia.UI;
 
 /// <summary>
-/// #notes — event cards stacked top-left (newest first, at most 3). Laid out manually so moves can be animated:
+/// Event cards stacked top-left (newest first, at most 3): pixel cards with an icon tile, the chronicle date and a
+/// hover accent bar. Laid out manually so moves can be animated:
 /// incoming notes wait in a queue and appear one at a time (at most one every <see cref="Spacing"/> s, so a burst at
 /// speed 5 does not churn); the stack eases down first, then the new card fades in on top once the card below has
 /// settled; a card that leaves (pushed out or clicked away, × on hover) drops behind the others and fades quickly,
@@ -30,7 +31,7 @@ public partial class Notifications : Control
 
     public void Add(string icon, string text)
     {
-        var year = Game.I.IsReady ? Fmt.Year(Game.I.State.Year) : "";
+        var year = Game.I.IsReady ? Game.I.DateText : "";
         if (_queue.Count >= MaxQueued) _queue.Dequeue();   // a flood: the oldest waiting note is skipped
         _queue.Enqueue((icon, text, year));
     }
@@ -79,7 +80,10 @@ public partial class Notifications : Control
                 n.Position = new Vector2(n.Position.X, top);   // wait in place, invisible, until the stack has made room
                 continue;
             }
-            n.Position = n.Position.DistanceTo(target) < .5f ? target : n.Position.Lerp(target, k);
+            // whole pixels only: the unantialiased font would shimmer at fractional positions
+            var next = n.Position.Lerp(target, k).Round();
+            if (next == n.Position) next = n.Position.MoveToward(target, 1).Round();
+            n.Position = n.Position.DistanceTo(target) < 1f ? target : next;
             if (n.Modulate.A < 1) n.Modulate = new Color(1, 1, 1, Mathf.MoveToward(n.Modulate.A, 1, dt / (float)FadeIn));
             if (i == 1) belowSettled = MathF.Abs(n.Position.Y - top) <= 2;
         }
@@ -91,29 +95,28 @@ public partial class Notifications : Control
         }
     }
 
-    /// <summary>.note — sunken icon tile, text, year line; × on hover.</summary>
+    /// <summary>A note: sunken icon tile, text, date line; × and the left accent bar on hover.</summary>
     sealed partial class Note : PanelContainer
     {
         public bool Dying;
         public event System.Action Clicked;
         readonly TextureRect _x;
-        readonly Box _normal = St.Card(St.R).Pad(8, 8, 8, 9);
-        readonly Box _hover = St.Card(St.R).Pad(8, 8, 8, 9);
+        readonly Box _normal = St.Card().Pad(8, 8, 8, 9);
+        readonly Box _hover = St.Card().Border(Pal.Ln3).AccentLeft(Pal.Ac, 4).Pad(8, 8, 8, 9);
 
         public Note() : this("info-circle", "", "") { }
         public Note(string icon, string text, string year)
         {
             MouseFilter = MouseFilterEnum.Stop;
             MouseDefaultCursorShape = CursorShape.PointingHand;
-            _hover.Border(Pal.Ln3);
             AddThemeStyleboxOverride("panel", _normal);
-            var tile = Ui.Panel(St.Tile(false, St.R), Ui.Icon(icon, 16)).MinSize(28, 28);
+            var tile = Ui.Panel(St.Tile(), Ui.Icon(icon, 2, Pal.Ac)).MinSize(34, 34);
             tile.SizeFlagsVertical = SizeFlags.ShrinkBegin;
-            var body = Ui.Text(text, null, wrap: true);
-            body.CustomMinimumSize = new Vector2(Width - 16 - 28 - 10 - 20, 0);
+            var body = Ui.Text(text, null, wrap: true).Spacing(3);
+            body.CustomMinimumSize = new Vector2(Width - 16 - 34 - 10 - 20, 0);
             body.Size = body.CustomMinimumSize;
             var date = Ui.Text(year, "SmallMu");
-            _x = Ui.Icon("x", 13, Pal.Mu2);
+            _x = Ui.Icon("x", 1, Pal.Mu);
             _x.SizeFlagsVertical = SizeFlags.ShrinkBegin;
             _x.Modulate = new Color(1, 1, 1, 0);
             AddChild(Ui.HBox(10, tile, Ui.VBox(2, body, date).Grow(), _x));

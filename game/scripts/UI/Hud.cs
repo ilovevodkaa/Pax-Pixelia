@@ -6,10 +6,11 @@ using PaxPixelia.Sim;
 namespace PaxPixelia.UI;
 
 /// <summary>
-/// All screen-space UI in the gray-white «Мрамор и графит» design (design_final + DESIGN_NOTES.md), built in code:
-/// top bar, notifications, map-mode strip + minimap, province panel, leaderboard, toast, tooltip, loading screen.
+/// All screen-space UI in the monochrome dark pixel style of the shared kit (<see cref="PixelKit"/>, the user's
+/// «Mr. President» look), built in code: top bar, notifications, map-mode strip + minimap, province panel, leaderboard,
+/// toast, tooltip, chapter card (the loading screen) and the pause menu.
 /// Talks to the rest of the game only through <see cref="Game.I"/> events and actions.
-/// Keyboard: Space pause, 1–5 speed, Esc cancels scout targeting → closes the leaderboard → closes the panel.
+/// Keyboard: Space pause, 1–5 speed, Esc cancels scout targeting → closes the leaderboard → closes the panel → pause menu.
 /// </summary>
 public partial class Hud : CanvasLayer
 {
@@ -23,34 +24,42 @@ public partial class Hud : CanvasLayer
     Leaderboard _lead;
     Toast _toast;
     TipCard _tip;
-    LoadingScreen _loading;
+    ChapterCard _loading;
+    EventWindow _events;
 
     Control _tipOwner;
     int _tipProvince = -1;
     bool _tipDirty;
     // heavy refreshes are coalesced: fog/ownership events may arrive every tick at speed 5
-    bool _miniDirty, _leadDirty;
-    double _miniCooldown, _leadCooldown;
+    bool _miniDirty, _leadDirty, _liveDirty;
+    double _miniCooldown, _leadCooldown, _liveCooldown;
 
     /// <summary>Debug hooks (UiDebug): a fixed mouse position for screenshots and the control whose tip is forced.</summary>
     internal Vector2? FakeMouse;
     internal Control ForcedTip;
     internal ProvincePanel Panel => _panel;
     internal Leaderboard Lead => _lead;
-    internal LoadingScreen Loading => _loading;
+    internal ChapterCard Loading => _loading;
     internal TopBar Top => _top;
     internal Notifications Notes => _notes;
     internal Toast ToastView => _toast;
     internal TipCard Tip => _tip;
     internal Minimap Mini => _mini;
+    internal EventWindow Events => _events;
     internal bool KeepLoading;
+    System.Action _debugReady;
     internal Control DebugTarget(string name) => _top.DebugTarget(name) ?? _modes.DebugTarget(name) ?? _mini.DebugTarget(name);
     internal void DebugToggleLead() => ToggleLeaderboard();
 
     public override void _Ready()
     {
         Layer = 10;
-        _root = new Control { MouseFilter = Control.MouseFilterEnum.Ignore, Theme = UiTheme.Build(), TextureFilter = CanvasItem.TextureFilterEnum.Linear };
+        _root = new Control
+        {
+            MouseFilter = Control.MouseFilterEnum.Ignore, Theme = UiTheme.Build(),
+            TextureFilter = CanvasItem.TextureFilterEnum.Nearest,   // pixel art: icons and dither bands scale without blur
+            TextureRepeat = CanvasItem.TextureRepeatEnum.Enabled,   // grain and dither tiles
+        };
         _root.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         AddChild(_root);
 
@@ -77,27 +86,32 @@ public partial class Hud : CanvasLayer
         _root.AddChild(_panel);
         _lead = new Leaderboard();
         _root.AddChild(_lead);
+        _events = new EventWindow();
+        _root.AddChild(_events);
         _toast = new Toast();
         _root.AddChild(_toast);
         _tip = new TipCard();
         _root.AddChild(_tip);
-        _loading = new LoadingScreen();
+        _loading = new ChapterCard();
         _root.AddChild(_loading);
+        AddChild(new PauseMenu());   // last child of the layer: above everything, first to see input
 
         Subscribe(true);
-        // below 1280×720 the top bar no longer fits (its controls would slide off-screen)
-        GetWindow().MinSize = new Vector2I(1280, 720);
+        // the top bar folds down to fit 1024 px (captions, deltas and the session counter go below 1280)
+        GetWindow().MinSize = new Vector2I(1024, 600);
         GetViewport().SizeChanged += OnResize;
         OnResize();
         _modes.Refresh();
         if (Game.I.IsReady) OnWorldReady(); else _loading.ShowNow();
-        UiDebug.Setup(this);
+        _debugReady = UiDebug.Setup(this);
     }
 
     public override void _ExitTree()
     {
         GetViewport().SizeChanged -= OnResize;
-        if (Game.I != null) Subscribe(false);
+        if (Game.I == null) return;
+        Subscribe(false);
+        Game.I.WorldReady -= _debugReady;
     }
 
     void Subscribe(bool on)
@@ -107,7 +121,7 @@ public partial class Hud : CanvasLayer
         {
             g.GenerationProgress += OnProgress; g.WorldReady += OnWorldReady; g.ProvinceSelected += OnSelected;
             g.MapModeChanged += OnModeChanged; g.ProvincesChanged += OnProvincesChanged; g.FogChanged += OnFogChanged;
-            g.YearTick += OnYearTick; g.TimeControlChanged += OnTimeControl; g.Notified += OnNotified; g.Toast += OnToast;
+            g.CycleTick += OnCycleTick; g.DateChanged += OnDateChanged; g.TimeControlChanged += OnTimeControl; g.Notified += OnNotified; g.Toast += OnToast;
             g.CameraMoved += OnCameraMoved; g.TargetingChanged += OnTargeting;
             g.ScoutsChanged += OnScoutsChanged;
         }
@@ -115,7 +129,7 @@ public partial class Hud : CanvasLayer
         {
             g.GenerationProgress -= OnProgress; g.WorldReady -= OnWorldReady; g.ProvinceSelected -= OnSelected;
             g.MapModeChanged -= OnModeChanged; g.ProvincesChanged -= OnProvincesChanged; g.FogChanged -= OnFogChanged;
-            g.YearTick -= OnYearTick; g.TimeControlChanged -= OnTimeControl; g.Notified -= OnNotified; g.Toast -= OnToast;
+            g.CycleTick -= OnCycleTick; g.DateChanged -= OnDateChanged; g.TimeControlChanged -= OnTimeControl; g.Notified -= OnNotified; g.Toast -= OnToast;
             g.CameraMoved -= OnCameraMoved; g.TargetingChanged -= OnTargeting;
             g.ScoutsChanged -= OnScoutsChanged;
         }
@@ -174,12 +188,19 @@ public partial class Hud : CanvasLayer
         _panel.OnFogChanged();
     }
 
-    void OnYearTick()
+    /// <summary>A rules cycle ran (every 0.1–2 s by speed): budget, science and the panel's live values.</summary>
+    void OnCycleTick()
     {
-        _top.OnYearTick();
-        _panel.OnYearTick();
-        _mini.View.QueueRedraw();
-        _leadDirty = _tipDirty = true;   // province tips update in place, UI tips rebuild: both cheap once a year
+        _top.OnCycleTick();
+        _liveDirty = _leadDirty = true;   // top bar + panel live values, coalesced in _Process
+    }
+
+    /// <summary>The date moves every tick (months/days): the clock follows at once, the heavier live values
+    /// (gold, button states in the panel) at most 5× a second — gold may arrive on any tick, not only at a new year.</summary>
+    void OnDateChanged()
+    {
+        _top.OnDateChanged();
+        _liveDirty = true;
     }
 
     void OnTimeControl(bool paused, int speed)
@@ -264,6 +285,7 @@ public partial class Hud : CanvasLayer
                 if (Game.I.IsTargeting) Game.I.CancelScoutTargeting();
                 else if (_lead.Visible) ToggleLeaderboard();
                 else if (_panel.Visible) Game.I.Select(-1);
+                else if (Game.I.IsReady && !_loading.Visible) PauseMenu.Open();
                 else return;
                 break;
             default:
@@ -276,11 +298,11 @@ public partial class Hud : CanvasLayer
     void OnResize()
     {
         var size = GetViewport().GetVisibleRect().Size;
-        _top.SetDensity(size.X <= 1440, size.X <= 1180);
+        _top.SetWidth(size.X);
         bool shortScreen = size.Y <= 800;
         int mw = shortScreen ? 240 : 288, mh = shortScreen ? 135 : 162;
         _mini.View.SetMapSize(mw, mh);
-        _modes.SetWidth(mw + 14);
+        _modes.SetWidth(mw + 16);
         _panel.SetViewport(size);
         if (_lead.Visible) Callable.From(PlaceLeaderboard).CallDeferred();
     }
@@ -289,6 +311,8 @@ public partial class Hud : CanvasLayer
     public override void _Process(double delta)
     {
         UpdateTip();
+        _liveCooldown -= delta;
+        if (_liveDirty && _liveCooldown <= 0) { _liveDirty = false; _liveCooldown = .2; _top.RefreshResources(); _panel.RefreshLive(); }
         _miniCooldown -= delta;
         if (_miniDirty && _miniCooldown <= 0) { _miniDirty = false; _miniCooldown = .25; _mini.View.Recolor(); }
         if (_lead.Visible)
@@ -305,6 +329,7 @@ public partial class Hud : CanvasLayer
         var mouse = FakeMouse ?? vp.GetMousePosition();
         var screen = _root.Size;
         var hovered = ForcedTip ?? vp.GuiGetHoveredControl();
+        if (hovered == _toast) hovered = null;   // the toast lets the map show through (pick tips stay visible)
         if (hovered != null && !_loading.Visible)
         {
             if (Tips.TryFind(hovered, out var owner, out var build))

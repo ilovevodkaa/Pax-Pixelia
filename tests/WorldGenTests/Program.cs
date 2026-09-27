@@ -7,22 +7,18 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
 using PaxPixelia.Core;
-using PaxPixelia.Sim;
 using PaxPixelia.World;
 
 namespace WorldGenTests;
 
 /// <summary>
-/// Console checks for WorldGen + NationGen: timings, stats (same format as the mockup's node harness), invariants,
-/// determinism across runs and thread counts, per-array hashes, PNGs.
+/// Console checks for WorldGen: timings, stats, invariants, river network quality, determinism across runs and thread
+/// counts, golden per-array hashes, PNGs.
 ///
 ///   dotnet run -c Release [-p:GameDir=&lt;game copy&gt;/] -- [1337,42,777] [--size=2560x1440] [--threads=1,3] [--nodet]
-///       [--hashes=&lt;dir&gt;] [--compare=&lt;dir&gt;] [--png=&lt;dir&gt;] [--bench=N] [--bless]
-/// Two references per seed (in reference/, or --compare):
-///  • js_SEED.txt (jsdump.js on docs/mockups/js): relief, climate, colour and provinces must match the mockup bit for bit;
-///  • cs_SEED.txt: what the game deliberately does its own way — the drainage-network rivers (and river-dependent
-///    fertility) and the nations — pinned to the last blessed C# output; --bless rewrites it after an intended change.
-/// Exit code 0 = all invariants hold, results deterministic and identical to both references where they exist.
+///       [--png=&lt;dir&gt; [--crops=x,y;x,y]] [--bench=N] [--bless] [--budget=ms]
+/// reference/golden_SEED.txt pins every output array of the last blessed generator; after an intended change to the
+/// world, look at the PNGs and rerun with --bless. Exit code 0 = invariants hold, output deterministic and golden.
 /// </summary>
 static class Program
 {
@@ -35,39 +31,41 @@ static class Program
         var size = (opt.GetValueOrDefault("size") ?? "2560x1440").Split('x').Select(int.Parse).ToArray();
         int W = size[0], H = size[1];
         var threads = (opt.GetValueOrDefault("threads") ?? "1,3").Split(',').Select(int.Parse).ToArray();
+        double budget = double.Parse(opt.GetValueOrDefault("budget") ?? "600");
         Console.OutputEncoding = Encoding.UTF8;
         Console.WriteLine($"{Environment.ProcessorCount} logical cores, {W}x{H}");
         CheckNoiseParity();
         CheckHotKernels();
+        CheckPalette();
+        WorldGen.Generate(seeds[0], W, H);                                    // warm-up: timings below exclude JIT
 
         foreach (int seed in seeds)
         {
             var sw = Stopwatch.StartNew();
             var w = WorldGen.Generate(seed, W, H);
             double tGen = sw.Elapsed.TotalMilliseconds;
-            var s = NationGen.CreateInitialState(w);
-            double tAll = sw.Elapsed.TotalMilliseconds;
-            Console.WriteLine($"seed {seed} {W}x{H} total {tAll:F0}ms (worldgen {tGen:F0} + nations {tAll - tGen:F0}) stages: " +
-                              string.Join(" | ", w.GenTimings.Select(t => $"{t.Stage} {t.Ms:F0}")));
-            PrintStats(w, s);
-            CheckInvariants(w, s);
-
-            var hashes = Hashes(w, s);
-            string full = Fnv(string.Join("\n", hashes));
-            if (opt.TryGetValue("hashes", out var hdir)) File.WriteAllLines(Path.Combine(hdir, $"cs_{seed}.txt"), hashes);
-            string refDir = opt.GetValueOrDefault("compare") ?? Path.Combine(AppContext.BaseDirectory, "reference");
-            string jsRef = Path.Combine(refDir, $"js_{seed}.txt"), csRef = Path.Combine(refDir, $"cs_{seed}.txt");
-            if (File.Exists(jsRef)) CompareMockup(hashes, jsRef);
-            if (opt.ContainsKey("bless"))
-            {
-                // also next to the sources, so the blessed file is what the next build copies
-                foreach (var dir in new[] { refDir, SourceReferenceDir() }.Where(d => d != null).Distinct())
-                    if (Directory.Exists(dir)) File.WriteAllLines(Path.Combine(dir, $"cs_{seed}.txt"), hashes.Where(l => OwnKeys.Contains(l.Split(' ')[0])));
-                Console.WriteLine($"  blessed cs_{seed}.txt");
-            }
-            else if (File.Exists(csRef)) CompareOwn(hashes, csRef);
-            else Console.WriteLine($"  no cs_{seed}.txt — run with --bless to pin the rivers and nations");
+            Console.WriteLine($"seed {seed} {W}x{H} worldgen {tGen:F0}ms stages: " + string.Join(" | ", w.GenTimings.Select(t => $"{t.Stage} {t.Ms:F0}")));
+            if (W * H <= 2560 * 1440 && tGen > budget) Fail($"generation took {tGen:F0} ms (budget {budget:F0} ms)");
+            PrintStats(w);
+            CheckInvariants(w);
             CheckRivers(w);
+            CheckTerrain(w);
+
+            var hashes = Hashes(w);
+            string full = Fnv(string.Join("\n", hashes));
+            string refDir = SourceReferenceDir() ?? Path.Combine(AppContext.BaseDirectory, "reference");
+            string golden = Path.Combine(refDir, $"golden_{seed}.txt");
+            if (opt.ContainsKey("bless") && W == 2560 && H == 1440)
+            {
+                Directory.CreateDirectory(refDir);
+                File.WriteAllLines(golden, hashes);
+                Console.WriteLine($"  blessed {Path.GetFileName(golden)}");
+            }
+            else if (W == 2560 && H == 1440)
+            {
+                if (File.Exists(golden)) CompareGolden(hashes, golden);
+                else Fail($"no {Path.GetFileName(golden)} — look at the PNGs, then run with --bless");
+            }
 
             if (!opt.ContainsKey("nodet"))
             {
@@ -75,15 +73,14 @@ static class Program
                 foreach (int t in threads.Prepend(-1))
                 {
                     WorldGen.MaxThreads = t;
-                    var w2 = WorldGen.Generate(seed, W, H);
-                    string h2 = Fnv(string.Join("\n", Hashes(w2, NationGen.CreateInitialState(w2))));
+                    string h2 = Fnv(string.Join("\n", Hashes(WorldGen.Generate(seed, W, H))));
                     res.Add($"threads {(t < 0 ? "all" : t)}: {(h2 == full ? "same" : "DIFFERENT")}");
                     if (h2 != full) Fail($"non-deterministic output with {t} threads");
                 }
                 WorldGen.MaxThreads = -1;
                 Console.WriteLine($"  determinism (full hash {full}): {string.Join(", ", res)}");
             }
-            if (opt.TryGetValue("png", out var pdir)) WritePngs(w, s, pdir);
+            if (opt.TryGetValue("png", out var pdir)) WritePngs(w, pdir, opt.GetValueOrDefault("crops"));
         }
 
         if (opt.TryGetValue("bench", out var nb))
@@ -94,7 +91,6 @@ static class Program
             {
                 var sw = Stopwatch.StartNew();
                 var w = WorldGen.Generate(seeds[0], W, H);
-                NationGen.CreateInitialState(w);
                 times.Add(sw.Elapsed.TotalMilliseconds);
                 if (k == n - 1) Console.WriteLine("  last run stages: " + string.Join(" | ", w.GenTimings.Select(t => $"{t.Stage} {t.Ms:F1}")));
             }
@@ -134,36 +130,36 @@ static class Program
         Console.WriteLine($"hot kernels: {hot}/{lambdas.Count} generator lambdas compiled with AggressiveOptimization");
     }
 
-    // ---------------------------------------------------------------- stats (node harness format)
-
-    static void PrintStats(WorldData w, GameState s)
+    /// <summary>The ramp function must reproduce the art bible's generated ramps (forest, meadow) exactly.</summary>
+    static void CheckPalette()
     {
-        int landPx = 0;
+        var forest = TerrainPalette.Ramp(64, 102, 60);
+        var meadow = TerrainPalette.Ramp(110, 144, 74);
+        bool ok = forest.SequenceEqual(TerrainPalette.Ramps[8]) && meadow.SequenceEqual(TerrainPalette.Ramps[9]);
+        if (TerrainPalette.Ramps.Any(r => r == null || r.Length != 5)) Fail("a terrain material has no 5-step ramp");
+        if (!ok) Fail($"TerrainPalette.Ramp differs from ART_BIBLE §2.2: forest {string.Join(",", forest.Select(c => c.ToString("X6")))}");
+        else Console.WriteLine($"palette OK ({TerrainPalette.Count} materials × 5 steps, ramp function == ART_BIBLE)");
+    }
+
+    // ---------------------------------------------------------------- stats
+
+    static void PrintStats(WorldData w)
+    {
+        int landPx = 0, riverPx = 0;
         foreach (byte b in w.Land) landPx += b;
+        foreach (byte b in w.River) riverPx += b;
         var szL = new List<int>(); var szS = new List<int>();
         for (int p = 0; p < w.P; p++) (w.PLand[p] != 0 ? szL : szS).Add(w.PSize[p]);
         string Med(List<int> a) { if (a.Count == 0) return "-"; a.Sort(); return $"{a[0]}/{a[a.Count >> 1]}/{a[^1]}"; }
-        var nat = s.NationCapital.Select((_, n) => s.Owner.Count(o => o == n));
-        int h = 0;
-        for (int i = 0; i < w.N; i += 7) h = unchecked(h * 31 + w.Prov[i] + BitConverter.ToInt32(w.BaseColor, i * 4));
+        var colours = new HashSet<int>();
+        for (int i = 0; i < w.N; i++) colours.Add(BitConverter.ToInt32(w.BaseColor, i * 4));
         Console.WriteLine($"  P={w.P} land={landPx * 100.0 / w.N:F1}% prov land {szL.Count} sea {szS.Count}; size min/med/max land {Med(szL)} sea {Med(szS)}; " +
-                          $"rivers {w.Rivers.Count}; nations {string.Join(",", nat)}; hash {h}");
-        var names = new Dictionary<string, int>();
-        var order = new List<string>();
-        for (int p = 0; p < w.P; p++)
-        {
-            if (w.PLand[p] != 0) continue;
-            string k = w.PName[p].Split(' ')[0];
-            if (!names.ContainsKey(k)) { names[k] = 0; order.Add(k); }
-            names[k]++;
-        }
-        Console.WriteLine($"  water names {{{string.Join(",", order.Select(k => $"\"{k}\":{names[k]}"))}}} routes {s.Routes.Count} caps {s.NationCapital.Length}" +
-                          $"; bodies {w.BodySize.Length} (ocean {w.BodySize[w.Ocean]} px)");
+                          $"rivers {w.Rivers.Count} ({riverPx} px, {Enumerable.Range(0, w.P).Count(p => w.PRiver[p] != 0)} provinces); bodies {w.BodySize.Length}; {colours.Count} colours");
     }
 
     // ---------------------------------------------------------------- invariants
 
-    static void CheckInvariants(WorldData w, GameState s)
+    static void CheckInvariants(WorldData w)
     {
         int before = _failures, P = w.P, N = w.N, W = w.W;
         for (int i = 0; i < N; i++)
@@ -175,12 +171,15 @@ static class Program
             if (w.Land[i] == 0 ? w.Biome[i] != 0 || w.Height[i] >= 0 : w.Biome[i] == 0 || w.Height[i] <= 0) { Fail($"land/biome/height inconsistent at {i}"); break; }
             if (w.BaseColor[i * 4 + 3] != 255) { Fail($"BaseColor alpha at {i}"); break; }
             if (w.River[i] != 0 && w.Land[i] == 0) { Fail($"river in water at {i}"); break; }
+            if (w.TerrMaterial[i] >= TerrainPalette.Count || w.TerrStep[i] > 4 || (w.TerrMaterial[i] == TerrainPalette.Water) != (w.Land[i] == 0)) { Fail($"terrain material/step invalid at {i}"); break; }
+            int c = TerrainPalette.Ramps[w.TerrMaterial[i]][w.TerrStep[i]];
+            if (w.BaseColor[i * 4] != (byte)(c >> 16) || w.BaseColor[i * 4 + 1] != (byte)(c >> 8) || w.BaseColor[i * 4 + 2] != (byte)c) { Fail($"BaseColor is not ramp[material][step] at {i}"); break; }
         }
         if (w.PName.Distinct().Count() != P) Fail("province names are not unique");
         for (int p = 0; p < P; p++)
         {
             if (w.PSize[p] <= 0) { Fail($"empty province {p}"); break; }
-            if (!float.IsFinite(w.PH[p]) || !float.IsFinite(w.PFert[p]) || !float.IsFinite(s.Pop[p]) || w.PFert[p] < 0 || w.PFert[p] > 1) { Fail($"bad stats p{p}"); break; }
+            if (!float.IsFinite(w.PH[p]) || !float.IsFinite(w.PFert[p]) || w.PFert[p] < 0 || w.PFert[p] > 1) { Fail($"bad stats p{p}"); break; }
             if (w.Prov[w.PCY[p] * W + w.PCX[p]] != p) { Fail($"centre pixel of {p} outside it"); break; }
             if (string.IsNullOrEmpty(w.PName[p])) { Fail($"no name p{p}"); break; }
             if (w.BodyLand[w.PBody[p]] != w.PLand[p]) { Fail($"body land mismatch p{p}"); break; }
@@ -193,6 +192,10 @@ static class Program
             bool coast = a.Any(q => w.PLand[q] == 0);
             if (w.PLand[p] != 0 && (w.PCoast[p] != 0) != coast) { Fail($"PCoast wrong at {p}"); break; }
         }
+        // PRiver = the province has a river pixel
+        var hasRiver = new bool[P];
+        for (int i = 0; i < N; i++) if (w.River[i] != 0) hasRiver[w.Prov[i]] = true;
+        for (int p = 0; p < P; p++) if (hasRiver[p] != (w.PRiver[p] != 0)) { Fail($"PRiver wrong at {p}"); break; }
         // pixel index
         if (w.PixOffset[0] != 0 || w.PixOffset[P] != N) Fail("PixOffset ends");
         else
@@ -225,30 +228,147 @@ static class Program
         }
         int split = pieces.Count(c => c != 1);
         if (split > 0) Fail($"{split} provinces not connected ({Enumerable.Range(0, P).Count(p => pieces[p] != 1 && w.PLand[p] != 0)} land)");
-        // rivers
-        foreach (var r in w.Rivers)
-            if (r.Xs.Length < 2 || r.Xs.Length != r.Ys.Length || r.Xs.Any(v => !float.IsFinite(v)) || r.MinY > r.MaxY) { Fail("bad river polyline"); break; }
-        // nations
-        for (int n = 0; n < s.NationCapital.Length; n++)
-        {
-            int c = s.NationCapital[n];
-            if (w.PLand[c] == 0 || s.Owner[c] != n || s.CapitalOf[c] != n) Fail($"capital of nation {n} invalid");
-            if (!s.Buildings[c].Contains(Data.Bld.Shrine)) Fail($"capital of nation {n} has no shrine");
-        }
-        if (s.NationCapital.Distinct().Count() != s.NationCapital.Length) Fail("two nations share a capital");
-        for (int p = 0; p < P; p++)
-        {
-            if (s.Owner[p] >= 0 && w.PLand[p] == 0) { Fail($"owned sea province {p}"); break; }
-            if (s.Buildings[p].Count > s.Slots[p]) { Fail($"more buildings than slots at {p}"); break; }
-            if (s.Owner[p] >= 0 && s.Religion[p] != Data.Nations[s.Owner[p]].Religion) { Fail($"religion of owned province {p}"); break; }
-        }
-        foreach (var r in s.Routes)
-            for (int k = 1; k < r.Length; k++)
-                if (!w.Adj[r[k - 1]].Contains(r[k])) { Fail("trade route not along adjacency"); break; }
         Console.WriteLine(_failures == before ? "  invariants OK" : "  INVARIANTS FAILED");
     }
 
-    // ---------------------------------------------------------------- hashes (format of jsdump.js)
+    // ---------------------------------------------------------------- rivers
+
+    /// <summary>
+    /// The river network: finite polylines with flow; every river ends in water or on another river; no ruler-straight
+    /// stretches; points ≤ 4 px apart; no «combs» (a river running within 3 px of another for most of its course); river pixels and polylines
+    /// agree (every land point of a line is a river pixel, every river pixel lies on a line).
+    /// </summary>
+    static void CheckRivers(WorldData w)
+    {
+        if (w.Rivers.Count == 0) { Fail("no rivers"); return; }
+        int before = _failures, W = w.W, H = w.H, mouths = 0, joins = 0, arms = 0, straight = 0, combs = 0, turns = 0;
+        double length = 0, sinuous = 0;
+        float gap = 0;
+        var deltas = new List<string>();
+        var id = new int[w.N];                                   // river index + 1 per rasterised pixel (last wins)
+        for (int r = 0; r < w.Rivers.Count; r++)
+            foreach (int i in Pixels(w.Rivers[r], W, H)) id[i] = r + 1;
+        for (int i = 0; i < w.N; i++)
+            if (w.River[i] != 0 && id[i] == 0) { Fail($"river pixel ({i % W},{i / W}) is on no polyline"); break; }
+        for (int r = 0; r < w.Rivers.Count; r++)
+        {
+            var o = w.Rivers[r];
+            if (o.Xs.Length < 2 || o.Xs.Length != o.Ys.Length || o.Xs.Any(v => !float.IsFinite(v)) || o.Ys.Any(v => !float.IsFinite(v)) || o.MinY > o.MaxY)
+            { Fail("bad river polyline"); return; }
+            if (o.Flow == null || o.Flow.Length != o.Xs.Length || o.Flow.Any(f => f < 0 || f > 1)) { Fail("river flow missing or out of 0..1"); return; }
+            if (o.Ys.Min() != o.MinY || o.Ys.Max() != o.MaxY) { Fail("river MinY/MaxY wrong"); return; }
+            for (int k = 0; k + 1 < o.Xs.Length; k++)
+            {
+                int i = Pix(o.Xs[k], o.Ys[k], W, H);
+                if (w.Land[i] != 0 && w.River[i] == 0) { Fail($"river line point ({o.Xs[k]:F1},{o.Ys[k]:F1}) is not a river pixel"); return; }
+                float dx = o.Xs[k + 1] - o.Xs[k], dy = o.Ys[k + 1] - o.Ys[k];
+                if (dx * dx + dy * dy > 16) { Fail($"river points {MathF.Sqrt(dx * dx + dy * dy):F1} px apart at ({o.Xs[k]:F0},{o.Ys[k]:F0})"); return; }
+                length += MathF.Sqrt(dx * dx + dy * dy);
+                gap = MathF.Max(gap, MathF.Sqrt(dx * dx + dy * dy));
+            }
+            if (w.Rivers.Any(q => q != o && Near(q, o.Xs[0], o.Ys[0], W, .01f)) && arms++ < 3) deltas.Add($"{o.Xs[0]:F0},{o.Ys[0]:F0}");
+            if (w.Land[Pix(o.Xs[^1], o.Ys[^1], W, H)] == 0) mouths++;
+            else if (w.Rivers.Any(q => q != o && Near(q, o.Xs[^1], o.Ys[^1], W, .01f))) joins++;
+            // a ruler-straight stretch: 24 points (~40 px) all within 0.35 px of their chord (at 2560 wide)
+            for (int k = 0; k + 24 < o.Xs.Length; k += 6)
+            {
+                float ax = o.Xs[k], ay = o.Ys[k], bx = o.Xs[k + 24], by = o.Ys[k + 24], len = MathF.Sqrt((bx - ax) * (bx - ax) + (by - ay) * (by - ay));
+                float dev = 0;
+                for (int q = k; q <= k + 24; q++) dev = MathF.Max(dev, MathF.Abs((o.Xs[q] - ax) * (by - ay) - (o.Ys[q] - ay) * (bx - ax)) / Math.Max(len, 1e-3f));
+                if (dev < .35f * Math.Min(1, W / 2560f)) { straight++; break; }   // smaller worlds have proportionally smaller bends
+            }
+            // sinuosity over ~60 px windows (arc / chord); 1.0 = straight
+            for (int k = 0; k + 36 < o.Xs.Length; k += 36)
+            {
+                float arc = 0;
+                for (int q = k; q < k + 36; q++) arc += MathF.Sqrt((o.Xs[q + 1] - o.Xs[q]) * (o.Xs[q + 1] - o.Xs[q]) + (o.Ys[q + 1] - o.Ys[q]) * (o.Ys[q + 1] - o.Ys[q]));
+                float ch = MathF.Sqrt((o.Xs[k + 36] - o.Xs[k]) * (o.Xs[k + 36] - o.Xs[k]) + (o.Ys[k + 36] - o.Ys[k]) * (o.Ys[k + 36] - o.Ys[k]));
+                sinuous += arc / Math.Max(ch, 1e-3f); turns++;
+            }
+            // comb tooth: most of the river (away from its ends) runs within 3 px of another river
+            int near = 0, cnt = 0;
+            for (int k = 8; k < o.Xs.Length - 8; k++)
+            {
+                cnt++;
+                int cx = (int)MathF.Floor(o.Xs[k]), cy = (int)MathF.Floor(o.Ys[k]);
+                bool hit = false;
+                for (int dy = -3; dy <= 3 && !hit; dy++)
+                    for (int dx = -3; dx <= 3 && !hit; dx++)
+                    {
+                        int y = cy + dy;
+                        if (y < 0 || y >= H) continue;
+                        int v = id[y * W + ((cx + dx) % W + W) % W];
+                        hit = v != 0 && v != r + 1;
+                    }
+                if (hit) near++;
+            }
+            if (cnt >= 10 && near * 2 > cnt) combs++;
+        }
+        double sin = turns > 0 ? sinuous / turns : 1;
+        Console.WriteLine($"  rivers: {w.Rivers.Count} ({mouths} reach water, {joins} join another river, {arms} delta arms (at {string.Join(" ", deltas)}), {straight} ruler-straight, {combs} combs), " +
+                          $"{length:F0} px long, sinuosity {sin:F3}, points ≤ {gap:F1} px apart");
+        if (mouths + joins != w.Rivers.Count) Fail($"{w.Rivers.Count - mouths - joins} rivers end in the middle of the land");
+        if (straight > 0) Fail($"{straight} rivers have a ruler-straight stretch");
+        if (combs > 0) Fail($"{combs} rivers run beside another for most of their course");
+        if (sin < 1.04) Fail($"rivers are too straight (sinuosity {sin:F3} < 1.04)");
+        if (_failures == before) Console.WriteLine("  river network OK");
+    }
+
+    /// <summary>Pixels a polyline passes through (the generator's rasterisation: half-pixel steps).</summary>
+    static IEnumerable<int> Pixels(WorldData.RiverPath o, int W, int H)
+    {
+        for (int k = 0; k + 1 < o.Xs.Length; k++)
+        {
+            double x0 = o.Xs[k], y0 = o.Ys[k], dx = o.Xs[k + 1] - x0, dy = o.Ys[k + 1] - y0;
+            int steps = Math.Max(1, (int)Math.Ceiling(Math.Max(Math.Abs(dx), Math.Abs(dy)) * 2));
+            for (int q = 0; q <= steps; q++) yield return Pix(x0 + dx * q / steps, y0 + dy * q / steps, W, H);
+        }
+    }
+
+    static int Pix(double x, double y, int W, int H) => Math.Clamp((int)Math.Floor(y), 0, H - 1) * W + (((int)Math.Floor(x) % W) + W) % W;
+
+    static bool Near(WorldData.RiverPath o, float x, float y, int W, float eps)
+    {
+        for (int k = 0; k < o.Xs.Length; k++)
+        {
+            float dx = MathF.Abs(o.Xs[k] - x) % W; dx = MathF.Min(dx, W - dx);
+            if (dx <= eps && MathF.Abs(o.Ys[k] - y) <= eps) return true;
+        }
+        return false;
+    }
+
+    // ---------------------------------------------------------------- terrain look
+
+    /// <summary>
+    /// Pixel-art rules of ART_BIBLE §2–3: land in clusters rather than salt (few land pixels whose 4 neighbours all
+    /// differ from them), a bounded palette, and the expected surfaces present (beaches, snow caps, canopy highlights).
+    /// </summary>
+    static void CheckTerrain(WorldData w)
+    {
+        int W = w.W, H = w.H, landPx = 0, lonely = 0, sand = 0, snow = 0;
+        var mats = new int[TerrainPalette.Count];
+        for (int y = 1; y < H - 1; y++)
+            for (int x = 0; x < W; x++)
+            {
+                int i = y * W + x;
+                if (w.Land[i] == 0) continue;
+                landPx++;
+                mats[w.TerrMaterial[i]]++;
+                int c = Col(w, i);
+                if (c != Col(w, y * W + (x + 1) % W) && c != Col(w, y * W + (x + W - 1) % W) && c != Col(w, i - W) && c != Col(w, i + W)) lonely++;
+            }
+        sand = mats[TerrainPalette.Sand]; snow = mats[TerrainPalette.Snow];
+        double salt = lonely * 100.0 / Math.Max(1, landPx);
+        Console.WriteLine($"  terrain: {salt:F1}% lone land pixels, sand {sand} px, snow {snow} px, " +
+                          string.Join(" ", Enumerable.Range(0, TerrainPalette.Count).Where(m => mats[m] > 0).Select(m => $"m{m}:{mats[m] * 100.0 / landPx:F1}%")));
+        if (salt > 14) Fail($"terrain is salty: {salt:F1}% of land pixels differ from all 4 neighbours");
+        if (sand == 0) Fail("no beaches");
+        if (snow == 0) Fail("no snow");
+    }
+
+    static int Col(WorldData w, int i) => BitConverter.ToInt32(w.BaseColor, i * 4);
+
+    // ---------------------------------------------------------------- golden hashes
 
     sealed class Fnv32
     {
@@ -263,46 +383,28 @@ static class Program
 
     static string One(Action<Fnv32> f) { var h = new Fnv32(); f(h); return h.Hex; }
     static string Fnv(string s) => One(h => h.Str(s));
-    static string Ints<T>(T[] a, Func<T, int> conv) => One(h => { foreach (var v in a) h.I32(conv(v)); });
     static string Raw<T>(T[] a) where T : struct => One(h => h.Bytes(MemoryMarshal.AsBytes(a.AsSpan())));
 
-    static List<string> Hashes(WorldData w, GameState s)
+    static List<string> Hashes(WorldData w) => new()
     {
-        var o = new List<string>
+        $"P {w.P}",
+        "land " + Raw(w.Land), "hgt " + Raw(w.Height), "biome " + Raw(w.Biome), "baseCol " + Raw(w.BaseColor),
+        "terrMat " + Raw(w.TerrMaterial), "terrStep " + Raw(w.TerrStep), "river " + Raw(w.River), "prov " + Raw(w.Prov),
+        "pSize " + Raw(w.PSize), "pLand " + Raw(w.PLand), "pCX " + Raw(w.PCX), "pCY " + Raw(w.PCY), "pBiome " + Raw(w.PBiome), "pH " + Raw(w.PH),
+        "pRiver " + Raw(w.PRiver), "pCoast " + Raw(w.PCoast), "pFert " + Raw(w.PFert), "pBody " + Raw(w.PBody),
+        "adj " + One(h => { foreach (var l in w.Adj) { h.I32(l.Length); foreach (int v in l) h.I32(v); } }),
+        "names " + One(h => { foreach (var n in w.PName) { h.Str(n); h.Str("|"); } }),
+        "rivers " + One(h =>
         {
-            $"P {w.P}",
-            "land " + Raw(w.Land), "hgt " + Raw(w.Height), "biome " + Raw(w.Biome), "baseCol " + Raw(w.BaseColor), "river " + Raw(w.River), "prov " + Raw(w.Prov),
-            "pSize " + Raw(w.PSize), "pLand " + Raw(w.PLand), "pCX " + Raw(w.PCX), "pCY " + Raw(w.PCY), "pBiome " + Raw(w.PBiome), "pH " + Raw(w.PH),
-            "pRiver " + Raw(w.PRiver), "pCoast " + Raw(w.PCoast), "pFert " + Raw(w.PFert),
-            "adj " + One(h => { foreach (var l in w.Adj) { h.I32(l.Length); foreach (int v in l) h.I32(v); } }),
-            "names " + One(h => { foreach (var n in MockupNames(w)) { h.Str(n); h.Str("|"); } }),
-            "rivers " + One(h =>
+            h.I32(w.Rivers.Count);
+            foreach (var r in w.Rivers)
             {
-                h.I32(w.Rivers.Count);
-                foreach (var r in w.Rivers)
-                {
-                    h.I32(r.Xs.Length);
-                    for (int k = 0; k < r.Xs.Length; k++) { h.F32(r.Xs[k]); h.F32(r.Ys[k]); }
-                    h.F32(r.MinY); h.F32(r.MaxY);
-                }
-            }),
-            "caps " + Raw(s.NationCapital) + " " + string.Join(",", s.NationCapital),
-            "own " + Ints(s.Owner, v => v), "pop " + Raw(s.Pop), "rel " + Ints(s.Religion, v => v), "mood " + Ints(s.Mood, v => v), "slots " + Ints(s.Slots, v => v),
-            "bld " + One(h => { foreach (var l in s.Buildings) { h.I32(l.Count); foreach (var b in l) h.I32((int)b); } }),
-            "ore " + One(h => { for (int p = 0; p < w.P; p++) { h.I32(s.Ore[p]); h.I32(s.OreFound[p] ? 1 : 0); } }),
-            "cap " + Ints(s.CapitalOf, v => v), "town " + Ints(s.IsTown, v => v ? 1 : 0),
-            "routes " + One(h => { h.I32(s.Routes.Count); foreach (var r in s.Routes) { h.I32(r.Length); foreach (int v in r) h.I32(v); } }),
-        };
-        return o;
-    }
-
-    /// <summary>Names as the mockup made them: WorldGen renames later duplicates and keeps the originals in Renamed.</summary>
-    static string[] MockupNames(WorldData w)
-    {
-        var names = (string[])w.PName.Clone();
-        foreach (var (p, name) in w.Renamed) names[p] = name;
-        return names;
-    }
+                h.I32(r.Xs.Length);
+                for (int k = 0; k < r.Xs.Length; k++) { h.F32(r.Xs[k]); h.F32(r.Ys[k]); h.F32(r.Flow[k]); }
+                h.F32(r.MinY); h.F32(r.MaxY);
+            }
+        }),
+    };
 
     /// <summary>reference/ beside WorldGenTests.csproj (found by walking up from the build output).</summary>
     static string SourceReferenceDir()
@@ -312,77 +414,22 @@ static class Program
         return null;
     }
 
-    /// <summary>Arrays the game computes its own way; everything else must still equal the mockup.</summary>
-    static readonly string[] OwnKeys = { "river", "rivers", "pRiver", "pFert", "caps", "own", "pop", "rel", "mood", "slots", "bld", "ore", "cap", "town", "routes" };
-
-    /// <summary>Relief, climate, colour and provinces vs the JS mockup (jsdump.js).</summary>
-    static void CompareMockup(List<string> mine, string refFile)
-    {
-        var theirs = File.ReadAllLines(refFile).Where(l => l.Length > 0).ToList();
-        var diff = new List<string>();
-        foreach (string b in theirs)
-        {
-            string key = b.Split(' ')[0];
-            if (OwnKeys.Contains(key)) continue;
-            string a = mine.FirstOrDefault(l => l.Split(' ')[0] == key);
-            if (a != b) diff.Add(key);
-        }
-        if (diff.Count > 0) Fail("differs from the JS mockup in: " + string.Join(", ", diff));
-        else Console.WriteLine($"  vs JS mockup: IDENTICAL ({theirs.Count(l => !OwnKeys.Contains(l.Split(' ')[0]))} arrays: relief, climate, colour, provinces)");
-    }
-
-    /// <summary>Rivers and nations vs the last blessed C# output.</summary>
-    static void CompareOwn(List<string> mine, string refFile)
+    static void CompareGolden(List<string> mine, string refFile)
     {
         var theirs = File.ReadAllLines(refFile).Where(l => l.Length > 0).ToList();
         var diff = theirs.Where(b => !mine.Contains(b)).Select(b => b.Split(' ')[0]).ToList();
-        if (diff.Count > 0) Fail("rivers/nations changed vs the blessed C# reference in: " + string.Join(", ", diff) + " (intended? rerun with --bless)");
-        else Console.WriteLine($"  vs blessed C# reference: IDENTICAL ({theirs.Count} arrays: rivers, fertility, nations)");
-    }
-
-    /// <summary>The river network: trees that reach water, tributaries that end on another river, no ladders.</summary>
-    static void CheckRivers(WorldData w)
-    {
-        if (w.Rivers.Count == 0) { Fail("no rivers"); return; }
-        int mouths = 0, joins = 0, straight = 0;
-        foreach (var r in w.Rivers)
-        {
-            if (r.Flow == null || r.Flow.Length != r.Xs.Length || r.Flow.Any(f => f < 0 || f > 1)) { Fail("river flow missing or out of 0..1"); return; }
-            int x = ((int)MathF.Floor(r.Xs[^1]) % w.W + w.W) % w.W, y = Math.Clamp((int)MathF.Floor(r.Ys[^1]), 0, w.H - 1);
-            if (w.Land[y * w.W + x] == 0) mouths++;
-            else if (w.Rivers.Any(o => o != r && Near(o, r.Xs[^1], r.Ys[^1], w.W))) joins++;
-            // a ruler-straight stretch: 24 points (~48 px) all within 0.35 px of their chord
-            for (int k = 0; k + 24 < r.Xs.Length; k += 6)
-            {
-                float ax = r.Xs[k], ay = r.Ys[k], bx = r.Xs[k + 24], by = r.Ys[k + 24], len = MathF.Sqrt((bx - ax) * (bx - ax) + (by - ay) * (by - ay));
-                float dev = 0;
-                for (int q = k; q <= k + 24; q++) dev = MathF.Max(dev, MathF.Abs((r.Xs[q] - ax) * (by - ay) - (r.Ys[q] - ay) * (bx - ax)) / Math.Max(len, 1e-3f));
-                if (dev < .35f) { straight++; break; }
-            }
-        }
-        Console.WriteLine($"  rivers: {w.Rivers.Count} ({mouths} reach water, {joins} join another river, {straight} with a ruler-straight stretch)");
-        if (mouths + joins != w.Rivers.Count) Fail($"{w.Rivers.Count - mouths - joins} rivers end in the middle of the land");
-        if (straight > 0) Fail($"{straight} rivers have a ruler-straight stretch");
-    }
-
-    static bool Near(WorldData.RiverPath o, float x, float y, int W)
-    {
-        for (int k = 0; k < o.Xs.Length; k++)
-        {
-            float dx = MathF.Abs(o.Xs[k] - x) % W; dx = MathF.Min(dx, W - dx);
-            if (dx < 2.5f && MathF.Abs(o.Ys[k] - y) < 2.5f) return true;
-        }
-        return false;
+        diff.AddRange(mine.Select(l => l.Split(' ')[0]).Where(k => !theirs.Any(t => t.Split(' ')[0] == k)));
+        if (diff.Count > 0) Fail("output differs from the golden reference in: " + string.Join(", ", diff.Distinct()) + " (intended? check the PNGs and rerun with --bless)");
+        else Console.WriteLine($"  vs golden reference: IDENTICAL ({theirs.Count} arrays)");
     }
 
     // ---------------------------------------------------------------- PNG output
 
-    static void WritePngs(WorldData w, GameState s, string dir)
+    static void WritePngs(WorldData w, string dir, string crops)
     {
         Directory.CreateDirectory(dir);
         int f = Math.Max(1, (w.W + 1599) / 1600), ow = w.W / f, oh = w.H / f;
         var ter = new byte[ow * oh * 4];
-        var pol = new byte[ow * oh * 4];
         for (int y = 0; y < oh; y++)
             for (int x = 0; x < ow; x++)
             {
@@ -390,32 +437,33 @@ static class Program
                 bool riv = false;
                 for (int a = 0; a < f; a++) for (int b = 0; b < f; b++) riv |= w.River[i + a * w.W + b] != 0;
                 for (int c = 0; c < 4; c++) ter[o + c] = w.BaseColor[i * 4 + c];
-                if (riv) { ter[o] = 80; ter[o + 1] = 160; ter[o + 2] = 224; }
-                int p = w.Prov[i], own = s.Owner[p];
-                for (int c = 0; c < 4; c++) pol[o + c] = ter[o + c];
-                if (own >= 0)
-                {
-                    var n = Data.Nations[own];
-                    pol[o] = (byte)(ter[o] * .45 + n.R * .55); pol[o + 1] = (byte)(ter[o + 1] * .45 + n.G * .55); pol[o + 2] = (byte)(ter[o + 2] * .45 + n.B * .55);
-                }
-                if (s.CapitalOf[p] >= 0) { pol[o] = 255; pol[o + 1] = 255; pol[o + 2] = 255; }
+                if (riv) { ter[o] = 77; ter[o + 1] = 127; ter[o + 2] = 166; }
             }
         Png(Path.Combine(dir, $"map_{w.Seed}.png"), ow, oh, ter);
-        Png(Path.Combine(dir, $"pol_{w.Seed}.png"), ow, oh, pol);
-        // 1:1 crop around the player capital with province borders
-        const int cw = 800, ch = 450;
-        var crop = new byte[cw * ch * 4];
-        int cap = s.NationCapital[0], cx = w.PCX[cap] - cw / 2, cy = Math.Clamp(w.PCY[cap] - ch / 2, 0, w.H - ch);
-        for (int y = 0; y < ch; y++)
-            for (int x = 0; x < cw; x++)
-            {
-                int gx = ((cx + x) % w.W + w.W) % w.W, gy = cy + y, i = gy * w.W + gx, o = (y * cw + x) * 4;
-                int p = w.Prov[i], r = w.Prov[gy * w.W + (gx + 1) % w.W], d = gy + 1 < w.H ? w.Prov[i + w.W] : p;
-                for (int c = 0; c < 4; c++) crop[o + c] = w.BaseColor[i * 4 + c];
-                if (r != p || d != p) { if (w.Land[i] != 0) { crop[o] = crop[o + 1] = crop[o + 2] = 32; } else { crop[o] = 56; crop[o + 1] = 72; crop[o + 2] = 96; } }
-                if (w.River[i] != 0) { crop[o] = 64; crop[o + 1] = 120; crop[o + 2] = 176; }
-            }
-        Png(Path.Combine(dir, $"crop_{w.Seed}.png"), cw, ch, crop);
+        // ×3 crops with river pixels and province borders, like the map at zoom 3
+        var at = (crops ?? $"{w.W / 5},{w.H / 3};{w.W / 2},{w.H / 2};{w.W * 3 / 4},{w.H * 2 / 3}").Split(';').Select(s => s.Split(',').Select(int.Parse).ToArray()).ToList();
+        const int cw = 400, ch = 240, z = 3;
+        for (int n = 0; n < at.Count; n++)
+        {
+            var crop = new byte[cw * z * ch * z * 4];
+            int cx = at[n][0] - cw / 2, cy = Math.Clamp(at[n][1] - ch / 2, 0, w.H - ch);
+            for (int y = 0; y < ch; y++)
+                for (int x = 0; x < cw; x++)
+                {
+                    int gx = ((cx + x) % w.W + w.W) % w.W, gy = cy + y, i = gy * w.W + gx;
+                    int p = w.Prov[i], r = w.Prov[gy * w.W + (gx + 1) % w.W], d = gy + 1 < w.H ? w.Prov[i + w.W] : p;
+                    byte cr = w.BaseColor[i * 4], cg = w.BaseColor[i * 4 + 1], cb = w.BaseColor[i * 4 + 2];
+                    if (r != p || d != p) { cr = (byte)(cr * .72); cg = (byte)(cg * .72); cb = (byte)(cb * .72); }
+                    if (w.River[i] != 0) { cr = 77; cg = 127; cb = 166; }
+                    for (int a = 0; a < z; a++)
+                        for (int b = 0; b < z; b++)
+                        {
+                            int o = ((y * z + a) * cw * z + x * z + b) * 4;
+                            crop[o] = cr; crop[o + 1] = cg; crop[o + 2] = cb; crop[o + 3] = 255;
+                        }
+                }
+            Png(Path.Combine(dir, $"crop_{w.Seed}_{n}.png"), cw * z, ch * z, crop);
+        }
     }
 
     static void Png(string file, int w, int h, byte[] rgba)

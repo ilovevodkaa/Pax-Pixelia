@@ -7,9 +7,9 @@ using PaxPixelia.Sim;
 namespace PaxPixelia.Map;
 
 /// <summary>
-/// Scouts: a small pixel figure with a flickering torch and a dark rim (it stands in front of map names), the rest of
-/// its route as a marching dotted line and a flag where the route ends. Everything is hidden over unexplored land and
-/// the frayed cloud edge.
+/// Scouts: the concept's torch-bearer (4-frame walk facing its way, 180 ms a frame; on pause it stands on frame 0 while
+/// the torch keeps flickering) with a dark rim so it stands in front of map names, the rest of its route as a marching
+/// dotted line and a flag where the route ends. Everything is hidden over unexplored land and the frayed cloud edge.
 /// </summary>
 internal partial class ScoutOverlay : MapOverlay
 {
@@ -33,9 +33,9 @@ internal partial class ScoutOverlay : MapOverlay
         if (s.Scouts.Count == 0) return;
         var v = Map.View; var w = Game.I.World;
         float z = v.Zoom;
-        int pz = PixelSprites.CityScale(v.Level);
+        int pz = Lod.UnitScale(Math.Max(v.Level, 2));
         double t = Time.GetTicksMsec();
-        int frame = s.Paused ? 0 : (int)(t / 260) & 1;
+        int frame = (int)(t / 180);
         float lw = Math.Max(2, MathF.Round(v.Level * .5f));
         float dashOffset = (float)(t / 60 % (lw * 3));
 
@@ -62,12 +62,13 @@ internal partial class ScoutOverlay : MapOverlay
                     }
                     var end = _pts[^1];
                     if (!FogOn || Map.Fog.IsClear(end.X, end.Y, 18))
-                        DrawSprite(Spr.Flag, GameState.LocalPlayer, end.X * z + off.X + pz * 2, end.Y * z + off.Y - pz * 3, pz);
+                        DrawSprite(MapAtlas.TargetFlag, GameState.LocalPlayer, end.X * z + off.X + pz * 2, end.Y * z + off.Y - pz * 3, pz);
                 }
                 if (!visible) continue;
-                var figure = frame == 0 ? Spr.Scout0 : Spr.Scout1;
-                PixelSprites.DrawHalo(this, figure, sx0, sy0 - pz * 3, pz, Rim);
-                DrawSprite(figure, GameState.LocalPlayer, sx0, sy0 - pz * 3, pz);
+                bool left = _pts.Count > 1 && _pts[1].X < _pts[0].X;
+                int figure = s.Paused ? MapAtlas.ScoutIdle(frame, left) : MapAtlas.Unit(UnitKind.Scout, frame, left);
+                MapAtlas.DrawRim(this, figure, sx0, sy0 - pz * 4, pz, Rim);
+                DrawSprite(figure, GameState.LocalPlayer, sx0, sy0 - pz * 4, pz);
             }
         }
     }

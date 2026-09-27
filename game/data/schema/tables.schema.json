@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "tables.schema.json",
+  "title": "Pax Pixelia — черты правителей, догматы, чудеса (game/data/core/*.json, пока только данные)",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "traits": {
+      "type": "array",
+      "items": {
+        "type": "object", "additionalProperties": false, "required": ["id", "name", "group", "desc"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" }, "name": { "type": "string" },
+          "group": { "enum": ["character", "upbringing", "acquired"] }, "desc": { "type": "string" },
+          "stage": { "enum": ["MVP", "M2", "M3", "Later"] }, "mods": { "$ref": "#/$defs/mods" }
+        }
+      }
+    },
+    "dogmas": {
+      "type": "array",
+      "items": {
+        "type": "object", "additionalProperties": false, "required": ["id", "name", "slot", "desc"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" }, "name": { "type": "string" },
+          "slot": { "enum": ["teaching", "rite", "founder", "preaching"] }, "desc": { "type": "string" },
+          "mvp": { "type": "boolean" }, "excludes": { "type": "array", "items": { "type": "string" } }, "mods": { "$ref": "#/$defs/mods" }
+        }
+      }
+    },
+    "tierCost": { "type": "array", "items": { "type": "integer", "minimum": 1 } },
+    "lines": {
+      "type": "array",
+      "items": {
+        "type": "object", "additionalProperties": false, "required": ["id", "name", "tiers"],
+        "properties": { "id": { "type": "string" }, "name": { "type": "string" }, "tiers": { "type": "array", "items": { "$ref": "#/$defs/wonder" } } }
+      }
+    },
+    "singles": { "type": "array", "items": { "$ref": "#/$defs/wonder" } },
+    "parodies": { "type": "array", "items": { "$ref": "#/$defs/wonder" } }
+  },
+  "$defs": {
+    "mods": { "type": "object", "additionalProperties": { "type": "integer" }, "description": "Будущие модификаторы: …Pct — проценты, остальное — очки" },
+    "wonder": {
+      "type": "object", "additionalProperties": false, "required": ["id", "name", "era", "desc"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" }, "name": { "type": "string" },
+        "era": { "type": "integer", "minimum": 0, "maximum": 10 }, "desc": { "type": "string" },
+        "stage": { "enum": ["MVP", "M2", "M3", "Later"] }, "costPermille": { "type": "integer", "minimum": 1 }
+      }
+    }
+  }
+}

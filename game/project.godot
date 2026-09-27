@@ -12,13 +12,17 @@ config_version=5
 
 config/name="Pax Pixelia"
 config/description="Глобальная стратегия: от племени до звёзд"
-run/main_scene="res://scenes/Main.tscn"
+config/version="0.1.0"
+run/main_scene="res://scenes/Front.tscn"
 config/features=PackedStringArray("4.7", "C#", "Forward Plus")
-boot_splash/bg_color=Color(0.94, 0.945, 0.95, 1)
+boot_splash/bg_color=Color(0.055, 0.055, 0.063, 1)
 boot_splash/show_image=false
 
 [autoload]
 
+Settings="*res://scripts/Core/Settings.cs"
+Sfx="*res://scripts/Core/Audio/Sfx.cs"
+Music="*res://scripts/Core/Audio/Music.cs"
 Game="*res://scripts/Core/Game.cs"
 
 [display]

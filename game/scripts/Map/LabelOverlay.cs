@@ -14,7 +14,7 @@ internal partial class LabelOverlay : MapOverlay
     readonly SeaLabels _seas = new();
     readonly UiBlockers _ui = new();
 
-    public override void _Ready() => TextureFilter = TextureFilterEnum.Linear;
+    public override void _Ready() => TextureFilter = TextureFilterEnum.Nearest;
 
     public override void _Draw()
     {

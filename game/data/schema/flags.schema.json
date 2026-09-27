@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "flags.schema.json",
+  "title": "Pax Pixelia — флаги, которые ставит сама симуляция (game/data/core/flags.json)",
+  "description": "Флаги trait.<id> и dogma.<id> объявляются автоматически по core/leader_traits.json и core/dogmas.json.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "external": {
+      "type": "array",
+      "items": {
+        "type": "object", "additionalProperties": false, "required": ["id", "desc"],
+        "properties": { "id": { "type": "string", "pattern": "^[a-z0-9_.]+$" }, "desc": { "type": "string", "minLength": 1 } }
+      }
+    }
+  }
+}

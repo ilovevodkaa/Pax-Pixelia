@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Content pack check and deck dry run, no Godot: links the engine-free sources of scripts/Content and reads game/data.
+    Run from D:/supergae:  dotnet run -c Release (project tests/ContentTests)  [seed=N] [hours=H] [pace=480|1000|1600] [verbose]
+    Test another copy of the game:  add -p:GameDir=path/to/game
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>disable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <RootNamespace>PaxPixelia.Tests</RootNamespace>
+    <GameDir Condition="'$(GameDir)' == ''">$(MSBuildThisFileDirectory)../../game</GameDir>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="*.cs" />
+    <!-- ContentLoader.cs is the Godot-side reader (res://); the tests read the folder directly -->
+    <Compile Include="$(GameDir)/scripts/Content/**/*.cs" Exclude="$(GameDir)/scripts/Content/ContentLoader.cs"
+             Link="Game/Content/%(RecursiveDir)%(Filename)%(Extension)" />
+  </ItemGroup>
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>DataDir</_Parameter1>
+      <_Parameter2>$(GameDir)/data</_Parameter2>
+    </AssemblyAttribute>
+  </ItemGroup>
+</Project>

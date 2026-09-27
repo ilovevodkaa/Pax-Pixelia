@@ -1,3 +1,5 @@
+// pax-allow-file: exact port of the mockup's genNations (IEEE + − × ÷ and hypot only, same binary on every client);
+// it builds the initial state before the lockstep starts, and the state hash of tick 0 guards it.
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -9,24 +11,29 @@ namespace PaxPixelia.Sim;
 
 /// <summary>
 /// Initial game state of the ancient era (port of the mockup's genNations, docs/mockups/js/worldgen.js):
-/// 16 nations with spread-out capitals and compact territories, populations, religions, mood, building slots and
-/// buildings from terrain, ores, towns and the first trade routes. Deterministic for the world's seed.
+/// the roster's nations with spread-out capitals and compact territories, populations, religions, mood, building slots
+/// and buildings from terrain, ores, towns and the first trade routes. Deterministic for the world's seed and roster;
+/// the default roster (Data.Nations) gives exactly the mockup's map.
+/// Roster slot 0 is the player's nation (a human); every other slot starts as a bot.
 /// </summary>
 public static class NationGen
 {
+    const int PlayerSlot = 0;
     const int PlayerProvinces = 14;             // others: 8..18
     const double PlayerMinLandShare = .1;       // the player's land mass holds at least this share of all land
     const int GrowthRounds = 20;
     static readonly (int A, int B)[] RoutePairs = { (0, 1), (0, 2), (1, 3), (2, 4) };
 
-    public static GameState CreateInitialState(WorldData w)
+    public static GameState CreateInitialState(WorldData w) => CreateInitialState(w, Data.Nations);
+
+    public static GameState CreateInitialState(WorldData w, Data.Nation[] roster)
     {
         int P = w.P;
         var s = new GameState
         {
-            Owner = new short[P], Pop = new float[P], Religion = new sbyte[P], Mood = new byte[P], Slots = new byte[P],
+            Nations = roster,
+            Owner = new short[P], Controller = new short[P], Pop = new int[P], Religion = new sbyte[P], Mood = new byte[P], Slots = new byte[P],
             Buildings = new List<Data.Bld>[P], Ore = new sbyte[P], OreFound = new bool[P], CapitalOf = new short[P], IsTown = new bool[P],
-            Fog = new byte[P], Explored = new bool[P]
         };
         Array.Fill(s.Owner, (short)-1);
         Array.Fill(s.CapitalOf, (short)-1);
@@ -34,10 +41,14 @@ public static class NationGen
         Array.Fill(s.Ore, (sbyte)-1);
         for (int p = 0; p < P; p++) s.Buildings[p] = new List<Data.Bld>();
 
-        s.NationCapital = PlaceCapitals(w);
+        s.NationCapital = PlaceCapitals(w, roster.Length);
+        s.Nat = new NationState[s.NationCapital.Length];
+        for (int n = 0; n < s.Nat.Length; n++)
+            s.Nat[n] = new NationState { Control = n == PlayerSlot ? NationControl.Human : NationControl.Bot, Treasury = Simulation.StartTreasury };
         for (int n = 0; n < s.NationCapital.Length; n++) { s.Owner[s.NationCapital[n]] = (short)n; s.CapitalOf[s.NationCapital[n]] = (short)n; }
         GrowTerritories(w, s);
         Populate(w, s);
+        Array.Copy(s.Owner, s.Controller, P);
         PickTowns(s);
         foreach (var (a, b) in RoutePairs)
             if (b < s.NationCapital.Length && TradePath(w, s.NationCapital[a], s.NationCapital[b]) is { } path) s.Routes.Add(path);
@@ -50,9 +61,9 @@ public static class NationGen
     /// <see cref="PlayerMinLandShare"/> of all land — the mockup could start the player on a tiny island (seed 42),
     /// and scouts can't cross the sea before seafaring; and capitals sit in roomy, compact provinces (see
     /// <see cref="Roomy"/>) so the castle, its name and the selection outline fit inside their own land.</summary>
-    static int[] PlaceCapitals(WorldData w)
+    public static int[] PlaceCapitals(WorldData w, int count)
     {
-        int nNations = Data.Nations.Length;
+        int nNations = Math.Max(1, count);
         double ks = w.W / 1024.0;
         var cand = new List<int>();
         for (int p = 0; p < w.P; p++)
@@ -126,7 +137,7 @@ public static class NationGen
         var own = s.Owner;
         var target = new int[nN];
         var count = new int[nN];
-        for (int n = 0; n < nN; n++) { target[n] = n == 0 ? PlayerProvinces : 8 + (int)(Noise.H2(n, 5, seed) * 11); count[n] = 1; }
+        for (int n = 0; n < nN; n++) { target[n] = n == PlayerSlot ? PlayerProvinces : 8 + (int)(Noise.H2(n, 5, seed) * 11); count[n] = 1; }
         for (int round = 0; round < GrowthRounds; round++)
             for (int n = 0; n < nN; n++)
             {
@@ -157,14 +168,14 @@ public static class NationGen
             int o = s.Owner[p];
             bool capital = s.CapitalOf[p] >= 0;
             double r = .7 + .6 * Noise.H2(p, 77, seed);
-            s.Pop[p] = (float)(w.PSize[p] * Math.Max(.05, w.PFert[p]) * (o >= 0 ? 55 : 9) * r * (capital ? 2.6 : 1));
-            s.Religion[p] = (sbyte)(o >= 0 ? Data.Nations[o].Religion : Noise.H2(p, 88, seed) < .6 ? 2 : -1); // free tribes: old spirits
+            s.Pop[p] = (int)Math.Round(w.PSize[p] * Math.Max(.05, w.PFert[p]) * (o >= 0 ? 55 : 9) * r * (capital ? 2.6 : 1));
+            s.Religion[p] = (sbyte)(o >= 0 ? s.Nations[o].Religion : Noise.H2(p, 88, seed) < .6 ? 2 : -1); // free tribes: old spirits
             s.Mood[p] = (byte)(52 + (int)(Noise.H2(p, 66, seed) * 36));
             s.Slots[p] = (byte)(2 + (w.PSize[p] > 60 ? 1 : 0) + (w.PSize[p] > 120 ? 1 : 0) + (w.PCoast[p] != 0 ? 1 : 0));
             if (w.PH[p] > .34 && Noise.H2(p, 99, seed) < .4)
             {
                 s.Ore[p] = (sbyte)(int)(Noise.H2(p, 98, seed) * Data.Ores.Length);
-                s.OreFound[p] = o == GameState.LocalPlayer && Noise.H2(p, 97, seed) < .5;
+                s.OreFound[p] = o == PlayerSlot && Noise.H2(p, 97, seed) < .5;
             }
             if (o < 0) continue;
             var opts = BuildOptions(w, p);
@@ -181,7 +192,7 @@ public static class NationGen
         {
             var ps = new List<int>();
             for (int p = 0; p < s.Owner.Length; p++) if (s.Owner[p] == n && s.CapitalOf[p] < 0) ps.Add(p);
-            foreach (int p in ps.OrderByDescending(p => s.Pop[p]).Take(n == GameState.LocalPlayer ? 2 : 1)) s.IsTown[p] = true;
+            foreach (int p in ps.OrderByDescending(p => s.Pop[p]).Take(n == PlayerSlot ? 2 : 1)) s.IsTown[p] = true;
         }
     }
 

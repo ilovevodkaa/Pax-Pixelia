@@ -4,8 +4,10 @@ using Godot;
 namespace PaxPixelia.Map;
 
 /// <summary>
-/// A label drawn glyph by glyph: wide letter spacing (HOI4-style nation names, sea names) and optional rotation
-/// with a gentle arc. Glyph strings/codes are split once, so drawing allocates nothing.
+/// A label drawn glyph by glyph: wide letter spacing (HOI4-style nation names, sea names) along a tilted, gently
+/// arched baseline. Pixel style: every glyph stays upright and snaps to whole pixels, so a tilted name climbs in
+/// small steps like old strategy-game maps instead of blurring. Glyph strings/codes are split once, so drawing
+/// allocates nothing.
 /// </summary>
 internal sealed class SpacedText
 {
@@ -42,43 +44,39 @@ internal sealed class SpacedText
     }
 
     /// <summary>
-    /// Draw centred on (cx, cy): baseline rotated by angle (radians), bent into an arc of curvature bend (1/px;
-    /// positive bows the middle upwards). Halo (outline) is drawn for all glyphs first so it never covers a neighbour.
+    /// Draw centred on (cx, cy) along a baseline rotated by angle (radians) and bent into an arc of curvature bend
+    /// (1/px; positive droops the ends). The effect (shadow / outline, <paramref name="depth"/> px) is drawn for all
+    /// glyphs first so it never covers a neighbour's fill.
     /// </summary>
-    public void Draw(CanvasItem ci, Font f, int size, float spacing, float cx, float cy, float angle, float bend, Color fill, int halo, Color haloColor)
+    public void Draw(CanvasItem ci, Font f, int size, float spacing, float cx, float cy, float angle, float bend,
+                     Color fill, TextFx fx, int depth)
     {
         float tw = Width(f, size, spacing);
-        float baseline = (f.GetAscent(size) - f.GetDescent(size)) * .5f;
-        bool plain = angle == 0 && bend == 0;
+        float baseline = PixelText.CentreBaseline(f, size);
         float ca = MathF.Cos(angle), sa = MathF.Sin(angle);
-        for (int pass = halo > 0 ? 0 : 1; pass < 2; pass++)
+        for (int pass = 0; pass < 2; pass++)
         {
             float x = -tw * .5f;
             for (int i = 0; i < Chars.Length; i++)
             {
-                float mid = x + _adv[i] * .5f;            // arc position of the glyph centre
-                // glyph centre on the arc: local (mid, sag) in the rotated frame, sag = bend·mid²/2 (ends droop for bend > 0)
+                float mid = x + _adv[i] * .5f;                 // arc position of the glyph centre
                 float sag = bend * mid * mid * .5f;
-                float a = angle + MathF.Atan(bend * mid); // tangent angle there
                 float gx = cx + mid * ca - sag * sa, gy = cy + mid * sa + sag * ca;
-                // glyph origin = centre shifted back half an advance along the tangent and down to the baseline
-                float ct = MathF.Cos(a), st = MathF.Sin(a);
-                var origin = new Vector2(gx - _adv[i] * .5f * ct - baseline * st, gy - _adv[i] * .5f * st + baseline * ct);
-                if (plain)
-                {
-                    var o = new Vector2(MathF.Round(origin.X), MathF.Round(origin.Y));
-                    if (pass == 0) ci.DrawCharOutline(f, o, Chars[i], size, halo, haloColor);
-                    else ci.DrawChar(f, o, Chars[i], size, fill);
-                }
+                var o = new Vector2(MathF.Round(gx - _adv[i] * .5f), MathF.Round(gy + baseline));
+                if (pass == 1) ci.DrawChar(f, o, Chars[i], size, fill);
                 else
                 {
-                    ci.DrawSetTransform(origin, a);
-                    if (pass == 0) ci.DrawCharOutline(f, Vector2.Zero, Chars[i], size, halo, haloColor);
-                    else ci.DrawChar(f, Vector2.Zero, Chars[i], size, fill);
+                    if (fx == TextFx.Outline)
+                    {
+                        ci.DrawChar(f, o + new Vector2(-1, 0), Chars[i], size, PixelText.Ink);
+                        ci.DrawChar(f, o + new Vector2(0, -1), Chars[i], size, PixelText.Ink);
+                        ci.DrawChar(f, o + new Vector2(1, 0), Chars[i], size, PixelText.Ink);
+                        ci.DrawChar(f, o + new Vector2(0, 1), Chars[i], size, PixelText.Ink);
+                    }
+                    for (int d = 1; d <= depth; d++) ci.DrawChar(f, o + new Vector2(d, d), Chars[i], size, PixelText.Ink);
                 }
                 x += _adv[i] + spacing;
             }
         }
-        if (!plain) ci.DrawSetTransform(Vector2.Zero, 0);
     }
 }

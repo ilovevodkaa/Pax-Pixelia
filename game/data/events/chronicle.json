@@ -1,0 +1,287 @@
+{
+  "$schema": "../schema/events.schema.json",
+  "title": "Мелкие записи летописи на все эпохи (метроном 45–90 с) и выборы кочевья",
+  "events": [
+    {
+      "id": "good_harvest", "eras": [0, 8], "subject": "province", "icon": "plant",
+      "when": { "terrain": ["plains", "steppe", "savanna", "forest", "river"] },
+      "title": "Урожайный год",
+      "text": "Урожайный год в провинции {province}: амбары полны, на свадьбах гуляют всей округой.",
+      "effects": { "popLocal": 30, "moodLocal": 3 }
+    },
+    {
+      "id": "light_drought", "eras": [4, 10], "subject": "province", "icon": "droplet-off",
+      "when": { "terrain": ["steppe", "savanna", "plains", "desert"] },
+      "title": "Засушливое лето",
+      "text": "Засушливое лето в провинции {province}: урожай скуден, часть семей подалась в города.",
+      "effects": { "popLocal": -40, "moodLocal": -3 }
+    },
+    {
+      "id": "gold_nugget", "eras": [0, 5], "subject": "province", "icon": "diamond",
+      "when": { "terrain": ["mountain", "hills", "river"] },
+      "title": "Самородок",
+      "text": "Пастух из {province:gen} нашёл самородок размером с кулак. Казна +40, пастуху — новая овца.",
+      "effects": { "gold": 40 }
+    },
+    {
+      "id": "comet", "eras": [0, 6], "icon": "comet", "weight": 60,
+      "title": "Хвостатая звезда",
+      "text": "По небу прошла хвостатая звезда. Жрецы считают её добрым знаком, звездочёты — очень добрым.",
+      "effects": { "mood": 2 }
+    },
+    {
+      "id": "caravan", "eras": [1, 5], "subject": "foreign", "icon": "coins",
+      "title": "Караван",
+      "text": "Караван из {foreign:gen} привёз соль и свежие сплетни. Казна +25.",
+      "effects": { "gold": 25 }
+    },
+    {
+      "id": "caravan_far", "eras": [1, 4], "icon": "coins", "weight": 60,
+      "when": { "max": { "metNations": 0 } },
+      "title": "Караван из дальних земель",
+      "text": "Караван из дальних земель привёз стекло и рассказы о людях с песьими головами. Казна +20.",
+      "effects": { "gold": 20 }
+    },
+    {
+      "id": "barter", "eras": [0, 3], "subject": "foreign", "icon": "scale",
+      "title": "Обмен",
+      "text": "Послы {foreign:gen} предлагают обмен: камень на вино. Совет согласился — казна +20.",
+      "effects": { "gold": 20, "axes": { "open": 1 } }
+    },
+    {
+      "id": "barter_nomads", "eras": [0, 2], "icon": "scale", "weight": 60,
+      "title": "Кочевые торговцы",
+      "text": "Кочевые торговцы предлагают соль за бронзовые топоры. Совет согласился — казна +20.",
+      "effects": { "gold": 20 }
+    },
+    {
+      "id": "well_demand", "eras": [0, 4], "subject": "province", "icon": "users",
+      "title": "Нужен колодец",
+      "text": "Общинники {province:gen} требуют новый колодец. Пока его нет, настроение −3.",
+      "effects": { "moodLocal": -3 }
+    },
+    {
+      "id": "rich_catch", "eras": [0, 10], "subject": "province", "icon": "anchor",
+      "when": { "terrain": ["coast", "lake"] },
+      "title": "Рыбный год",
+      "text": "Рыбаки {province:gen} вытащили такой улов, что сети рвались. Рыбу солят бочками.",
+      "effects": { "food": 30, "moodLocal": 2 }
+    },
+    {
+      "id": "town_fire", "eras": [1, 7], "subject": "province", "icon": "torch",
+      "title": "Пожар",
+      "text": "В провинции {province} сгорел целый квартал. Отстраиваются всей улицей, но не сразу.",
+      "effects": { "popLocal": -10, "gold": -15 }
+    },
+    {
+      "id": "wolves", "eras": [0, 3], "subject": "province", "icon": "paw",
+      "when": { "terrain": ["forest", "tundra", "hills"] },
+      "title": "Волки",
+      "text": "Волчья стая всю зиму резала овец в провинции {province}. Пастухи жгут костры до утра.",
+      "effects": { "food": -10, "moodLocal": -2 }
+    },
+    {
+      "id": "fair", "eras": [2, 8], "icon": "building-store",
+      "when": { "buildings": { "market": 1 } },
+      "title": "Ярмарка",
+      "text": "На ярмарку съехались купцы со всей округи. Торговали неделю, пели две.",
+      "effects": { "gold": 30, "mood": 1 }
+    },
+    {
+      "id": "craftsman", "eras": [1, 8], "subject": "province", "icon": "hammer",
+      "title": "Мастер",
+      "text": "Мастер из {province:gen} сделал такую вещь, что на неё приходят смотреть издалека.",
+      "effects": { "culture": 5 }
+    },
+    {
+      "id": "baby_boom", "eras": [0, 10], "subject": "province", "icon": "home",
+      "title": "Много свадеб",
+      "text": "Год выдался мирным и сытым: в провинции {province} играют свадьбу за свадьбой.",
+      "effects": { "popLocal": 20 }
+    },
+    {
+      "id": "earthquake", "eras": [0, 10], "subject": "province", "icon": "mountain", "weight": 50,
+      "when": { "terrain": ["mountain", "hills"] },
+      "title": "Землетрясение",
+      "text": "Земля дрогнула в провинции {province}. Обрушились старые стены, люди ночуют под открытым небом.",
+      "effects": { "popLocal": -20, "gold": -20, "moodLocal": -2 }
+    },
+    {
+      "id": "sea_storm", "eras": [3, 8], "subject": "province", "icon": "anchor",
+      "when": { "terrain": ["coast"] },
+      "title": "Шторм",
+      "text": "Шторм разбил торговые суда у берегов {province:gen}. Купцы подсчитывают убытки.",
+      "effects": { "gold": -20 }
+    },
+    {
+      "id": "locusts", "eras": [0, 5], "subject": "province", "icon": "cloud-fog",
+      "when": { "terrain": ["steppe", "savanna", "desert"] },
+      "title": "Саранча",
+      "text": "Туча саранчи накрыла поля {province:gen}. К вечеру от посевов остались стебли.",
+      "effects": { "food": -30, "moodLocal": -3 }
+    },
+    {
+      "id": "treatise", "eras": [2, 8], "icon": "book",
+      "title": "Трактат",
+      "text": "Учёный муж закончил трактат о движении светил. Его переписывают по всей стране.",
+      "effects": { "science": 10 }
+    },
+    {
+      "id": "feast", "eras": [0, 10], "icon": "music",
+      "title": "Праздник",
+      "text": "Столица гуляла три дня. Казна чуть опустела, песни слышно до сих пор.",
+      "effects": { "mood": 2, "gold": -10 }
+    },
+    {
+      "id": "arrears", "eras": [2, 8], "icon": "coins",
+      "title": "Недоимки",
+      "text": "Сборщики нашли недоимки за три года. Казна +20, народ ворчит.",
+      "effects": { "gold": 20, "mood": -1 }
+    },
+    {
+      "id": "envoy", "eras": [1, 10], "subject": "foreign", "icon": "flag",
+      "title": "Посольство",
+      "text": "Прибыли послы {foreign:gen} с дарами и длинными речами. Обещали дружить.",
+      "effects": { "culture": 3, "stability": 1 }
+    },
+    {
+      "id": "settlers_port", "eras": [3, 10], "subject": "province", "icon": "anchor",
+      "when": { "terrain": ["coast"] },
+      "title": "Переселенцы",
+      "text": "В порт {province:gen} пришёл корабль с переселенцами. Им дали землю за околицей.",
+      "effects": { "popLocal": 20 }
+    },
+    {
+      "id": "hard_winter", "eras": [2, 7], "icon": "cloud-fog",
+      "title": "Лютая зима",
+      "text": "Лютая зима: реки промёрзли до дна, дрова кончились к середине зимы.",
+      "effects": { "food": -20, "mood": -2 }
+    },
+    {
+      "id": "merchants_return", "eras": [4, 6], "subject": "province", "icon": "coins",
+      "when": { "terrain": ["coast"] },
+      "title": "Купцы вернулись",
+      "text": "Корабли купцов из {province:gen} вернулись из-за моря с пряностями. Казна +40.",
+      "effects": { "gold": 40 }
+    },
+    {
+      "id": "tower_clock", "eras": [3, 5], "subject": "capital", "icon": "hourglass", "once": true,
+      "title": "Часы на башне",
+      "text": "На главной башне {province:gen} поставили часы с боем. Теперь все опаздывают точно.",
+      "effects": { "culture": 5 }
+    },
+    {
+      "id": "good_hunt", "eras": [0, 1], "icon": "paw",
+      "title": "Удачная охота",
+      "text": "Охотники вернулись с оленями на плечах. Род сыт, старики рассказывают о прежних охотах.",
+      "effects": { "food": 20, "mood": 1 }
+    },
+    {
+      "id": "strange_tracks", "eras": [0, 1], "icon": "walk",
+      "title": "Чужие следы",
+      "text": "Разведчики видели за рекой следы чужого стойбища и остывший пепел. Мы здесь не одни.",
+      "effects": { "science": 5 }
+    },
+    {
+      "id": "flu_season", "eras": [6, 10], "icon": "flask",
+      "title": "Сезон гриппа",
+      "text": "Грипп: аптеки пусты, школы на карантине, начальники кашляют на совещаниях.",
+      "effects": { "pop": -5 }
+    },
+    {
+      "id": "science_prize", "eras": [6, 10], "subject": "province", "icon": "trophy",
+      "title": "Научная премия",
+      "text": "Учёный из {province:gen} получил мировую премию. Школьники хотят в физики.",
+      "effects": { "science": 20, "culture": 5 }
+    },
+    {
+      "id": "metro_opened", "eras": [7, 10], "subject": "capital", "icon": "route", "once": true,
+      "title": "Метро",
+      "text": "В провинции {province} открыли метро. В первый день катались все, во второй — по делу.",
+      "effects": { "moodLocal": 4 }
+    },
+    {
+      "id": "record_output", "eras": [6, 10], "icon": "hammer",
+      "when": { "buildings": { "factory": 1 } },
+      "title": "Рекордный выпуск",
+      "text": "Заводы перевыполнили план. Директорам ордена, рабочим премии, складам головная боль.",
+      "effects": { "gold": 40 }
+    },
+    {
+      "id": "football_win", "eras": [7, 10], "subject": "foreign", "icon": "trophy",
+      "title": "Победа сборной",
+      "text": "Сборная обыграла команду {foreign:gen}. Страна не спала до утра.",
+      "effects": { "mood": 3 }
+    },
+    {
+      "id": "tourists", "eras": [8, 10], "subject": "province", "icon": "map-2",
+      "when": { "terrain": ["coast", "mountain"] },
+      "title": "Туристы",
+      "text": "Туристы полюбили берега и горы {province:gen}. Местные открывают гостиницы.",
+      "effects": { "gold": 30 }
+    },
+    {
+      "id": "orbital_photo", "eras": [9, 10], "icon": "eye",
+      "title": "Снимок с орбиты",
+      "text": "Спутник снял всю страну разом. Картографы нашли три деревни, которых нет в реестрах.",
+      "effects": { "science": 15 }
+    },
+    {
+      "id": "robot_helpers", "eras": [10, 10], "icon": "bulb",
+      "title": "Роботы-помощники",
+      "text": "Роботы-помощники подметают улицы и поливают клумбы. Дворники переучиваются на садовников.",
+      "effects": { "mood": 2 }
+    },
+    {
+      "id": "herd_sickness", "kind": "choice", "eras": [0, 2], "icon": "paw",
+      "title": "Падёж скота",
+      "text": "По стадам пошла хворь: коровы ложатся и не встают. Пастухи ждут слова вождя.",
+      "options": [
+        { "text": "Забить больных", "result": "Больных забили и сожгли. Стадо поредело, но хворь ушла.", "effects": { "food": -20 } },
+        { "text": "Позвать шамана",
+          "roll": [
+            { "permille": 500, "result": "Шаман пел три ночи, и хворь отступила. Шаману — лучшая шкура.", "effects": { "faith": 5 } },
+            { "permille": 500, "result": "Шаман пел три ночи, хворь съела половину стада.", "effects": { "food": -40, "mood": -2 } } ] }
+      ]
+    },
+    {
+      "id": "strangers_fire", "kind": "choice", "eras": [0, 1], "icon": "torch", "once": true,
+      "title": "Чужой костёр",
+      "text": "Ночью за холмом горит чужой костёр. Там поют на незнакомом языке.",
+      "options": [
+        { "text": "Обойти стороной", "result": "Род ушёл тихо. Чужаки так и не узнали о нас.", "effects": { "axes": { "closed": 3 } } },
+        { "text": "Подойти с дарами", "result": "Чужаки приняли дары и показали броды через реку.", "effects": { "gold": -10, "science": 5, "axes": { "open": 3 } } },
+        { "text": "Спугнуть", "result": "Чужаки бежали, бросив утварь. Добыча невелика, слава громка.", "effects": { "gold": 10, "stability": 1 } }
+      ]
+    },
+    {
+      "id": "sacred_spring", "kind": "choice", "eras": [0, 2], "subject": "province", "icon": "droplet-off", "once": true,
+      "when": { "terrain": ["river", "lake", "mountain"] },
+      "title": "Священный источник",
+      "text": "В провинции {province} нашли источник, вода которого не мёрзнет зимой. Шаманы говорят о знамении.",
+      "options": [
+        { "text": "Пить и не думать", "result": "Вода как вода. Зато тёплая.", "effects": { "moodLocal": 1 } },
+        { "text": "Освятить место", "result": "У источника поставили камень со знаками. Сюда идут паломники.", "effects": { "gold": -20, "faith": 10, "moodLocal": 3 } }
+      ]
+    },
+    {
+      "id": "boundary_stone", "kind": "choice", "eras": [1, 4], "subject": "foreign", "icon": "flag",
+      "title": "Межевой камень",
+      "text": "Пастухи {foreign:gen} передвинули межевой камень на наш луг. Старейшины требуют ответа.",
+      "options": [
+        { "text": "Вернуть камень тихо", "result": "Камень вернули ночью. Утром его никто не заметил." },
+        { "text": "Позвать судей", "result": "Судьи обеих сторон отмерили луг. Все недовольны одинаково.", "effects": { "gold": -10, "stability": 2 } },
+        { "text": "Уступить луг", "result": "Луг отдали. Соседи удивлены и присылают подарки.", "effects": { "mood": -1, "axes": { "open": 3 } } }
+      ]
+    },
+    {
+      "id": "harvest_tax", "kind": "choice", "eras": [1, 5], "icon": "coins",
+      "title": "Налог на урожай",
+      "text": "Казначей предлагает поднять налог на урожай: год хороший, заплатят.",
+      "options": [
+        { "text": "Оставить как есть", "result": "Налог прежний. Крестьяне хвалят правителя в трактирах." },
+        { "text": "Поднять налог", "result": "Налог подняли. Казна полна, песни в трактирах злые.", "effects": { "gold": 50, "mood": -4 } }
+      ]
+    }
+  ]
+}

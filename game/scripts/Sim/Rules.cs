@@ -11,29 +11,32 @@ public enum BuildError { None, NotOwned, NoSlot, NotAllowed, AlreadyBuilt, NoGol
 public enum SurveyError { None, NotOwned, AlreadyDone, NoGold }
 
 /// <summary>
-/// Player actions as pure rules (validation + effects) and economy formulas. The Game partial (GameActions.cs)
-/// wraps them with toasts and events; the console tests call them directly. `n` is the acting nation.
+/// Player actions as pure rules (validation + effects) and the economy formulas, in integers: gold in hundredths,
+/// people as whole persons, shares in ‰. `n` is the acting nation — every nation plays by the same rules.
+/// Commands.Apply is the only caller that changes state; the UI asks the Check* functions for instant feedback.
 /// </summary>
 public static class Rules
 {
+    /// <summary>Costs in whole gold (as the UI shows them); the treasury counts hundredths.</summary>
     public const int ClaimCost = 120, SurveyCost = 30;
-    /// <summary>Gold per year a building costs to maintain («Содержание» in the top-bar tooltip).</summary>
-    public const double UpkeepPerBuilding = 0.2;
-    /// <summary>Population multiplier when tribes join a state (settled life, census).</summary>
-    public const float ClaimPopBoost = 2.2f;
+    public const long Cents = 100;
+    /// <summary>Upkeep of one building per rules cycle, in hundredths («Содержание» in the top-bar tooltip).</summary>
+    public const long UpkeepPerBuilding = 20;
+    /// <summary>Population multiplier when tribes join a state (settled life, census), ‰.</summary>
+    public const int ClaimPopBoostPermille = 2200;
 
     static readonly int[] Cost = { 60, 50, 70, 60, 40, 80, 90, 50 }; // by Bld
     public static int BuildCost(Bld b) => Cost[(int)b];
 
     // ---------------------------------------------------------------- claim
 
-    public static ClaimError CheckClaim(WorldData w, GameState s, int p, int n = GameState.LocalPlayer)
+    public static ClaimError CheckClaim(WorldData w, GameState s, int p, int n)
     {
         if (p < 0 || p >= w.P || w.PLand[p] != 1) return ClaimError.NotLand;
         if (s.Owner[p] >= 0) return ClaimError.Owned;
-        if (n == GameState.LocalPlayer && !s.Explored[p]) return ClaimError.Unexplored;   // never FogEnabled: observer mode is a local view
+        if (s.Nat[n].Fog is { } f && !f.Explored[p]) return ClaimError.Unexplored;   // fog, never FogEnabled: observer mode is a view
         if (!Borders(w, s, p, n)) return ClaimError.NotAdjacent;
-        if (n == GameState.LocalPlayer && s.Gold < ClaimCost) return ClaimError.NoGold;
+        if (s.Nat[n].Treasury < ClaimCost * Cents) return ClaimError.NoGold;
         return ClaimError.None;
     }
 
@@ -43,94 +46,92 @@ public static class Rules
         return false;
     }
 
-    /// <summary>Tribes of p join nation n. Caller validated with CheckClaim. Gold is charged for the local player only.</summary>
-    public static void Claim(WorldData w, GameState s, int p, int n = GameState.LocalPlayer)
+    /// <summary>Tribes of p join nation n, which pays for it. Caller validated with CheckClaim.</summary>
+    public static void Claim(WorldData w, GameState s, int p, int n)
     {
-        if (n == GameState.LocalPlayer) s.Gold -= ClaimCost;
-        s.Owner[p] = (short)n;
-        s.Religion[p] = (sbyte)Data.Nations[n].Religion;
-        s.Pop[p] *= ClaimPopBoost;
-        s.Mood[p] = (byte)Math.Min((int)s.Mood[p], 58);   // new subjects are wary at first
+        s.Nat[n].Treasury -= ClaimCost * Cents;
+        s.Owner[p] = s.Controller[p] = (short)n;
+        s.Religion[p] = (sbyte)s.Nations[n].Religion;
+        s.Pop[p] = (int)Math.Min(int.MaxValue, (long)s.Pop[p] * ClaimPopBoostPermille / 1000);
+        s.Mood[p] = Math.Min(s.Mood[p], (byte)58);   // new subjects are wary at first
     }
 
     // ---------------------------------------------------------------- buildings
 
-    /// <summary>What the terrain allows in p (port of the mockup's bOpts, plus a shrine anywhere).</summary>
+    /// <summary>The order the build menu lists what the terrain allows (the mockup's bOpts, plus a shrine anywhere).</summary>
+    static readonly Bld[] MenuOrder = { Bld.Farm, Bld.Lumber, Bld.Quarry, Bld.Fishery, Bld.Pasture, Bld.Granary, Bld.Market, Bld.Shrine };
+
+    /// <summary>What the terrain allows in p.</summary>
     public static void TerrainOptions(WorldData w, int p, List<Bld> into)
     {
-        int b = w.PBiome[p]; float h = w.PH[p];
-        if ((b is 9 or 10 or 11 or 13 or 6) && h <= .6f) into.Add(Bld.Farm);
-        if (b is 5 or 8 or 12) into.Add(Bld.Lumber);
-        if (h > .34f) into.Add(Bld.Quarry);
-        if (w.PCoast[p] == 1) into.Add(Bld.Fishery);
-        if (b is 4 or 6 or 11 or 13) into.Add(Bld.Pasture);
-        into.Add(Bld.Granary); into.Add(Bld.Market); into.Add(Bld.Shrine);
+        var f = WorldFacts.Of(w);
+        foreach (var b in MenuOrder) if (f.Allows(p, b)) into.Add(b);
     }
 
-    /// <summary>Buildings the local player can start in p now: owned, a free slot, allowed by terrain, not built yet.</summary>
-    public static List<Bld> BuildOptions(WorldData w, GameState s, int p)
+    /// <summary>Buildings nation n can start in p now: owned, a free slot, allowed by terrain, not built yet.</summary>
+    public static List<Bld> BuildOptions(WorldData w, GameState s, int p, int n)
     {
         var list = new List<Bld>(8);
-        if (p < 0 || p >= w.P || s.Owner[p] != GameState.LocalPlayer || s.Buildings[p].Count >= s.Slots[p]) return list;
+        if (p < 0 || p >= w.P || s.Owner[p] != n || s.Buildings[p].Count >= s.Slots[p]) return list;
         TerrainOptions(w, p, list);
         list.RemoveAll(s.Buildings[p].Contains);
         return list;
     }
 
-    public static BuildError CheckBuild(WorldData w, GameState s, int p, Bld b)
+    public static BuildError CheckBuild(WorldData w, GameState s, int p, Bld b, int n)
     {
-        if (p < 0 || p >= w.P || s.Owner[p] != GameState.LocalPlayer) return BuildError.NotOwned;
+        if (p < 0 || p >= w.P || s.Owner[p] != n) return BuildError.NotOwned;
+        if ((uint)b >= (uint)Cost.Length) return BuildError.NotAllowed;
         if (s.Buildings[p].Count >= s.Slots[p]) return BuildError.NoSlot;
         if (s.Buildings[p].Contains(b)) return BuildError.AlreadyBuilt;
-        var opts = new List<Bld>(8); TerrainOptions(w, p, opts);
-        if (!opts.Contains(b)) return BuildError.NotAllowed;
-        if (s.Gold < BuildCost(b)) return BuildError.NoGold;
+        if (!WorldFacts.Of(w).Allows(p, b)) return BuildError.NotAllowed;
+        if (s.Nat[n].Treasury < BuildCost(b) * Cents) return BuildError.NoGold;
         return BuildError.None;
     }
 
-    public static void Build(GameState s, int p, Bld b)
+    public static void Build(GameState s, int p, Bld b, int n)
     {
-        s.Gold -= BuildCost(b);
+        s.Nat[n].Treasury -= BuildCost(b) * Cents;
         s.Buildings[p].Add(b);
     }
 
     // ---------------------------------------------------------------- geology
 
-    public static SurveyError CheckSurvey(GameState s, int p)
+    public static SurveyError CheckSurvey(GameState s, int p, int n)
     {
-        if (p < 0 || p >= s.Owner.Length || s.Owner[p] != GameState.LocalPlayer) return SurveyError.NotOwned;
+        if (p < 0 || p >= s.Owner.Length || s.Owner[p] != n) return SurveyError.NotOwned;
         if (s.OreFound[p]) return SurveyError.AlreadyDone;
-        if (s.Gold < SurveyCost) return SurveyError.NoGold;
+        if (s.Nat[n].Treasury < SurveyCost * Cents) return SurveyError.NoGold;
         return SurveyError.None;
     }
 
     /// <summary>Geologists survey p. OreFound means «surveyed»: with Ore = -1 the result was «nothing here».</summary>
-    public static void Survey(GameState s, int p)
+    public static void Survey(GameState s, int p, int n)
     {
-        s.Gold -= SurveyCost;
+        s.Nat[n].Treasury -= SurveyCost * Cents;
         s.OreFound[p] = true;
     }
 
     /// <summary>Hills and mountains may hold ore; flat land rarely does (the panel shows «залежей не ожидается»).</summary>
-    public static bool MayHaveOre(WorldData w, GameState s, int p) => s.Ore[p] >= 0 || w.PH[p] > .34f;
+    public static bool MayHaveOre(WorldData w, GameState s, int p) => s.Ore[p] >= 0 || WorldFacts.Of(w).Hills[p];
 
-    // ---------------------------------------------------------------- economy
+    // ---------------------------------------------------------------- economy (per rules cycle, hundredths)
 
-    /// <summary>Taxes a province pays per year: population × mood factor (mood 70 → ×1), markets and the capital add a flat sum.</summary>
-    public static double ProvinceTax(GameState s, int p)
+    /// <summary>Taxes of p per cycle: population × mood factor (mood 70 → ×1 per 7000 people), markets and the capital add a flat sum.</summary>
+    public static long ProvinceTax(GameState s, int p)
     {
-        double t = s.Pop[p] / 7000.0 * (0.65 + s.Mood[p] / 200.0);
-        foreach (var b in s.Buildings[p]) if (b == Bld.Market) t += 0.5;
-        if (s.CapitalOf[p] >= 0) t += 2;
+        long t = (long)s.Pop[p] * (650 + 5 * s.Mood[p]) / 70_000;
+        foreach (var b in s.Buildings[p]) if (b == Bld.Market) t += 50;
+        if (s.CapitalOf[p] >= 0) t += 200;
         return t;
     }
 
-    public static double ProvinceUpkeep(GameState s, int p) => s.Buildings[p].Count * UpkeepPerBuilding;
+    public static long ProvinceUpkeep(GameState s, int p) => s.Buildings[p].Count * UpkeepPerBuilding;
 
-    /// <summary>Taxes and upkeep of nation n per year.</summary>
-    public static (double taxes, double upkeep) Budget(GameState s, int n = GameState.LocalPlayer)
+    /// <summary>Taxes and upkeep of nation n per cycle, in hundredths.</summary>
+    public static (long taxes, long upkeep) Budget(GameState s, int n)
     {
-        double t = 0, u = 0;
+        long t = 0, u = 0;
         for (int p = 0; p < s.Owner.Length; p++)
             if (s.Owner[p] == n) { t += ProvinceTax(s, p); u += ProvinceUpkeep(s, p); }
         return (t, u);
@@ -142,29 +143,31 @@ public static class Rules
     public static int[] Scores(GameState s)
     {
         int nN = s.NationCapital.Length;
-        var pop = new double[nN]; var cnt = new int[nN];
+        var pop = new long[nN]; var cnt = new int[nN];
         for (int p = 0; p < s.Owner.Length; p++) { int o = s.Owner[p]; if (o >= 0 && o < nN) { pop[o] += s.Pop[p]; cnt[o]++; } }
         var sc = new int[nN];
-        for (int n = 0; n < nN; n++) sc[n] = (int)Math.Round(pop[n] / 800 + cnt[n] * 9);
+        for (int n = 0; n < nN; n++) sc[n] = (int)((pop[n] + 400) / 800) + cnt[n] * 9;
         return sc;
     }
 
-    public static bool Met(GameState s, int n) => !s.FogEnabled || n == GameState.LocalPlayer || (s.Met != null && n < s.Met.Length && s.Met[n]);
+    /// <summary>Has viewer met nation n? Everyone in observer mode, always itself.</summary>
+    public static bool Met(GameState s, int viewer, int n) =>
+        !s.FogEnabled || n == viewer || s.Nat[viewer].Fog is not { } f || (n < f.Met.Length && f.Met[n]);
 
-    /// <summary>Met nations sorted by score (desc), ties by nation index. The local player is always listed.</summary>
-    public static List<(int nation, int score)> Leaderboard(GameState s)
+    /// <summary>Nations the viewer has met, sorted by score (desc), ties by nation index. The viewer is always listed.</summary>
+    public static List<(int nation, int score)> Leaderboard(GameState s, int viewer)
     {
         var sc = Scores(s);
         var rows = new List<(int nation, int score)>(sc.Length);
-        for (int n = 0; n < sc.Length; n++) if (Met(s, n)) rows.Add((n, sc[n]));
+        for (int n = 0; n < sc.Length; n++) if (Met(s, viewer, n)) rows.Add((n, sc[n]));
         rows.Sort((a, b) => a.score != b.score ? b.score.CompareTo(a.score) : a.nation.CompareTo(b.nation));
         return rows;
     }
 
-    public static int UnmetCount(GameState s)
+    public static int UnmetCount(GameState s, int viewer)
     {
         int k = 0;
-        for (int n = 0; n < s.NationCapital.Length; n++) if (!Met(s, n)) k++;
+        for (int n = 0; n < s.NationCapital.Length; n++) if (!Met(s, viewer, n)) k++;
         return k;
     }
 }

@@ -5,7 +5,6 @@ namespace PaxPixelia.World;
 /// <summary>
 /// Immutable result of world generation (pure C#, no Godot types). Produced by WorldGen.Generate(seed).
 /// Pixel arrays are row-major, index i = y*W + x. The world wraps horizontally (x = W is x = 0).
-/// Mirrors the mockup globals in docs/mockups/js (land, hgt, biome, baseCol, river, riverPaths, prov, p* arrays).
 /// </summary>
 public sealed partial class WorldData
 {
@@ -16,12 +15,13 @@ public sealed partial class WorldData
     public float[] Height;     // land: 0..~1.2 (hills > .34, mountains > .6, peaks > .82); water: negative depth -1..0
     public byte[] Biome;       // Data.BiomeName index (0 = water)
     public byte[] BaseColor;   // RGBA8, 4 bytes per pixel: shaded pixel-art terrain colour (rivers NOT baked in)
-    public byte[] River;       // 1 = river pixel
+    public byte[] River;       // 1 = river pixel: the land pixels of the rasterised Rivers lines
     public int[] Prov;         // province id per pixel, 0..P-1
 
     // ---- rivers as smoothed polylines in world pixel coords (x may be unwrapped beyond [0,W)) ----
-    // Flow per point: 0 at a river's head … 1 for a big river (drives the drawn width). A tributary ends on the
-    // river it joins; main rivers end one pixel into the sea or lake.
+    // Flow per point: 0 at a river's head … 1 for a big river (drives the drawn width). A tributary ends exactly on a
+    // point of the river it joins; main rivers end one pixel into the sea or lake; delta arms start on a point of their
+    // river and end in the water. Points are ≤ 3 px apart.
     public sealed class RiverPath { public float[] Xs, Ys, Flow; public float MinY, MaxY; }
     public List<RiverPath> Rivers = new();
 

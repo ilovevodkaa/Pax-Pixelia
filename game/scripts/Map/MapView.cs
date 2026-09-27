@@ -8,7 +8,7 @@ namespace PaxPixelia.Map;
 /// World map renderer. Layer stack (bottom → top):
 ///   World (camera-transformed, world px): MapSurface (map.gdshader: terrain, modes, borders, hover, fog) →
 ///   river casing → river water → trade-route casing → trade-route dashes;
-///   screen-space overlays: sprites (cities, buildings) → labels → scouts.
+///   screen-space overlays: sprites (cities, buildings) → life (capital flags, trade traffic) → names → labels → scouts.
 /// GPU data is refreshed only when Game raises WorldReady / MapModeChanged / ProvincesChanged / FogChanged
 /// (coalesced to once per frame). MapCamera drives the view through <see cref="SetView"/>.
 /// </summary>
@@ -20,22 +20,27 @@ public partial class MapView : Node2D
     internal readonly FogField Fog = new();
     internal readonly MapTextures Tex = new();
     internal readonly LabelPlan Labels = new();
+    internal readonly MapMemory Memory = new();
+    internal readonly BuildingPlots Plots = new();
     internal bool HasWorld { get; private set; }
 
     Node2D _world;
     MapSurface _surface;
     MeshLayer _riverCasing, _riverWater, _routeCasing, _routeDash;
     SpriteOverlay _sprites;
+    LifeOverlay _life;
     NameOverlay _names;
     LabelOverlay _labels;
     ScoutOverlay _scouts;
     ShaderMaterial _mapMat, _riverCasingMat, _riverMat, _routeCasingMat, _routeMat;
     readonly List<ShaderMaterial> _mats = new();       // all map materials: they share the province/fog uniforms
-    static readonly StringName UZoom = "zoom", UHovered = "hovered", USelected = "selected", UFogOn = "fog_on", UWater = "water_color";
+    static readonly StringName UZoom = "zoom", UHovered = "hovered", USelected = "selected", UFogOn = "fog_on", UWater = "water_color", UAnim = "anim_t";
+    double _animT;          // water animation clock: slows to a quarter on pause (ART_BIBLE §11)
 
     readonly ChangeSet _provChanges = new(), _fogChanges = new();
     bool _modeDirty, _selDirty;
-    int _routesKey;
+    int _routesKey, _eraKey;
+    static bool _fontsWarm;
     int[] _stamp = System.Array.Empty<int>();
     int _stampGen;
     readonly List<int> _expanded = new(), _merged = new();
@@ -61,10 +66,11 @@ public partial class MapView : Node2D
         _world.AddChild(_riverCasing); _world.AddChild(_riverWater); _world.AddChild(_routeCasing); _world.AddChild(_routeDash);
 
         _sprites = new SpriteOverlay { Name = "Sprites", Map = this };
+        _life = new LifeOverlay { Name = "Life", Map = this };
         _names = new NameOverlay { Name = "Names", Map = this };
         _labels = new LabelOverlay { Name = "Labels", Map = this };
         _scouts = new ScoutOverlay { Name = "Scouts", Map = this };
-        AddChild(_sprites); AddChild(_names); AddChild(_labels); AddChild(_scouts);
+        AddChild(_sprites); AddChild(_life); AddChild(_names); AddChild(_labels); AddChild(_scouts);
 
         var g = Game.I;
         g.WorldReady += OnWorldReady;
@@ -108,13 +114,19 @@ public partial class MapView : Node2D
         if (w == null || s == null) { HasWorld = false; return; }
         var sw = System.Diagnostics.Stopwatch.StartNew();
         Fog.Init(w, s);
-        Labels.Reset(w, Fog);
+        MapAtlas.Bake(g.Nations);
+        Memory.Reset(w, s);
+        Plots.Reset(w);
+        _eraKey = MapEra.Key(g.Nations.Length);
+        Labels.Reset(w, Fog, Memory);
+        if (!_fontsWarm) { _fontsWarm = true; MapFonts.WarmUp(); }
         Labels.SetSelected(g.Selected);
         long tFog = sw.ElapsedMilliseconds;
         Tex.Build(w, Fog);
         foreach (var m in _mats) Tex.Bind(m, w);
         _mapMat.SetShaderParameter("base_tex", Tex.Base);
         _mapMat.SetShaderParameter("base_half_tex", Tex.BaseHalf);
+        _mapMat.SetShaderParameter("water_tex", Tex.Water);
         _mapMat.SetShaderParameter("ptint_tex", Tex.Tint);
         _mapMat.SetShaderParameter("pown_tex", Tex.Own);
         Tex.UpdateProvinces(w, s, g.Mode);
@@ -162,9 +174,22 @@ public partial class MapView : Node2D
         MapDebug.Stats(delta);
         if (!Game.I.IsReady) { HasWorld = false; return; }   // «Новый мир» in progress: freeze until WorldReady
         if (!HasWorld) return;
+        _animT = (_animT + delta * (Game.I.State.Paused ? .25 : 1)) % 3600;
+        _mapMat.SetShaderParameter(UAnim, (float)_animT);
         var w = Game.I.World; var s = Game.I.State;
         bool fog = _fogChanges.Any, prov = _provChanges.Any, sel = _selDirty && Labels.SetSelected(Game.I.Selected);
         _selDirty = false;
+        int era = MapEra.Key(Game.I.Nations.Length);
+        if (era != _eraKey)
+        {
+            // an era changed: every visible city and building redraws in the new era
+            _eraKey = era;
+            Memory.Capture(null);
+            _provChanges.Add(null);
+            prov = true;
+        }
+        if (prov) Memory.Capture(_provChanges.All ? null : _provChanges.List);
+        if (fog) Memory.Capture(_fogChanges.All ? null : _fogChanges.List);
         if (!fog && !prov && !_modeDirty && !sel) return;
         if (fog)
         {

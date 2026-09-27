@@ -1,0 +1,193 @@
+{
+  "$schema": "../schema/events.schema.json",
+  "title": "Нити памяти: шутки длиной в тысячелетия (CONTENT §4). Стадия требует флаг предыдущей, вес ×5, одна стадия нити за эпоху",
+  "events": [
+    {
+      "id": "cheese_wheel", "thread": "cheese", "stage": 1, "tone": "joke", "once": true, "weight": 40, "eras": [1, 2], "subject": "province", "icon": "cheese",
+      "title": "Сыр с колесо",
+      "text": "В провинции {province} сварили сыр размером с тележное колесо. Жрецы спорят, еда это или реликвия.",
+      "lore": "Таримская впадина: древнейшему найденному сыру ≈3600 лет.",
+      "effects": { "moodLocal": 3, "setFlags": ["thread.cheese.1"] }
+    },
+    {
+      "id": "cheese_relic", "thread": "cheese", "stage": 2, "kind": "choice", "tone": "joke", "once": true, "weight": 40, "eras": [3, 3], "icon": "cheese",
+      "when": { "flags": ["thread.cheese.1"] },
+      "title": "Сырная реликвия",
+      "text": "Монахи столичной обители хранят кусок того самого сыра под стеклом. Паломники идут поклониться.",
+      "lore": "Таримская впадина: древнейшему найденному сыру ≈3600 лет.",
+      "options": [
+        { "text": "Хранить реликвию", "result": "Реликвия цела. Паломники идут, запах крепнет.", "effects": { "faith": 2, "setFlags": ["thread.cheese.2"] } },
+        { "text": "Съесть на празднике", "result": "Реликвию съели на празднике. Было вкусно. Нить истории оборвалась.", "effects": { "mood": 5 } }
+      ]
+    },
+    {
+      "id": "cheese_science", "thread": "cheese", "stage": 3, "tone": "joke", "once": true, "weight": 40, "eras": [4, 5], "icon": "cheese",
+      "when": { "flags": ["thread.cheese.2"] },
+      "title": "Сырная загадка",
+      "text": "Учёные доказали: реликвии две тысячи лет, и она всё ещё пахнет. Как — не доказали.",
+      "lore": "Таримская впадина: древнейшему найденному сыру ≈3600 лет.",
+      "effects": { "science": 15, "setFlags": ["thread.cheese.3"] }
+    },
+    {
+      "id": "cheese_museum", "thread": "cheese", "stage": 4, "tone": "joke", "once": true, "weight": 40, "eras": [6, 8], "icon": "cheese",
+      "when": { "flags": ["thread.cheese.3"] },
+      "title": "Музей сыра",
+      "text": "Открыт Музей сыра. Главный экспонат хранят в отдельном зале с усиленной вентиляцией.",
+      "lore": "Таримская впадина: древнейшему найденному сыру ≈3600 лет.",
+      "effects": { "culture": 20, "setFlags": ["thread.cheese.4"] }
+    },
+    {
+      "id": "horse_advisor", "thread": "horse", "stage": 1, "tone": "joke", "once": true, "weight": 40, "eras": [1, 1], "icon": "crown",
+      "title": "Конь-советник",
+      "text": "Правитель назначил своего коня советником. Знать возмущена, конь невозмутим.",
+      "lore": "Рим, I в.: по Светонию, Калигула собирался сделать своего коня Инцитата консулом.",
+      "effects": { "moodCapital": -2, "culture": 3, "setFlags": ["thread.horse.1"] }
+    },
+    {
+      "id": "horse_senator", "thread": "horse", "stage": 2, "kind": "choice", "tone": "joke", "once": true, "weight": 40, "eras": [2, 2], "icon": "crown",
+      "when": { "flags": ["thread.horse.1"] },
+      "boost": [{ "flag": "trait.eccentric", "percent": 300 }],
+      "title": "Конь-сенатор",
+      "text": "Потомок того самого коня просит место в совете. Точнее, правитель просит за него.",
+      "lore": "Рим, I в.: по Светонию, Калигула собирался сделать своего коня Инцитата консулом.",
+      "options": [
+        { "text": "Это уже слишком", "result": "Конь остался в конюшне. Совет облегчённо выдохнул." },
+        { "text": "Дать место в совете", "result": "Конь заседает в совете. Лучший советник — с копытами.",
+          "effects": { "moodCapital": -5, "culture": 10, "setFlags": ["thread.horse.2", "ach.incitatus"] } }
+      ]
+    },
+    {
+      "id": "horse_derby", "thread": "horse", "stage": 3, "tone": "joke", "once": true, "weight": 40, "eras": [3, 4], "icon": "trophy",
+      "when": { "flags": ["thread.horse.2"] },
+      "title": "Праправнук коня",
+      "text": "Праправнук коня-сенатора выиграл большие скачки. Народ требует вернуть ему место деда.",
+      "lore": "Рим, I в.: по Светонию, Калигула собирался сделать своего коня Инцитата консулом.",
+      "effects": { "culture": 5, "mood": 2, "setFlags": ["thread.horse.3"] }
+    },
+    {
+      "id": "horse_candidate", "thread": "horse", "stage": 4, "tone": "joke", "once": true, "weight": 40, "eras": [6, 7], "icon": "crown",
+      "when": { "flags": ["thread.horse.3"] },
+      "title": "Конь-кандидат",
+      "text": "Шутники выдвинули коня кандидатом в совет. Он набрал 3% и не дал ни одного интервью.",
+      "lore": "Рим, I в.: по Светонию, Калигула собирался сделать своего коня Инцитата консулом.",
+      "effects": { "mood": 1, "setFlags": ["thread.horse.4"] }
+    },
+    {
+      "id": "horse_meme", "thread": "horse", "stage": 5, "tone": "joke", "once": true, "weight": 40, "eras": [8, 8], "icon": "eye",
+      "when": { "flags": ["thread.horse.4"] },
+      "title": "Конь в сети",
+      "text": "Ролик с конём-кандидатом набрал 40 млн просмотров. Конь по-прежнему невозмутим.",
+      "lore": "Рим, I в.: по Светонию, Калигула собирался сделать своего коня Инцитата консулом.",
+      "effects": { "culture": 10, "setFlags": ["thread.horse.5"] }
+    },
+    {
+      "id": "cat_maps", "thread": "cats", "stage": 1, "tone": "joke", "once": true, "weight": 40, "eras": [1, 2], "icon": "cat",
+      "title": "Кот на картах",
+      "text": "Кот правителя уснул на картах разведчиков. Будить его не решились: совет перенесён на завтра.",
+      "lore": "Кипр, ≈9500 лет назад: кошку похоронили рядом с человеком — древнейшая дружба с котом.",
+      "effects": { "trait": "cat_lover", "setFlags": ["thread.cats.1"] }
+    },
+    {
+      "id": "cat_granaries", "thread": "cats", "stage": 2, "tone": "joke", "once": true, "weight": 40, "eras": [3, 4], "icon": "cat",
+      "when": { "flags": ["thread.cats.1"] },
+      "title": "Кошки и амбары",
+      "text": "Мыши напали на амбары, кошки напали на мышей. Кошки победили. Амбары целы.",
+      "lore": "Кипр, ≈9500 лет назад: кошку похоронили рядом с человеком — древнейшая дружба с котом.",
+      "effects": { "food": 20, "modifiers": [{ "id": "granary_loss", "permille": -100, "cycles": 0 }], "setFlags": ["thread.cats.2"] }
+    },
+    {
+      "id": "cat_keyboard", "thread": "cats", "stage": 3, "tone": "joke", "once": true, "weight": 40, "eras": [8, 8], "icon": "cat", "localizable": false,
+      "when": { "flags": ["thread.cats.2"] },
+      "title": "Кот на клавиатуре",
+      "text": "Кот прошёлся по клавиатуре депутата и внёс законопроект «ъъъъъъъъ». Принят в первом чтении.",
+      "lore": "Кипр, ≈9500 лет назад: кошку похоронили рядом с человеком — древнейшая дружба с котом.",
+      "effects": { "mood": 2, "setFlags": ["thread.cats.3"] }
+    },
+    {
+      "id": "emu_war", "thread": "emu", "stage": 1, "kind": "choice", "tone": "joke", "once": true, "weight": 40, "eras": [1, 6], "subject": "province", "icon": "feather",
+      "when": { "terrain": ["steppe", "savanna", "plains", "desert"] },
+      "title": "Великая эму-война",
+      "text": "Эму объявили войну урожаю {province:gen}: тысячи птиц топчут поля. Крестьяне просят войско.",
+      "lore": "Австралия, 1932: солдаты с пулемётами проиграли эму «Великую эму-войну».",
+      "options": [
+        { "text": "Поставить изгородь", "result": "Изгородь выдержала. Эму обиделись и ушли к соседям.",
+          "effects": { "setFlags": ["thread.emu.1"], "modifiers": [{ "id": "pasture", "permille": 100, "cycles": 1200, "local": true }] } },
+        { "text": "Охотники с копьями", "effects": { "gold": -20, "setFlags": ["thread.emu.1"] },
+          "roll": [
+            { "permille": 700, "result": "Эму 1 : Люди 0. Охотники вернулись без добычи и без копий.", "effects": { "mood": -3, "setFlags": ["ach.emu_war_lost"] } },
+            { "permille": 300, "result": "Охотники прогнали эму. Птицы запомнили.", "effects": { "moodLocal": 2 } } ] },
+        { "text": "Признать поражение", "result": "Эму поместили на герб провинции. Птицы довольны, люди тоже.", "effects": { "moodLocal": 2, "setFlags": ["thread.emu.1"] } }
+      ]
+    },
+    {
+      "id": "emu_return", "thread": "emu", "stage": 2, "tone": "joke", "once": true, "weight": 40, "eras": [7, 8], "icon": "feather",
+      "when": { "flags": ["thread.emu.1"] },
+      "title": "Эму снова наступают",
+      "text": "Эму снова наступают на поля. Генштаб: второй раз не пойдём.",
+      "lore": "Австралия, 1932: солдаты с пулемётами проиграли эму «Великую эму-войну».",
+      "effects": { "food": -10, "mood": 1, "setFlags": ["thread.emu.2"] }
+    },
+    {
+      "id": "diogenes_barrel", "thread": "barrel", "stage": 1, "tone": "joke", "once": true, "weight": 40, "eras": [1, 1], "subject": "province", "icon": "user",
+      "title": "Мудрец в бочке",
+      "text": "Мудрец из {province:gen} поселился в бочке и попросил правителя не заслонять ему солнце. Правитель отошёл.",
+      "lore": "Коринф, IV в. до н. э.: Диоген жил в глиняном пифосе и попросил Александра отойти от солнца.",
+      "effects": { "science": 5, "setFlags": ["thread.barrel.1"] }
+    },
+    {
+      "id": "barrel_school", "thread": "barrel", "stage": 2, "tone": "joke", "once": true, "weight": 40, "eras": [2, 2], "icon": "book",
+      "when": { "flags": ["thread.barrel.1"] },
+      "title": "Школа «Бочкари»",
+      "text": "Ученики мудреца открыли школу «Бочкари». Студенты живут в бочках, знать морщится.",
+      "lore": "Коринф, IV в. до н. э.: Диоген жил в глиняном пифосе и попросил Александра отойти от солнца.",
+      "effects": { "moodCapital": -3, "modifiers": [{ "id": "science", "permille": 50, "cycles": 1200 }], "setFlags": ["thread.barrel.2"] }
+    },
+    {
+      "id": "barrel_treatise", "thread": "barrel", "stage": 3, "tone": "joke", "once": true, "weight": 40, "eras": [4, 5], "icon": "book",
+      "when": { "flags": ["thread.barrel.2"] },
+      "title": "«О пользе бочек»",
+      "text": "Вышел трактат «О пользе бочек». Бондари богатеют, философы переезжают.",
+      "lore": "Коринф, IV в. до н. э.: Диоген жил в глиняном пифосе и попросил Александра отойти от солнца.",
+      "effects": { "gold": 20, "culture": 5, "setFlags": ["thread.barrel.3"] }
+    },
+    {
+      "id": "barrel_module", "thread": "barrel", "stage": 4, "tone": "joke", "once": true, "weight": 40, "eras": [9, 10], "icon": "comet",
+      "when": { "flags": ["thread.barrel.3"] },
+      "title": "Модуль «Бочка»",
+      "text": "Жилой модуль орбитальной станции назвали «Бочка». Космонавты просят не заслонять им Солнце.",
+      "lore": "Коринф, IV в. до н. э.: Диоген жил в глиняном пифосе и попросил Александра отойти от солнца.",
+      "effects": { "culture": 10, "setFlags": ["thread.barrel.4"] }
+    },
+    {
+      "id": "chronicler_slept", "thread": "sleepy", "stage": 1, "tone": "joke", "once": true, "weight": 40, "eras": [1, 2], "icon": "book",
+      "title": "Летописец проспал",
+      "text": "Летописец проспал весь год. Запись за этот год: «Ничего не случилось».",
+      "lore": "«Повесть временных лет»: за многие годы в ней стоит одна дата и больше ни слова.",
+      "effects": { "mood": 1, "setFlags": ["thread.sleepy.1"] }
+    },
+    {
+      "id": "chronicler_grandson", "thread": "sleepy", "stage": 2, "tone": "joke", "once": true, "weight": 40, "eras": [3, 4], "icon": "book",
+      "when": { "flags": ["thread.sleepy.1"] },
+      "title": "Внук летописца",
+      "text": "Внук того самого летописца тоже проспал год. Запись: «Как у деда».",
+      "lore": "«Повесть временных лет»: за многие годы в ней стоит одна дата и больше ни слова.",
+      "effects": { "mood": 1, "setFlags": ["thread.sleepy.2"] }
+    },
+    {
+      "id": "press_vacation", "thread": "sleepy", "stage": 3, "tone": "joke", "once": true, "weight": 40, "eras": [6, 7], "icon": "book",
+      "when": { "flags": ["thread.sleepy.2"] },
+      "title": "Пресс-служба в отпуске",
+      "text": "Пресс-служба дворца ушла в отпуск. Сводка за год: «Всё хорошо».",
+      "lore": "«Повесть временных лет»: за многие годы в ней стоит одна дата и больше ни слова.",
+      "effects": { "stability": 1, "setFlags": ["thread.sleepy.3"] }
+    },
+    {
+      "id": "chronicler_404", "thread": "sleepy", "stage": 4, "tone": "joke", "once": true, "weight": 40, "eras": [8, 9], "icon": "bulb",
+      "when": { "flags": ["thread.sleepy.3"] },
+      "title": "Летописец обновляется",
+      "text": "ИИ-летописец ушёл на обновление. Запись года: «404».",
+      "lore": "«Повесть временных лет»: за многие годы в ней стоит одна дата и больше ни слова.",
+      "effects": { "science": 5, "setFlags": ["thread.sleepy.4"] }
+    }
+  ]
+}

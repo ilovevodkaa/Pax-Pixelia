@@ -1,0 +1,198 @@
+{
+  "$schema": "../schema/events.schema.json",
+  "title": "Серьёзные события: Возрождение — Индустриальная (CONTENT §2, №17–23, и новые)",
+  "events": [
+    {
+      "id": "boiler_explosion", "kind": "choice", "eras": [5, 6], "subject": "province", "icon": "alert-triangle",
+      "when": { "buildings": { "factory": 1 }, "requires": ["industry"] },
+      "title": "Взрыв котла",
+      "text": "На мануфактуре в провинции {province} взорвался паровой котёл. Цех разнесло, есть погибшие.",
+      "options": [
+        { "text": "Учредить надзор", "result": "Котлы проверяют инспекторы. Строят медленнее, взрываются реже.",
+          "effects": { "modifiers": [{ "id": "build_speed", "permille": -50, "cycles": 1200 }, { "id": "accidents", "permille": -500, "cycles": 1200 }] } },
+        { "text": "Прогресс требует жертв", "result": "Цех отстроили за неделю. Рабочие хоронят товарищей молча.",
+          "effects": { "moodLocal": -5, "axes": { "innovative": 3 } } }
+      ]
+    },
+    {
+      "id": "great_stink", "kind": "choice", "eras": [6, 6], "subject": "capital", "icon": "cloud-fog", "importance": 1,
+      "when": { "min": { "pollution": 40 }, "requires": ["industry"] },
+      "title": "Великая вонь",
+      "text": "Жаркое лето, и река у {province:gen} смердит так, что заседания совета переносят.",
+      "lore": "Лондон, 1858: после «Великой вони» парламент за 18 дней одобрил канализацию.",
+      "options": [
+        { "text": "Строить канализацию", "result": "Заложили канализацию. Город роют, зато дышать станет легче.",
+          "effects": { "gold": -100, "modifiers": [{ "id": "health_laws_speed", "permille": 500, "cycles": 60 }] } },
+        { "text": "Само проветрится", "result": "Решили подождать ветра. Ветер не спешит.",
+          "effects": { "pop": -20, "followUp": { "event": "great_stink_again", "after": 50 } } }
+      ]
+    },
+    {
+      "id": "great_stink_again", "kind": "choice", "eras": [5, 7], "followUpOnly": true, "subject": "capital", "icon": "cloud-fog",
+      "when": { "min": { "pollution": 40 } },
+      "title": "Вонь не уходит",
+      "text": "Вонь над {province:gen} так и не проветрилась. Горожане болеют и бегут из города.",
+      "options": [
+        { "text": "Строить канализацию", "result": "Сдались и заложили канализацию. Лучше поздно.",
+          "effects": { "gold": -120, "modifiers": [{ "id": "health_laws_speed", "permille": 500, "cycles": 60 }] } },
+        { "text": "Подождать ещё", "result": "Ждём ветра дальше. Кто может — уезжает.",
+          "effects": { "pop": -20, "followUp": { "event": "great_stink_again", "after": 50 } } }
+      ]
+    },
+    {
+      "id": "broad_street_pump", "kind": "choice", "eras": [5, 6], "subject": "capital", "icon": "flask",
+      "when": { "flags": ["state.epidemic"] },
+      "title": "Колонка на площади",
+      "text": "Врач нанёс больных холерой на карту {province:gen}: все пили из одной колонки.",
+      "lore": "Лондон, 1854: Джон Сноу снял ручку колонки на Брод-стрит, и вспышка холеры пошла на спад.",
+      "options": [
+        { "text": "Снять ручку колонки", "result": "Колонку закрыли, и больных стало меньше. Врача слушают.",
+          "effects": { "science": 20, "modifiers": [{ "id": "epidemic", "permille": -1000, "cycles": 0 }] } },
+        { "text": "Это миазмы", "result": "Учёный совет решил: виноват дурной воздух. Колонка работает.", "effects": { "pop": -30 } }
+      ]
+    },
+    {
+      "id": "wash_hands", "kind": "choice", "eras": [5, 5], "icon": "flask",
+      "title": "Мойте руки",
+      "text": "Молодой врач требует, чтобы коллеги мыли руки перед родами. Коллеги оскорблены.",
+      "lore": "Вена, 1847: Игнац Земмельвейс снизил смертность рожениц хлоркой, но при жизни его высмеяли.",
+      "options": [
+        { "text": "Высмеять выскочку", "result": "Врача выставили на посмешище. Всё осталось как было." },
+        { "text": "Ввести правило", "result": "Руки моют все. Роженицы выживают, врачи ворчат.",
+          "effects": { "moodCapital": -5, "modifiers": [{ "id": "growth", "permille": 1, "cycles": 0 }] } }
+      ]
+    },
+    {
+      "id": "stock_panic", "kind": "choice", "eras": [6, 10], "icon": "coins", "importance": 1,
+      "when": { "requires": ["stock_market"] },
+      "title": "Биржевая паника",
+      "text": "Акции падают третий день. Вкладчики осаждают банки, газеты пишут про конец света.",
+      "options": [
+        { "text": "Спасти банки", "result": "Казна выкупила долги банков. Паника улеглась.", "effects": { "gold": -150 } },
+        { "text": "Пусть лопнут", "result": "Банки лопнули. Рынок очистился, заводы стоят.",
+          "effects": { "axes": { "communal": 5 }, "modifiers": [{ "id": "output", "permille": -150, "cycles": 30 }] } }
+      ]
+    },
+    {
+      "id": "last_nomad", "kind": "choice", "eras": [6, 8], "icon": "walk",
+      "when": { "terrain": ["steppe", "desert", "tundra"] },
+      "title": "Последний кочевник",
+      "text": "В степи осталось последнее кочевое семейство. Чиновник спрашивает, что с ними делать.",
+      "options": [
+        { "text": "Дать землю и дом", "result": "Семья осела. Внуки пойдут в школу.", "effects": { "pop": 1 } },
+        { "text": "Сохранить обычай", "result": "Степь объявлена заповедником. Кочевье стало живым музеем.",
+          "effects": { "culture": 20, "setFlags": ["state.steppe_reserve"] } }
+      ]
+    },
+    {
+      "id": "guild_quarrel", "kind": "choice", "eras": [3, 4], "icon": "hammer",
+      "when": { "buildings": { "market": 1 } },
+      "title": "Гильдии спорят",
+      "text": "Гильдии сукноделов и красильщиков не поделили улицу. Цены растут, работа стоит.",
+      "options": [
+        { "text": "Рассудить по старине", "result": "Суд решил по старым грамотам. Проигравшие затаили обиду.", "effects": { "axes": { "traditional": 3 } } },
+        { "text": "Отменить привилегии", "result": "Цеховые привилегии отменены. Работать может каждый.",
+          "effects": { "stability": -3, "axes": { "free": 5 }, "modifiers": [{ "id": "output", "permille": 100, "cycles": 240 }] } }
+      ]
+    },
+    {
+      "id": "bridge_collapse", "kind": "choice", "eras": [2, 6], "subject": "province", "icon": "alert-triangle",
+      "when": { "terrain": ["river"] },
+      "title": "Мост рухнул",
+      "text": "Под обозом рухнул старый мост через реку в провинции {province}. Дорога на столицу перерезана.",
+      "options": [
+        { "text": "Поставить деревянный", "result": "Новый мост поставили за месяц. До следующего половодья.", "effects": { "gold": -20 } },
+        { "text": "Строить каменный", "result": "Каменный мост встанет на века. Казна вздохнула.",
+          "effects": { "gold": -60, "modifiers": [{ "id": "trade", "permille": 50, "cycles": 1200, "local": true }] } }
+      ]
+    },
+    {
+      "id": "freethinker", "kind": "choice", "eras": [3, 5], "icon": "compass",
+      "title": "Вольнодумец",
+      "text": "Учёный муж пишет, что небо не хрустальный купол, а бездна. Учёные коллеги требуют суда.",
+      "options": [
+        { "text": "Запретить книгу", "result": "Книгу сожгли на площади. Её тут же переписали от руки.", "effects": { "axes": { "traditional": 4 } } },
+        { "text": "Дать кафедру", "result": "Вольнодумец читает лекции. Студенты спорят до хрипоты.",
+          "effects": { "science": 25, "stability": -2, "axes": { "innovative": 4 } } }
+      ]
+    },
+    {
+      "id": "printing_press", "kind": "choice", "eras": [4, 5], "icon": "book",
+      "when": { "flags": ["tech.printing"] },
+      "title": "Печатный станок",
+      "text": "Первопечатник наладил станок: книга за неделю вместо года. Цех переписчиков в ярости.",
+      "options": [
+        { "text": "Защитить переписчиков", "result": "Станок обложен пошлиной. Переписчики спасены, книги дороги.", "effects": { "axes": { "traditional": 3 } } },
+        { "text": "Печатать всё", "result": "Книги подешевели в десять раз. Читают даже подмастерья.",
+          "effects": { "science": 20, "culture": 10, "moodCapital": -3 } }
+      ]
+    },
+    {
+      "id": "sea_captain", "kind": "choice", "eras": [4, 5], "subject": "province", "icon": "anchor",
+      "when": { "terrain": ["coast"] },
+      "title": "Капитан просит корабли",
+      "text": "Капитан из {province:gen} клянётся, что за морем лежит неизведанная земля. Он просит три корабля.",
+      "options": [
+        { "text": "Отказать", "result": "Капитан ушёл искать щедрого покровителя у соседей." },
+        { "text": "Снарядить экспедицию", "effects": { "gold": -60 },
+          "roll": [
+            { "permille": 600, "result": "Корабли вернулись с картами и диковинами. Мир стал больше.", "effects": { "science": 30, "culture": 10 } },
+            { "permille": 400, "result": "Корабли не вернулись. Море хранит свои тайны.", "effects": { "mood": -2 } } ] }
+      ]
+    },
+    {
+      "id": "railway_route", "kind": "choice", "eras": [5, 6], "icon": "route",
+      "when": { "min": { "provinces": 6 } },
+      "title": "Куда вести дорогу",
+      "text": "Инженеры готовы тянуть железную дорогу. Одни хотят к рудникам, другие к морю.",
+      "options": [
+        { "text": "К рудникам", "result": "Первый состав привёз руду. Заводы довольны.", "effects": { "gold": -80, "modifiers": [{ "id": "ore", "permille": 150, "cycles": 1200 }] } },
+        { "text": "К морю", "result": "Рельсы дошли до порта. Товары побежали за море.", "effects": { "gold": -80, "modifiers": [{ "id": "trade", "permille": 150, "cycles": 1200 }] } },
+        { "text": "Подождать", "result": "Совет отложил решение. Инженеры уехали к соседям." }
+      ]
+    },
+    {
+      "id": "factory_smoke", "kind": "choice", "eras": [5, 7], "subject": "province", "icon": "cloud-fog",
+      "when": { "buildings": { "factory": 2 } },
+      "title": "Дым над городом",
+      "text": "Над провинцией {province} стоит дым заводских труб. Бельё сохнет серым, дети кашляют.",
+      "options": [
+        { "text": "Так выглядит прогресс", "result": "Трубы дымят. Город богатеет и кашляет.", "effects": { "moodLocal": -4 } },
+        { "text": "Поднять трубы повыше", "result": "Трубы подняли. Дым ушёл к соседям.", "effects": { "gold": -40 } },
+        { "text": "Вынести заводы за город", "result": "Заводы переехали. Рабочие ходят далеко, зато дышат.",
+          "effects": { "gold": -90, "moodLocal": 5, "modifiers": [{ "id": "output", "permille": -50, "cycles": 240, "local": true }] } }
+      ]
+    },
+    {
+      "id": "newspaper_scandal", "kind": "choice", "eras": [5, 8], "icon": "book",
+      "title": "Газетный скандал",
+      "text": "Газета напечатала, что министр казны строит дачу на казённые деньги. Тираж раскупили к обеду.",
+      "options": [
+        { "text": "Отправить министра в отставку", "result": "Министр ушёл. Газета празднует и ищет новую дачу.", "effects": { "stability": -2, "mood": 3 } },
+        { "text": "Закрыть газету", "result": "Газету закрыли. Её читают теперь из-под полы.", "effects": { "axes": { "closed": 4 }, "mood": -3 } }
+      ]
+    },
+    {
+      "id": "emigration_wave", "kind": "choice", "eras": [5, 7], "icon": "anchor",
+      "when": { "max": { "mood": 50 } },
+      "title": "Уезжают за море",
+      "text": "На пристанях толпы с узлами: люди едут искать счастья за морем. Пароходы переполнены.",
+      "options": [
+        { "text": "Пусть едут", "result": "Уехали самые беспокойные. Остальным стало просторнее.", "effects": { "pop": -20, "stability": 2 } },
+        { "text": "Дать землю тем, кто останется", "result": "Землю раздали. Пристани опустели.", "effects": { "gold": -70, "axes": { "agrarian": 3 } } }
+      ]
+    },
+    {
+      "id": "exhibition_invention", "kind": "choice", "eras": [5, 6], "icon": "bulb",
+      "title": "Изобретатель просит денег",
+      "text": "Изобретатель принёс чертёж машины, которая «сама считает». Ему нужна казённая мастерская.",
+      "options": [
+        { "text": "Показать дверь", "result": "Изобретатель ушёл. Чертежи достались его ученикам." },
+        { "text": "Дать мастерскую", "effects": { "gold": -50 },
+          "roll": [
+            { "permille": 500, "result": "Машина считает! Медленно, с треском, но правильно.", "effects": { "science": 40 } },
+            { "permille": 500, "result": "Машина сломалась на выставке. Публика хохотала.", "effects": { "culture": 5 } } ] }
+      ]
+    }
+  ]
+}

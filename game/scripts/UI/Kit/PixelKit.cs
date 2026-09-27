@@ -64,6 +64,9 @@ public static class PixelKit
     /// <summary>Heading font: bold pixel font with extra glyph spacing.</summary>
     public static FontVariation Spaced(int spacing) => Variation(700, spacing);
 
+    /// <summary>Any weight (400–700) with extra glyph spacing (px). Cached and shared — never mutate.</summary>
+    public static FontVariation Variant(int weight, int spacing) => Variation(weight, spacing);
+
     static FontVariation Variation(int weight, int spacing)
     {
         if (_variations.TryGetValue((weight, spacing), out var v)) return v;

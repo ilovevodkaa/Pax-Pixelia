@@ -1,7 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <!--
     Pure-C# tests of the simulation (no Godot runtime): links the engine-free sources of the game.
-    Run from D:/supergae:  dotnet run -c Release (project tests/SimTests), optional program argument seed=N
+    Run from D:/supergae:  dotnet run -c Release (project tests/SimTests), optional program arguments:
+      seed=N        world seed (default 1337)
+      pacing        also run the full pacing report (all three length presets, ~1 min)
+      bench         only the rules benchmark (µs and bytes per tick, early and settled game)
     Test another copy of the game:  add -p:GameDir=path/to/game
   -->
   <PropertyGroup>
@@ -16,12 +19,21 @@
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
   </PropertyGroup>
   <ItemGroup>
+    <!-- the determinism lint reads the Sim sources from here -->
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>GameDir</_Parameter1>
+      <_Parameter2>$([System.IO.Path]::GetFullPath('$(GameDir)'))</_Parameter2>
+    </AssemblyAttribute>
+  </ItemGroup>
+  <ItemGroup>
     <Compile Include="*.cs" />
-    <Compile Include="$(GameDir)/scripts/Core/Data.cs;$(GameDir)/scripts/Core/Noise.cs" Link="Game/Core/%(Filename)%(Extension)" />
+    <Compile Include="$(GameDir)/scripts/Core/Data.cs;$(GameDir)/scripts/Core/Noise.cs;$(GameDir)/scripts/Core/GameSetup.cs;$(GameDir)/scripts/Core/Flags/FlagSpec.cs;$(GameDir)/scripts/Core/Flags/FlagPatterns.cs;$(GameDir)/scripts/Core/Nations/NationDesign.cs;$(GameDir)/scripts/Core/Nations/NationRoster.cs;$(GameDir)/scripts/Core/Nations/NationNames.cs;$(GameDir)/scripts/Core/Nations/NationPalette.cs;$(GameDir)/scripts/Core/Nations/ColorMath.cs" Link="Game/Core/%(Filename)%(Extension)" />
+    <!-- the event deck: engine-free except its res:// reader -->
+    <Compile Include="$(GameDir)/scripts/Content/**/*.cs" Exclude="$(GameDir)/scripts/Content/ContentLoader.cs" Link="Game/Content/%(RecursiveDir)%(Filename)%(Extension)" />
     <Compile Include="$(GameDir)/scripts/World/**/*.cs" Link="Game/World/%(RecursiveDir)%(Filename)%(Extension)" />
-    <!-- Godot-side files of Sim (Game partial, Node driver, debug overlay, YearTick adapter) are left out -->
+    <!-- Godot-side files of Sim (Game partial, Node driver, debug overlay) are left out -->
     <Compile Include="$(GameDir)/scripts/Sim/**/*.cs"
-             Exclude="$(GameDir)/scripts/Sim/GameActions.cs;$(GameDir)/scripts/Sim/SimDriver.cs;$(GameDir)/scripts/Sim/SimDebugOverlay.cs;$(GameDir)/scripts/Sim/Simulation.cs"
+             Exclude="$(GameDir)/scripts/Sim/GameActions.cs;$(GameDir)/scripts/Sim/SimDriver.cs;$(GameDir)/scripts/Sim/SimDebugOverlay.cs"
              Link="Game/Sim/%(RecursiveDir)%(Filename)%(Extension)" />
   </ItemGroup>
 </Project>

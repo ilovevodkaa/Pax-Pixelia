@@ -17,22 +17,30 @@ internal readonly record struct Rgb(byte R, byte G, byte B)
 /// <summary>Map colours (values from docs/mockups/js/render.js + worldgen.js).</summary>
 internal static class MapPalette
 {
-    public static Rgb Nation(int n) { var d = Data.Nations[n]; return new(d.R, d.G, d.B); }
+    public static Rgb Nation(int n)
+    {
+        var roster = Game.I?.Nations ?? Data.Nations;
+        if ((uint)n >= (uint)roster.Length) return new(128, 128, 128);
+        var d = roster[n];
+        return new(d.R, d.G, d.B);
+    }
     /// <summary>Country border: the nation colour brightened (natBrd).</summary>
     public static Rgb BorderColor(int n) => Nation(n).Scaled(1.2f, 40);
-    /// <summary>Nation name on the map: brighter still, slightly translucent.</summary>
-    public static Color LabelColor(int n) => Nation(n).Scaled(1.25f, 50).ToColor(.92f);
+    /// <summary>Nation name on the map: the nation colour lifted towards white, so it reads over its own tint.</summary>
+    public static Color LabelColor(int n) { var c = Nation(n).ToColor(); return c.Lerp(Colors.White, .45f); }
+    /// <summary>The 1 px rim round a capital: its nation colour, lifted.</summary>
+    public static Color RimColor(int n) => Nation(n).Scaled(1.15f, 30).ToColor();
     public static Rgb Religion(int r) { var d = Data.Religions[r]; return new(d.R, d.G, d.B); }
 
     public static Rgb Fertility(float f) => f < .5f
         ? Rgb.Of(200, 90 + f * 2 * 120, 70)
         : Rgb.Of(200 - (f - .5f) * 2 * 120, 210, 70 + (f - .5f) * 2 * 20);
 
-    public static readonly Color Halo = new(22 / 255f, 26 / 255f, 31 / 255f, .84f);
-    public static readonly Color CapitalText = Colors.White;
-    public static readonly Color TownText = new(236 / 255f, 238 / 255f, 240 / 255f);
-    public static readonly Color ProvinceText = new(236 / 255f, 238 / 255f, 241 / 255f, .84f);
-    public static readonly Color SeaText = new(188 / 255f, 204 / 255f, 217 / 255f, .66f);
+    // map text: monochrome like the UI (importance by brightness), pixel font with hard dark effects
+    public static readonly Color CapitalText = new(.94f, .94f, .95f);
+    public static readonly Color TownText = new(.85f, .85f, .86f);
+    public static readonly Color ProvinceText = new(.78f, .79f, .8f, .9f);
+    public static readonly Color SeaText = new(150 / 255f, 176 / 255f, 198 / 255f, .85f);
     // light enough to read on dark forest and jungle
     public static readonly Color RiverWater = new(0x6a / 255f, 0x9c / 255f, 0xc6 / 255f);
     public static readonly Color RiverWaterMuted = new(0x62 / 255f, 0x86 / 255f, 0xa8 / 255f);

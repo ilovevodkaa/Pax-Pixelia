@@ -4,8 +4,9 @@ using PaxPixelia.Core;
 namespace PaxPixelia.UI;
 
 /// <summary>
-/// #toast — white slip at the top centre with a graphite icon block (crosshair while picking a scout target,
-/// red block for refusals). Drops in 6px and fades; hides after its duration.
+/// Slip at the top centre with an inverted icon block (crosshair while picking a scout target, a faint-red block for
+/// refusals). Drops in 6px in whole-pixel steps and fades; hides after its duration. Clicks pass through to the map,
+/// so a pick toast never swallows the click it asks for.
 /// </summary>
 public partial class Toast : PanelContainer
 {
@@ -13,19 +14,21 @@ public partial class Toast : PanelContainer
     readonly Label _text;
     readonly PanelContainer _block;
     readonly TextureRect _icon;
-    readonly Box _graphite = new Box().Fill(Pal.G1, Pal.G2).Radius(3, 0, 0, 3);
-    readonly Box _red = new Box().Fill(Pal.Red1, Pal.Red2).Radius(3, 0, 0, 3);
+    readonly Box _graphite = new Box().Fill(Pal.Ac);
+    readonly Box _red = new Box().Fill(Pal.BadFill).Border(Pal.Bad, 0, 0, 2, 0);
     double _left, _age;
     public ToastKind Kind { get; private set; }
 
     public Toast()
     {
         Visible = false;
-        MouseFilter = MouseFilterEnum.Ignore;   // nothing to click: a pick toast must not hide the provinces under it
-        AddThemeStyleboxOverride("panel", St.Card(St.R).Pad(1));
-        _icon = Ui.Icon("info-circle", 18, Colors.White);
+        // Pass + accept only the wheel: clicks and motion fall through to the map (a pick toast must not hide the
+        // provinces under it), while a wheel notch over the slip does not zoom the map
+        MouseFilter = MouseFilterEnum.Pass;
+        AddThemeStyleboxOverride("panel", new Box().Fill(Pal.A(Pal.Hex(0x141416), .98f)).Border(Pal.Ln3).Shadow(4).Pad(2));
+        _icon = Ui.Icon("info-circle", 2, Pal.Ink, shadow: false);
         _icon.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
-        _block = Ui.Panel(_graphite, _icon).MinSize(42, 40);
+        _block = Ui.Panel(_graphite, _icon).MinSize(44, 40);
         _text = Ui.Text("", "Strong");
         AddChild(Ui.HBox(0, _block, Ui.Margin(_text, 14, 10, 18, 10)));
     }
@@ -34,8 +37,8 @@ public partial class Toast : PanelContainer
     {
         Kind = kind;
         _text.Text = text;
-        float natural = UiFonts.Fu500.GetStringSize(text, HorizontalAlignment.Left, -1, 13).X;
-        int maxText = MaxWidth - 42 - 14 - 18 - 2;
+        float natural = UiFonts.Width(UiFonts.Medium, text, UiFonts.Body);
+        int maxText = MaxWidth - 44 - 14 - 18 - 4;
         if (natural > maxText)
         {
             _text.AutowrapMode = TextServer.AutowrapMode.WordSmart;
@@ -47,7 +50,8 @@ public partial class Toast : PanelContainer
             _text.AutowrapMode = TextServer.AutowrapMode.Off;
             _text.CustomMinimumSize = Vector2.Zero;
         }
-        _icon.Texture = Icons.Get(kind switch { ToastKind.Pick => "crosshair", ToastKind.Error => "alert-triangle", _ => "info-circle" }, 18);
+        _icon.Texture = Icons.Get(kind switch { ToastKind.Pick => "crosshair", ToastKind.Error => "alert-triangle", _ => "info-circle" }, 2, false);
+        _icon.SelfModulate = kind == ToastKind.Error ? Pal.Hex(0xe0b0b0) : Pal.Ink;
         _block.AddThemeStyleboxOverride("panel", kind == ToastKind.Error ? _red : _graphite);
         _left = seconds;
         if (!Visible) _age = 0;
@@ -56,6 +60,12 @@ public partial class Toast : PanelContainer
     }
 
     public void HideNow() => Visible = false;
+
+    public override void _GuiInput(InputEvent e)
+    {
+        if (e is InputEventMouseButton { ButtonIndex: MouseButton.WheelUp or MouseButton.WheelDown or MouseButton.WheelLeft or MouseButton.WheelRight })
+            AcceptEvent();
+    }
 
     public override void _Process(double delta)
     {
@@ -67,7 +77,7 @@ public partial class Toast : PanelContainer
         Size = s;
         float t = Mathf.Clamp((float)_age / .22f, 0, 1), e = 1 - (1 - t) * (1 - t) * (1 - t);
         float vw = GetParentAreaSize().X;
-        Position = new Vector2(Mathf.Round((vw - s.X) / 2), Mathf.Round(Top - 6 * (1 - e)));
+        Position = new Vector2(Mathf.Round((vw - s.X) / 2), Top - 2 * Mathf.Round(3 * (1 - e)));
         Modulate = new Color(1, 1, 1, e);
     }
 }

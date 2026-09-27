@@ -6,9 +6,9 @@ namespace PaxPixelia.World;
 
 /// <summary>
 /// World generation (pure C#, no Godot types). Deterministic: the same seed and size give bit-identical output on
-/// any machine and thread count — multiplayer clients regenerate the world from the seed. It is a faithful port of
-/// the approved mockup generator (docs/mockups/js/worldgen.js) and reproduces its output exactly.
-/// Stages live in WorldBuilder.*.cs.
+/// any machine and thread count — multiplayer clients regenerate the world from the seed (tests/WorldGenTests pins
+/// golden hashes). Relief, climate and provinces started as a port of the approved mockup (docs/mockups/js/worldgen.js);
+/// rivers and the pixel-art colour are the game's own. Stages live in WorldBuilder.*.cs.
 /// </summary>
 public static class WorldGen
 {

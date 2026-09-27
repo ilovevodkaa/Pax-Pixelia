@@ -16,7 +16,7 @@ namespace PaxPixelia.Map;
 /// </summary>
 internal sealed class LabelPlan
 {
-    public const int CapSize = 14, TownSize = 12, ProvSize = 11;
+    public const int CapSize = 16, TownSize = 13, ProvSize = 11;
     const float NamePad = 2;             // px kept free around a province name (4 px between two names)
 
     /// <summary>What one zoom level shows.</summary>
@@ -27,7 +27,7 @@ internal sealed class LabelPlan
         public int Version = -1;
         public bool[] Name = Array.Empty<bool>();     // city or province name drawn
         public bool[] Sprite = Array.Empty<bool>();   // city sprite drawn
-        public readonly NationLabels.Place[] Nations = new NationLabels.Place[Data.Nations.Length];
+        public NationLabels.Place[] Nations = Array.Empty<NationLabels.Place>();
     }
 
     readonly Tier[] _tiers = new Tier[9];
@@ -37,6 +37,7 @@ internal sealed class LabelPlan
     readonly List<int> _changed = new();
     bool[] _oldName = Array.Empty<bool>(), _oldSprite = Array.Empty<bool>();
     FogField _fog;
+    MapMemory _mem;
     WorldData _world;
     int _version;
     int _selected = -1;
@@ -49,9 +50,9 @@ internal sealed class LabelPlan
     public NationLabels Nations => _nations;
 
     /// <summary>A new world: caches are rebuilt, every level recomputed on demand.</summary>
-    public void Reset(WorldData w, FogField fog)
+    public void Reset(WorldData w, FogField fog, MapMemory mem)
     {
-        _world = w; _fog = fog;
+        _world = w; _fog = fog; _mem = mem;
         _wCap = NewWidths(w.P); _wTown = NewWidths(w.P); _wProv = NewWidths(w.P);
         var land = new List<int>();
         for (int p = 0; p < w.P; p++) if (w.PLand[p] == 1) land.Add(p);
@@ -108,6 +109,8 @@ internal sealed class LabelPlan
         int P = w.P, L = t.Level;
         float z = t.Z;
         if (t.Name.Length != P) { t.Name = new bool[P]; t.Sprite = new bool[P]; diff = false; }
+        int nN = Game.I.Nations.Length;
+        if (t.Nations.Length != nN) t.Nations = new NationLabels.Place[nN];
         if (diff)
         {
             if (_oldName.Length != P) { _oldName = new bool[P]; _oldSprite = new bool[P]; }
@@ -120,7 +123,7 @@ internal sealed class LabelPlan
 
         PlaceCities(t, w, s);
         Rect2? sel = _selected >= 0 && _selected < P ? SelectionBox(w, _selected, z) : null;
-        _nations.Layout(t, _cities, sel, Visible);
+        _nations.Layout(this, t, _cities, sel, Visible);
         PlaceProvinceNames(t, w, s);
 
         if (diff)
@@ -128,26 +131,26 @@ internal sealed class LabelPlan
                 if (t.Name[p] != _oldName[p] || t.Sprite[p] != _oldSprite[p]) _changed.Add(p);
     }
 
-    /// <summary>Capitals always; a town's sprite gives way to a capital, its name to any city sprite or earlier name.</summary>
+    /// <summary>Capitals always (from ×½: a rhombus the nation names keep clear of); from ×3 towns — a town's sprite
+    /// gives way to a capital, its name to any city sprite or earlier name.</summary>
     void PlaceCities(Tier t, WorldData w, Sim.GameState s)
     {
         int L = t.Level;
-        if (L < 2) return;
         float z = t.Z;
-        foreach (int cap in s.NationCapital)
+        for (int p = 0; p < w.P; p++)
         {
-            if (cap < 0 || !Visible(cap)) continue;
-            t.Sprite[cap] = true;
-            Obstacle(SpriteRect(w, cap, true, L, z));
+            if (_mem.CapitalOf(p) < 0 || !Visible(p)) continue;
+            t.Sprite[p] = true;
+            Obstacle(SpriteRect(w, p, true, L, z));
             if (L < 3) continue;
-            t.Name[cap] = true;
-            Obstacle(NameRect(w, cap, true, L, z));
+            t.Name[p] = true;
+            Obstacle(NameRect(w, p, true, L, z));
         }
         if (L < 3) return;
         int capitals = _cities.Count;
         for (int p = 0; p < w.P; p++)
         {
-            if (!s.IsTown[p] || s.CapitalOf[p] >= 0 || !Visible(p)) continue;
+            if (!_mem.IsTown(p) || _mem.CapitalOf(p) >= 0 || !Visible(p)) continue;
             var r = SpriteRect(w, p, false, L, z);
             if (HitsAny(r, 0, capitals)) continue;              // the capital wins
             t.Sprite[p] = true;
@@ -155,7 +158,7 @@ internal sealed class LabelPlan
         }
         for (int p = 0; p < w.P; p++)
         {
-            if (!t.Sprite[p] || s.CapitalOf[p] >= 0) continue;
+            if (!t.Sprite[p] || _mem.CapitalOf(p) >= 0) continue;
             var r = NameRect(w, p, false, L, z);
             var own = SpriteRect(w, p, false, L, z);
             bool clear = true;
@@ -177,7 +180,7 @@ internal sealed class LabelPlan
         foreach (int p in _bySize)
         {
             if (w.PSize[p] < min) break;
-            if (s.CapitalOf[p] >= 0 || s.IsTown[p] || !Visible(p)) continue;
+            if (_mem.IsCity(p) || !Visible(p)) continue;
             var r = ProvRect(w, p, z).Grow(NamePad);
             if (_grid.Hits(r) || _nations.Hits(t, r)) continue;
             t.Name[p] = true;
@@ -205,10 +208,10 @@ internal sealed class LabelPlan
         var names = new List<Rect2>(); var sprites = new List<(Rect2 r, int p)>();
         for (int p = 0; p < w.P; p++)
         {
-            bool cap = s.CapitalOf[p] >= 0;
+            bool cap = _mem.CapitalOf(p) >= 0;
             if (t.Sprite[p]) sprites.Add((SpriteRect(w, p, cap, level, z), p));
             if (!t.Name[p]) continue;
-            names.Add(cap || s.IsTown[p] ? NameRect(w, p, cap, level, z) : ProvRect(w, p, z));
+            names.Add(cap || _mem.IsTown(p) ? NameRect(w, p, cap, level, z) : ProvRect(w, p, z));
         }
         int bad = 0;
         for (int i = 0; i < names.Count; i++)
@@ -232,31 +235,34 @@ internal sealed class LabelPlan
         return s.Fog[p] > 0 && (_fog == null || _fog.IsClear(_world.PCX[p], _world.PCY[p], 9));
     }
 
-    public static float NameOffset(bool cap, int ps) => PixelSprites.Size(cap ? Spr.Capital : Spr.Town).Y * ps / 2f + 9;
+    /// <summary>Box of a city's sprite (+ the capital's flag) in level px.</summary>
+    public Rect2 SpriteRect(WorldData w, int p, bool cap, int level, float z) =>
+        Lod.CityBox((w.PCX[p] + .5f) * z, (w.PCY[p] + .5f) * z, level, cap, _mem.Era(p));
 
-    public static Rect2 SpriteRect(WorldData w, int p, bool cap, int level, float z)
+    /// <summary>Distance from the province anchor down to the vertical centre of its city name.</summary>
+    public float NameOffset(int p, bool cap, int level)
     {
-        var size = (Vector2)PixelSprites.Size(cap ? Spr.Capital : Spr.Town) * PixelSprites.CityScale(level, cap);
-        return new Rect2(new Vector2((w.PCX[p] + .5f) * z, (w.PCY[p] + .5f) * z) - size / 2, size);
+        var r = Lod.CitySpriteRect(0, 0, level, cap, _mem.Era(p));
+        return r.End.Y + (cap ? CapSize : TownSize) * .5f + 1;
     }
 
     public Rect2 NameRect(WorldData w, int p, bool cap, int level, float z)
     {
         float tw = CityNameWidth(p, cap), h = cap ? CapSize : TownSize;
-        float cy = (w.PCY[p] + .5f) * z + NameOffset(cap, PixelSprites.CityScale(level, cap));
-        return new Rect2((w.PCX[p] + .5f) * z - tw / 2 - 2, cy - h / 2 - 1, tw + 4, h + 2);
+        float cy = (w.PCY[p] + .5f) * z + NameOffset(p, cap, level);
+        return new Rect2((w.PCX[p] + .5f) * z - tw / 2 - 2, cy - h / 2 - 1, tw + 4, h + 3);
     }
 
-    Rect2 ProvRect(WorldData w, int p, float z)
+    public Rect2 ProvRect(WorldData w, int p, float z)
     {
         float tw = ProvNameWidth(p);
-        return new Rect2(w.PCX[p] * z - tw / 2, w.PCY[p] * z - z * 3 - ProvSize / 2f - 1, tw, ProvSize + 2);
+        return new Rect2(w.PCX[p] * z - tw / 2 - 1, w.PCY[p] * z - z * 3 - ProvSize / 2f - 1, tw + 2, ProvSize + 3);
     }
 
     public float CityNameWidth(int p, bool cap) =>
-        Width(cap ? _wCap : _wTown, p, cap ? MapFonts.Display700 : MapFonts.Ui500, cap ? CapSize : TownSize);
+        Width(cap ? _wCap : _wTown, p, MapFonts.Pixel, cap ? CapSize : TownSize);
 
-    public float ProvNameWidth(int p) => Width(_wProv, p, MapFonts.Ui400, ProvSize);
+    public float ProvNameWidth(int p) => Width(_wProv, p, MapFonts.Pixel, ProvSize);
 
     float Width(float[] cache, int p, Font f, int size)
     {

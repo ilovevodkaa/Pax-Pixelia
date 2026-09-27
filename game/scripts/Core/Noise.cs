@@ -12,12 +12,16 @@ public static class Noise
 {
     /// <summary>Integer hash of (ix, iy, s) → [0,1).</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static double H2(int ix, int iy, int s)
+    public static double H2(int ix, int iy, int s) => Hash(ix, iy, s) / 4294967296.0;
+
+    /// <summary>The 32-bit integer hash behind H2 (the simulation rolls with it without leaving integers).</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static uint Hash(int ix, int iy, int s)
     {
         int h = unchecked(ix * 374761393 + iy * 668265263 + s * 1442695041);
         h = unchecked((h ^ (int)((uint)h >> 13)) * 1274126177);
         h ^= (int)((uint)h >> 16);
-        return (uint)h / 4294967296.0;
+        return (uint)h;
     }
 
     /// <summary>Value noise with period p in x.</summary>

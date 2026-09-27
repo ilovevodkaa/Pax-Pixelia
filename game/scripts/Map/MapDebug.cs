@@ -64,12 +64,12 @@ internal static class MapDebug
         await Frames(30);
         var after = map.View.ToWorld(pt);
         GD.Print($"inputtest wheel: level={g.ZoomLevel} zoom={map.View.Zoom} anchor drift={before.DistanceTo(after):F3} world px {(g.ZoomLevel == 4 && before.DistanceTo(after) < .6f ? "OK" : "FAIL")}");
-        var o0 = map.View.Origin;
+        var o0 = map.View.Origin; int sel0 = g.Selected;   // a drag must not change the selection
         Button(pt, MouseButton.Left, true); await Frames(1);
         for (int i = 1; i <= 10; i++) { Motion(pt + new Vector2(12 * i, 6 * i), MouseButtonMask.Left); await Frames(1); }
         Button(pt + new Vector2(120, 60), MouseButton.Left, false); await Frames(2);
         var moved = map.View.Origin - o0;
-        GD.Print($"inputtest drag: origin moved {moved} (expected ~(120, 60)) selected={g.Selected} {(moved.DistanceTo(new Vector2(120, 60)) < 2 && g.Selected == -1 ? "OK" : "CHECK")}");
+        GD.Print($"inputtest drag: origin moved {moved} (expected ~(120, 60)) selection kept={g.Selected == sel0} {(moved.DistanceTo(new Vector2(120, 60)) < 2 && g.Selected == sel0 ? "OK" : "FAIL")}");
         var cp = new Vector2(scr.X * .5f, scr.Y * .5f);
         Motion(cp); await Frames(1);
         Button(cp, MouseButton.Left, true); await Frames(1); Button(cp, MouseButton.Left, false); await Frames(2);

@@ -1,31 +1,70 @@
 using System.Collections.Generic;
+using PaxPixelia.Core;
 
 namespace PaxPixelia.Sim;
 
+/// <summary>Who gives a nation its commands. Bots act inside the rules cycle; humans only through the command queue.</summary>
+public enum NationControl : byte { Bot, Human }
+
 /// <summary>
-/// Mutable game state on top of a WorldData (pure C#, no Godot types). Created by NationGen.CreateInitialState(world).
-/// Everything that changes during play lives here so it can later be serialised and synchronised (lockstep).
+/// What one nation knows of the map (only nations that need it — humans — carry one; bots are not limited by fog).
+/// Fog: 0 unexplored, 1 explored but not seen now (stale), 2 visible. Explored and Met never revert.
+/// KnownOwner: the owner this nation last saw (-1 = tribes or never seen); stale land keeps showing it.
+/// </summary>
+public sealed class NationFog
+{
+    public byte[] Fog;
+    public bool[] Explored;
+    public short[] KnownOwner;
+    public bool[] Met;          // per nation: seen at least one province while that nation owned it
+}
+
+/// <summary>Per-nation state: every player of a 16-player game has its own treasury, research, projects and fog.</summary>
+public sealed class NationState
+{
+    public NationControl Control;
+    public long Treasury;               // gold in hundredths
+    public long LastTaxes, LastUpkeep;  // hundredths, last rules cycle
+    public long Progress;               // research stock that drives the eras (the future tech tree feeds the same)
+    public int ScienceRate;             // points gained in the last cycle
+    public byte Era;
+    public int ProjectIndex = -1;       // current capital project (Simulation.Projects), -1 once everything is built
+    public int QueuePct;
+    public int ProjectsDone;            // bit i: the one-off project i (no building attached) is finished
+    public int EventCount;              // chronicle cards dealt to this nation so far
+    public NationFog Fog;
+
+    public bool Human => Control == NationControl.Human;
+}
+
+/// <summary>
+/// Mutable game state on top of a WorldData (pure C#, integers only, no Godot types). Created by
+/// NationGen.CreateInitialState(world, roster); changed only by Simulation.Step and Commands.Apply, so it can be hashed,
+/// replayed from a command journal and kept in lockstep.
 /// </summary>
 public sealed partial class GameState
 {
-    public const int LocalPlayer = 0;       // nation index controlled by this client (for now)
-
-    // ---- time ----
-    public int Year = -1250;                // negative = до н. э.; there is no year 0
-    public int Speed = 2;                   // 1..5
+    // ---- time (see Clock and Calendar) ----
+    public long Tick;                       // ticks run since the start
+    public long Day256;                     // calendar: days × 256 since 1 January 4000 до н. э.
+    public long DateTarget, DateStep;       // the date glides towards DateTarget by DateStep per tick
+    public int Pace = 1000;                 // GameSetup.PacePermille (1000 = «Обычная»): scales every era's cost
+    public int Speed = 2;                   // 1..5 (session setting, changed by commands)
     public bool Paused;
-    public double Gold = 1240;
 
     // ---- nations ----
-    public int[] NationCapital;             // capital province per nation (Data.Nations index)
+    public Data.Nation[] Nations;           // the roster of this game (player's design at [0])
+    public NationState[] Nat;
+    public int[] NationCapital;             // capital province per nation
 
     // ---- per province (length P) ----
     public short[] Owner;                   // nation index or -1 (unclaimed tribes)
-    public float[] Pop;
+    public short[] Controller;              // who holds it now: equals Owner in the peaceful game (seam for occupation)
+    public int[] Pop;
     public sbyte[] Religion;                // Data.Religions index or -1
     public byte[] Mood;                     // 0..100
     public byte[] Slots;                    // building slots
-    public List<Core.Data.Bld>[] Buildings;
+    public List<Data.Bld>[] Buildings;
     public sbyte[] Ore;                     // Data.Ores index or -1
     public bool[] OreFound;
     public short[] CapitalOf;               // nation index if capital else -1
@@ -34,29 +73,34 @@ public sealed partial class GameState
     // ---- trade routes: province paths ----
     public List<int[]> Routes = new();
 
-    // ---- fog of war (owned by Fog module): 0 unexplored, 1 explored (stale), 2 visible ----
-    public byte[] Fog;
-    public bool[] Explored;
-    public bool FogEnabled = true;          // false = observer mode
+    /// <summary>false = observer mode: a view switch only, the fog is still computed underneath.</summary>
+    public bool FogEnabled = true;
 
-    // ---- scouts (max 2 active). Moved by Sim, drawn by Map ----
+    // ---- scouts (max Scouts.Max per nation). Moved by Sim, drawn by Map ----
     public List<Scout> Scouts = new();
+    public int ScoutSeq;                    // last Scout.Id handed out (stable ids)
+
     public sealed class Scout
     {
         public int Id;
+        public int Nation;
         public int[] Path;          // land provinces from start to target
         public int Step;            // index into Path of the province the scout is leaving
-        public float Progress;      // 0..1 towards Path[Step+1] (= Sub / Scouts.SubSteps)
+        public int Sub;             // integer progress towards Path[Step+1], 0..Scouts.SubSteps
         public bool Auto;
-        public int Sub;             // integer progress towards Path[Step+1], 0..Scouts.SubSteps (lockstep-safe)
         public int Steps;           // provinces walked so far
         public int MaxSteps;        // auto parties: the walk to the first frontier plus Scouts.AutoSteps of exploring
         public int Found;           // provinces this party has added to the map
+        /// <summary>Render-only position 0..1 towards Path[Step+1], interpolated between ticks by the Game; never read by rules.</summary>
+        public float Progress;      // pax-allow: view data
     }
 
-    // ---- construction queue of the local capital (demo) ----
-    public string QueueName = "Амбар";
-    public int QueuePct = 64;
+    /// <summary>The event deck of this game (null in tests without content): dealt every rules cycle.</summary>
+    public SimEvents Events;
 
-    public static string YearText(int y) => y < 0 ? $"{-y} до н. э." : $"{y} н. э.";
+    /// <summary>Reusable buffers for BFS passes (not game state: never hashed, rebuilt on demand).</summary>
+    internal SimScratch Scratch;
+
+    public int NationCount => Nat.Length;
+    public bool IsHuman(int n) => (uint)n < (uint)Nat.Length && Nat[n].Human;
 }

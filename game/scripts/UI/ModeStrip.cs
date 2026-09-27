@@ -5,8 +5,8 @@ using PaxPixelia.Core;
 namespace PaxPixelia.UI;
 
 /// <summary>
-/// #modes — map-mode strip docked 6px above the minimap: terrain / political / religion / trade / fertility,
-/// a hairline, and the fog-of-war eye (graphite = observer mode, fog off).
+/// Map-mode strip docked above the minimap: terrain / political / religion / trade / fertility as 26px pixel icons
+/// (the active one inverted), a 2px divider, and the fog-of-war eye (inverted = observer mode, fog off).
 /// </summary>
 public partial class ModeStrip : PanelContainer
 {
@@ -27,19 +27,19 @@ public partial class ModeStrip : PanelContainer
     public ModeStrip()
     {
         MouseFilter = MouseFilterEnum.Stop;
-        AddThemeStyleboxOverride("panel", St.Card().Pad(5, 4, 5, 4));
+        AddThemeStyleboxOverride("panel", St.Card().Pad(6, 5, 6, 5));
         _row = Ui.HBox(10);
         for (int i = 0; i < Modes.Length; i++)
         {
             var (mode, icon, title, hint) = Modes[i];
-            var b = Ui.IconButton(icon, "Ib", 38, 34, 19, () => Game.I.SetMode(mode));
+            var b = Ui.IconButton(icon, "Ib", 38, 34, 2, () => Game.I.SetMode(mode));
             b.MouseFilter = MouseFilterEnum.Stop;
             b.Tip(title, null, hint);
             _buttons[i] = b;
             _row.AddChild(b);
         }
-        _row.AddChild(Ui.Rule(Pal.Ln2, 1, 20));
-        _fog = Ui.IconButton("eye-off", "Ib", 38, 34, 19, () => FogToggled?.Invoke());
+        _row.AddChild(Ui.Rule(Pal.Ln2, 2, 22));
+        _fog = Ui.IconButton("eye-off", "Ib", 38, 34, 2, () => FogToggled?.Invoke());
         _fog.MouseFilter = MouseFilterEnum.Stop;
         _fog.Tip(t =>
         {
@@ -56,17 +56,22 @@ public partial class ModeStrip : PanelContainer
     public void Refresh()
     {
         var m = Game.I.Mode;
-        for (int i = 0; i < Modes.Length; i++) _buttons[i].ThemeTypeVariation = Modes[i].mode == m ? "IbOn" : "Ib";
+        for (int i = 0; i < Modes.Length; i++)
+        {
+            bool on = Modes[i].mode == m;
+            _buttons[i].ThemeTypeVariation = on ? "IbOn" : "Ib";
+            _buttons[i].Icon = Icons.Get(Modes[i].icon, 2, !on);   // dark ink on the light fill: no shadow
+        }
         bool fogOn = !Game.I.IsReady || Game.I.State.FogEnabled;
         _fog.ThemeTypeVariation = fogOn ? "Ib" : "IbOn";
-        _fog.Icon = Icons.Get(fogOn ? "eye-off" : "eye", 19);
+        _fog.Icon = Icons.Get(fogOn ? "eye-off" : "eye", 2, fogOn);
     }
 
     /// <summary>Matches the minimap card width and spreads the buttons (CSS justify-content: space-between).</summary>
     public void SetWidth(int cardWidth)
     {
         CustomMinimumSize = new Vector2(cardWidth, 0);
-        int content = 6 * 38 + 1, inner = cardWidth - 2 - 10;
+        int content = 6 * 38 + 2, inner = cardWidth - 4 - 12;
         _row.AddThemeConstantOverride("separation", Math.Max(2, (inner - content) / 6));
     }
 }
@@ -86,7 +91,7 @@ public partial class ModeLegend : PanelContainer
         Visible = false;
         MouseFilter = MouseFilterEnum.Stop;   // a card like the others: the wheel over it does not zoom the map
         SizeFlagsHorizontal = SizeFlags.ShrinkBegin;
-        AddThemeStyleboxOverride("panel", St.Card().Pad(10, 7, 12, 9));
+        AddThemeStyleboxOverride("panel", St.Card().Pad(10, 8, 12, 9));
         AddChild(_box);
     }
 
@@ -106,7 +111,7 @@ public partial class ModeLegend : PanelContainer
             case MapMode.Religion:
                 _box.AddChild(Ui.Cap("Религии"));
                 for (int r = 0; r < Data.Religions.Length; r++)
-                    if ((religions & (1 << r)) != 0) _box.AddChild(Ui.HBox(7, new Swatch(Pal.Religion(r)), Ui.Text(Data.Religions[r].Name).Sized(12)));
+                    if ((religions & (1 << r)) != 0) _box.AddChild(Ui.HBox(7, new Swatch(Pal.Religion(r)), Ui.Text(Data.Religions[r].Name).Sized(UiFonts.Small)));
                 if (religions == 0) _box.AddChild(Ui.Text("На разведанных землях — никакой", "SmallMu"));
                 break;
             case MapMode.Fertility:
@@ -116,12 +121,12 @@ public partial class ModeLegend : PanelContainer
                 {
                     var n = Ui.Text(k.ToString(), "SmallMu");
                     n.HorizontalAlignment = HorizontalAlignment.Center;
-                    ramp.AddChild(Ui.VBox(2, new Swatch(MiniMapView.FertilityColor((k - 1) / 4f)).MinSize(22, 10), n));
+                    ramp.AddChild(Ui.VBox(3, new Swatch(MiniMapView.FertilityColor((k - 1) / 4f)).MinSize(22, 10), n));
                 }
                 _box.AddChild(ramp);
                 break;
             case MapMode.Trade:
-                _box.AddChild(Ui.HBox(8, new RouteSwatch(), Ui.Text("Торговый путь").Sized(12)));
+                _box.AddChild(Ui.HBox(8, new RouteSwatch(), Ui.Text("Торговый путь").Sized(UiFonts.Small)));
                 break;
         }
     }
@@ -136,16 +141,15 @@ public partial class ModeLegend : PanelContainer
         return mask;
     }
 
-    /// <summary>The trade mode's golden dashes on a dark casing, as on the map.</summary>
+    /// <summary>The trade mode's golden dashes on a dark casing, as on the map — in whole pixels.</summary>
     sealed partial class RouteSwatch : Control
     {
-        static readonly Color Casing = new(22 / 255f, 26 / 255f, 31 / 255f, .6f), Dash = new(.941f, .784f, .376f);
-        public RouteSwatch() { CustomMinimumSize = new Vector2(26, 10); MouseFilter = MouseFilterEnum.Ignore; SizeFlagsVertical = SizeFlags.ShrinkCenter; }
+        static readonly Color Dash = new(.941f, .784f, .376f);
+        public RouteSwatch() { CustomMinimumSize = new Vector2(28, 8); MouseFilter = MouseFilterEnum.Ignore; SizeFlagsVertical = SizeFlags.ShrinkCenter; }
         public override void _Draw()
         {
-            float y = Size.Y / 2;
-            DrawLine(new Vector2(0, y), new Vector2(Size.X, y), Casing, 5);
-            for (float x = 1; x < Size.X - 1; x += 7) DrawLine(new Vector2(x, y), new Vector2(Math.Min(x + 4, Size.X - 1), y), Dash, 2);
+            DrawRect(new Rect2(0, 1, Size.X, 6), Pal.Ink);
+            for (float x = 2; x < Size.X - 2; x += 8) DrawRect(new Rect2(x, 3, Math.Min(4, Size.X - 2 - x), 2), Dash);
         }
     }
 }

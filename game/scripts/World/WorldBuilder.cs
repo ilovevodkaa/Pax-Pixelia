@@ -7,10 +7,10 @@ using System.Threading.Tasks;
 namespace PaxPixelia.World;
 
 /// <summary>
-/// One world generation run: holds the temporaries between stages. Stage order and data flow follow the mockup's wgRun:
-/// relief → sea level → heights + biomes → bodies → (province assignment, colour, merge ‖ rivers) → province stats.
+/// One world generation run: holds the temporaries between stages:
+/// relief → sea level → heights + biomes → bodies → (province assignment ‖ rivers) → colour → merge → province stats.
 /// Per-pixel passes are Parallel.For over rows where every row writes only its own outputs, so results don't depend
-/// on scheduling. Floating-point order of operations deliberately mirrors the JS (doubles, float32 at storage).
+/// on scheduling. Relief, climate and provinces still follow the approved JS mockup's formulas (doubles, float32 at storage).
 /// </summary>
 internal sealed partial class WorldBuilder
 {
@@ -57,13 +57,13 @@ internal sealed partial class WorldBuilder
         // rivers are inherently sequential: trace them on one thread while the parallel passes run (disjoint outputs)
         var rivers = Task.Run(() => { double t0 = _clock.Elapsed.TotalMilliseconds; Rivers(); return _clock.Elapsed.TotalMilliseconds - t0; });
         AssignProvinces(seeds); Lap("assign");
+        double riverMs = rivers.Result; Lap("rivers wait");      // the colour pass greens the banks of desert rivers
+        _d.GenTimings.Add(("(rivers, concurrent)", riverMs));
         Colour(); Lap("colour");
 
         progress?.Invoke("Провинции…");
         MergeProvinces(seeds.Count); Lap("merge");
         WorldGen.BuildPixelIndex(_d); Lap("index");
-        double riverMs = rivers.Result; Lap("rivers wait");      // only the province stats need the rivers
-        _d.GenTimings.Add(("(rivers, concurrent)", riverMs));
         ProvinceStats(); Lap("stats");
         return _d;
     }

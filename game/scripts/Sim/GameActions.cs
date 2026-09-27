@@ -5,8 +5,9 @@ using PaxPixelia.Sim;
 namespace PaxPixelia.Core;
 
 /// <summary>
-/// Player actions and queries exposed to the UI/map (partial part of the Game autoload). Rules live in Sim/Rules.cs,
-/// Sim/Scouts.cs and Sim/FogOfWar.cs (pure C#); this layer adds toasts, chronicle entries and events.
+/// Player actions and queries exposed to the UI/map (partial part of the Game autoload). Every action checks the rule
+/// first for an instant, local refusal toast, then issues a command (Sim/Commands.cs) that runs at the tick boundary —
+/// in single player at once, also while paused. Chronicle notes about the player's own deeds are written here.
 /// Game implements ISimSink implicitly (Notify / RaiseProvincesChanged / RaiseFogChanged in Game.cs).
 /// </summary>
 public partial class Game : ISimSink
@@ -33,19 +34,19 @@ public partial class Game : ISimSink
     void OnSimWorldReady()
     {
         if (IsTargeting) EndTargeting();           // quietly: the UI drops the long «выберите цель» toast with it
-        _driver.Reset();
         ScoutsChanged?.Invoke();
     }
 
     internal void RaiseScoutsChanged() => ScoutsChanged?.Invoke();
 
-
     // ------------------------------------------------------------------ claim
 
-    public bool CanClaim(int p) => IsReady && Rules.CheckClaim(World, State, p) == ClaimError.None;
+    public bool CanClaim(int p) => IsReady && Rules.CheckClaim(World, State, p, Viewer) == ClaimError.None;
 
     /// <summary>Why p cannot be claimed now (Russian, for a disabled button's tooltip), or null if it can.</summary>
-    public string ClaimProblem(int p) => !IsReady ? "Мир ещё не создан" : Rules.CheckClaim(World, State, p) switch
+    public string ClaimProblem(int p) => !IsReady ? "Мир ещё не создан" : ClaimText(Rules.CheckClaim(World, State, p, Viewer));
+
+    static string ClaimText(ClaimError e) => e switch
     {
         ClaimError.None => null,
         ClaimError.NotLand => "Море нельзя присоединить",
@@ -60,74 +61,68 @@ public partial class Game : ISimSink
     {
         var why = ClaimProblem(p);
         if (why != null) { ShowRefusal(why); return; }
-        Rules.Claim(World, State, p);
-        Notify("flag", $"Провинция {World.PName[p]} вошла в состав {Ru.Genitive(Data.Nations[GameState.LocalPlayer].Name)}");
-        RaiseProvincesChanged(new[] { p });
-        FogOfWar.Refresh(World, State, this);
+        int r = Issue(Cmd.Claim(Viewer, p));
+        if (r != 0) { ShowRefusal(ClaimText((ClaimError)r) ?? "Нельзя присоединить"); return; }
+        Notify("flag", $"Провинция {World.PName[p]} вошла в состав {Sim.Ru.Genitive(Nations[Viewer].Name)}");
     }
 
     // ------------------------------------------------------------------ buildings & geology
 
-    public IReadOnlyList<Data.Bld> BuildOptions(int p) => IsReady ? Rules.BuildOptions(World, State, p) : Array.Empty<Data.Bld>();
+    public IReadOnlyList<Data.Bld> BuildOptions(int p) => IsReady ? Rules.BuildOptions(World, State, p, Viewer) : Array.Empty<Data.Bld>();
     public int BuildCost(Data.Bld b) => Rules.BuildCost(b);
+
+    static string BuildText(BuildError e, Data.Bld b) => e switch
+    {
+        BuildError.NotOwned => "Строить можно только в своих провинциях",
+        BuildError.NoSlot => "Свободных участков не осталось",
+        BuildError.AlreadyBuilt => "Такая постройка здесь уже есть",
+        BuildError.NotAllowed => "Местность не подходит для этой постройки",
+        BuildError.NoGold => $"Не хватает золота: нужно {Rules.BuildCost(b)}",
+        _ => "Строительство невозможно",
+    };
 
     public void Build(int p, Data.Bld b)
     {
         if (!IsReady) return;
-        var err = Rules.CheckBuild(World, State, p, b);
-        if (err != BuildError.None)
-        {
-            ShowRefusal(err switch
-            {
-                BuildError.NotOwned => "Строить можно только в своих провинциях",
-                BuildError.NoSlot => "Свободных участков не осталось",
-                BuildError.AlreadyBuilt => "Такая постройка здесь уже есть",
-                BuildError.NotAllowed => "Местность не подходит для этой постройки",
-                BuildError.NoGold => $"Не хватает золота: нужно {Rules.BuildCost(b)}",
-                _ => "Строительство невозможно",
-            });
-            return;
-        }
-        Rules.Build(State, p, b);
-        Simulation.SyncQueue(State);   // building the capital's current project by hand moves its queue on
+        var err = Rules.CheckBuild(World, State, p, b, Viewer);
+        if (err != BuildError.None) { ShowRefusal(BuildText(err, b)); return; }
+        int r = Issue(Cmd.Build(Viewer, p, b));
+        if (r != 0) { ShowRefusal(BuildText((BuildError)r, b)); return; }
         Notify("hammer", $"{World.PName[p]}: заложена постройка «{Data.BldName[(int)b]}» (−{Rules.BuildCost(b)} золота)");
-        RaiseProvincesChanged(new[] { p });
     }
+
+    static string SurveyText(SurveyError e) => e switch
+    {
+        SurveyError.NotOwned => "Геологов можно отправить только в свои провинции",
+        SurveyError.AlreadyDone => "Недра здесь уже разведаны",
+        SurveyError.NoGold => $"Не хватает золота: нужно {SurveyCost}",
+        _ => "Разведка недр невозможна",
+    };
 
     public void Survey(int p)
     {
         if (!IsReady) return;
-        var err = Rules.CheckSurvey(State, p);
-        if (err != SurveyError.None)
-        {
-            ShowRefusal(err switch
-            {
-                SurveyError.NotOwned => "Геологов можно отправить только в свои провинции",
-                SurveyError.AlreadyDone => "Недра здесь уже разведаны",
-                SurveyError.NoGold => $"Не хватает золота: нужно {SurveyCost}",
-                _ => "Разведка недр невозможна",
-            });
-            return;
-        }
-        Rules.Survey(State, p);
+        var err = Rules.CheckSurvey(State, p, Viewer);
+        if (err != SurveyError.None) { ShowRefusal(SurveyText(err)); return; }
+        int r = Issue(Cmd.Survey(Viewer, p));
+        if (r != 0) { ShowRefusal(SurveyText((SurveyError)r)); return; }
         int ore = State.Ore[p];
         Notify("shovel", ore >= 0
             ? $"Геологи нашли {Data.Ores[ore].ToLowerInvariant()} в провинции {World.PName[p]} (−{SurveyCost} золота)"
             : $"Геологи обошли провинцию {World.PName[p]}: залежей не найдено (−{SurveyCost} золота)");
-        RaiseProvincesChanged(new[] { p });
     }
 
     /// <summary>Could geologists find anything in p (hills or mountains)? Says nothing about what is really there.</summary>
     public bool MayHaveOre(int p) => IsReady && Valid(p) && Rules.MayHaveOre(World, State, p);
 
-    /// <summary>Taxes of p per year (same formula as the treasury income).</summary>
-    public double ProvinceTax(int p) => IsReady && Valid(p) ? Rules.ProvinceTax(State, p) : 0;
+    /// <summary>Taxes of p per rules cycle in gold (same formula as the treasury income).</summary>
+    public double ProvinceTax(int p) => IsReady && Valid(p) ? Rules.ProvinceTax(State, p) / 100.0 : 0;
 
     bool Valid(int p) => (uint)p < (uint)World.P;
 
     // ------------------------------------------------------------------ scouts
 
-    public int FreeScouts => IsReady ? Math.Max(0, Scouts.Max - State.Scouts.Count) : 0;
+    public int FreeScouts => IsReady ? Scouts.Free(State, Viewer) : 0;
 
     /// <summary>Provinces the party has added to the map so far.</summary>
     public int ScoutFound(GameState.Scout sc) => sc?.Found ?? 0;
@@ -163,7 +158,8 @@ public partial class Game : ISimSink
     {
         if (!IsReady || target < 0 || target >= World.P) return false;
         bool picking = IsTargeting;
-        var err = Scouts.Send(World, State, target, this, out _);
+        var err = Scouts.Check(World, State, Viewer, target, out _);
+        if (err == ScoutError.None) err = (ScoutError)Issue(Cmd.ScoutTo(Viewer, target));
         if (err != ScoutError.None)
         {
             // under the clouds the refusal must not reveal whether it is sea or another continent
@@ -187,7 +183,8 @@ public partial class Game : ISimSink
     {
         if (!IsReady) return false;
         if (IsTargeting) EndTargeting();
-        var err = Scouts.Send(World, State, -1, this, out _);
+        var err = Scouts.Check(World, State, Viewer, -1, out _);
+        if (err == ScoutError.None) err = (ScoutError)Issue(Cmd.ScoutAuto(Viewer));
         if (err != ScoutError.None) { ShowRefusal(ScoutText(err)); return false; }
         ShowToast("Разведчики отправились к ближайшим неизведанным землям");
         ScoutsChanged?.Invoke();
@@ -206,11 +203,11 @@ public partial class Game : ISimSink
 
     // ------------------------------------------------------------------ fog, nations, world
 
-    public bool NationMet(int n) => IsReady && (uint)n < (uint)State.NationCapital.Length && Rules.Met(State, n);
-    public int UnmetNations => IsReady ? Rules.UnmetCount(State) : 0;
+    public bool NationMet(int n) => IsReady && (uint)n < (uint)State.NationCapital.Length && Rules.Met(State, Viewer, n);
+    public int UnmetNations => IsReady ? Rules.UnmetCount(State, Viewer) : 0;
 
     /// <summary>Met nations only (all in observer mode), sorted by score.</summary>
-    public IReadOnlyList<(int nation, int score)> Leaderboard() => IsReady ? Rules.Leaderboard(State) : Array.Empty<(int, int)>();
+    public IReadOnlyList<(int nation, int score)> Leaderboard() => IsReady ? Rules.Leaderboard(State, Viewer) : Array.Empty<(int, int)>();
 
     /// <summary>Observer mode toggle: fog stays computed underneath, only the view changes.</summary>
     public void SetFogEnabled(bool on)
@@ -226,5 +223,18 @@ public partial class Game : ISimSink
     {
         if (IsTargeting) EndTargeting();           // no «отменена» toast carried into the new world
         _ = NewWorld(seed);
+    }
+
+    /// <summary>Run the simulation forward without the clock (CLI fast-forward, tests): events are raised once at the end.</summary>
+    public TickReport FastForward(long ticks)
+    {
+        var total = new TickReport();
+        while (ticks > 0 && IsReady)
+        {
+            int n = (int)Math.Min(ticks, 4096);
+            total.Add(RunTicks(n));
+            ticks -= n;
+        }
+        return total;
     }
 }

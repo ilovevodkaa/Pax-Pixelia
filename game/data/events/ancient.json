@@ -1,0 +1,218 @@
+{
+  "$schema": "../schema/events.schema.json",
+  "title": "Серьёзные события: кочевье — Средневековье (CONTENT §2, №1–16)",
+  "events": [
+    {
+      "id": "drought", "kind": "choice", "eras": [0, 3], "subject": "province", "icon": "droplet-off",
+      "when": { "terrain": ["steppe", "savanna", "plains"] },
+      "title": "Засуха",
+      "text": "В провинции {province} третий месяц нет дождя. Колодцы мелеют, скот ревёт у пересохших ручьёв.",
+      "options": [
+        { "text": "Молиться о дожде",
+          "roll": [
+            { "permille": 500, "result": "Небо сжалилось: к вечеру пошёл дождь. Жрецы ходят гордые.", "effects": { "moodLocal": 2 } },
+            { "permille": 500, "result": "Небо промолчало. Часть семей ушла искать воду.", "effects": { "popLocal": -60 } } ] },
+        { "text": "Открыть амбары", "result": "Амбары опустели, зато люди остались. Их запомнят щедрыми.", "effects": { "gold": -30, "popLocal": -10, "moodLocal": 3 } },
+        { "text": "Откочевать к воде", "result": "Род свернул шатры и ушёл к соседним пастбищам.", "effects": { "popLocal": -50, "pop": 10 } }
+      ]
+    },
+    {
+      "id": "river_flood", "kind": "choice", "eras": [0, 6], "subject": "province", "icon": "cloud-fog",
+      "when": { "terrain": ["river"] },
+      "title": "Разлив реки",
+      "text": "Река в провинции {province} вышла из берегов раньше срока. Вода подбирается к амбарам.",
+      "options": [
+        { "text": "Поднять валы", "result": "Валы выдержали. Река ворчит, но течёт в берегах.", "effects": { "gold": -40 } },
+        { "text": "Уйти на холмы", "result": "Люди переждали на холмах. Вода ушла и оставила жирный ил.",
+          "effects": { "popLocal": -30, "modifiers": [{ "id": "fertility", "permille": 100, "cycles": 240, "local": true }] } }
+      ]
+    },
+    {
+      "id": "plague", "kind": "choice", "eras": [2, 6], "subject": "capital", "icon": "alert-triangle", "importance": 2,
+      "when": { "min": { "biggestCity": 20000 } },
+      "title": "Мор",
+      "text": "В провинции {province} вспыхнула моровая язва. Лекари разводят руками, купцы торопятся уехать.",
+      "options": [
+        { "text": "Закрыть ворота", "result": "Город заперся. Торговля встала, зато мор не ушёл дальше.",
+          "effects": { "popLocal": -40, "modifiers": [{ "id": "trade", "permille": -200, "cycles": 30 }] } },
+        { "text": "Позвать лекарей", "result": "Лекари работали день и ночь. Потери оказались втрое меньше.", "effects": { "gold": -50, "popLocal": -20 } },
+        { "text": "Не мешать торговле", "effects": { "popLocal": -80 },
+          "roll": [
+            { "permille": 350, "result": "Мор ушёл по торговым дорогам в соседние земли.", "effects": { "pop": -30, "mood": -3 } },
+            { "permille": 650, "result": "Караваны ушли, мор остался в городе и угас.", "effects": {} } ] }
+      ]
+    },
+    {
+      "id": "pretender", "kind": "choice", "eras": [1, 6], "icon": "crown",
+      "title": "Самозванец",
+      "text": "На рынке столицы объявился человек, называющий себя сыном покойного вождя. Толпа слушает.",
+      "options": [
+        { "text": "Прогнать", "result": "Самозванца выставили за ворота. Знать недовольна шумом.", "effects": { "moodCapital": -3 } },
+        { "text": "Признать вторым наследником", "result": "Самозванец принят при дворе. Настоящие наследники косятся.",
+          "effects": { "stability": -2, "setFlags": ["state.pretender_heir"] } },
+        { "text": "Раз такой ловкий — в разведчики", "result": "Самозванец ушёл с разведчиками. Язык у него подвешен.",
+          "effects": { "modifiers": [{ "id": "extra_scouts", "permille": 1000, "cycles": 40 }] } }
+      ]
+    },
+    {
+      "id": "nomads_border", "kind": "choice", "eras": [0, 3], "icon": "walk",
+      "title": "Кочевники у границ",
+      "text": "У границы встала орда: сотни шатров, тысячи коней. Послы просят дорогу и дары.",
+      "options": [
+        { "text": "Заплатить дань", "result": "Кочевники взяли дары и откочевали дальше.", "effects": { "gold": -40 } },
+        { "text": "Позвать осесть", "result": "Часть орды осталась. Своих обычаев они не забыли.", "effects": { "pop": 30, "stability": -4 } },
+        { "text": "Торговать", "result": "Открылась дорога в степь: кони и шерсть в обмен на зерно.",
+          "effects": { "axes": { "open": 5 }, "modifiers": [{ "id": "trade", "permille": 100, "cycles": 240 }] } }
+      ]
+    },
+    {
+      "id": "first_writing", "kind": "chronicle", "eras": [0, 10], "trigger": true, "once": true, "icon": "book", "importance": 2,
+      "when": { "flags": ["tech.writing"] },
+      "title": "Первое письмо",
+      "text": "Писец выбил на камне первые знаки: счёт зерна и имя вождя.",
+      "result": "Отныне прошлое помнят не только старики.",
+      "effects": { "culture": 10, "legacy": 5 }
+    },
+    {
+      "id": "priest_schism", "kind": "choice", "eras": [1, 5], "icon": "torch",
+      "when": { "buildings": { "shrine": 1 } },
+      "title": "Раскол жрецов",
+      "text": "Молодые жрецы требуют изменить обряд. Старые грозят гневом предков.",
+      "options": [
+        { "text": "Старый обряд", "result": "Обряд остался прежним. Старики довольны.", "effects": { "axes": { "traditional": 5 } } },
+        { "text": "Поддержать реформаторов", "result": "Обряд обновили. Вера на время растерялась.",
+          "effects": { "axes": { "innovative": 5 }, "modifiers": [{ "id": "faith_spread", "permille": -100, "cycles": 120 }] } },
+        { "text": "Устроить диспут", "effects": { "gold": -20 },
+          "roll": [
+            { "permille": 500, "result": "Диспут вышел на славу: записали много умного.", "effects": { "science": 20 } },
+            { "permille": 500, "result": "Диспут кончился дракой. Умного не записали.", "effects": { "mood": -3 } } ] }
+      ]
+    },
+    {
+      "id": "eclipse_omen", "kind": "chronicle", "eras": [1, 10], "icon": "sun", "weight": 60,
+      "when": { "buildings": { "shrine": 1 }, "anyFlags": ["tech.astronomy", "trait.stargazer"] },
+      "title": "Затмение",
+      "text": "Звездочёты заранее назвали день затмения, и солнце погасло точно в срок.",
+      "result": "Народ ликует: небо подчиняется нашим мудрецам.",
+      "effects": { "mood": 5 }
+    },
+    {
+      "id": "eclipse_panic", "kind": "chronicle", "eras": [1, 4], "icon": "sun", "weight": 60,
+      "when": { "buildings": { "shrine": 1 }, "notFlags": ["tech.astronomy", "trait.stargazer"] },
+      "title": "Затмение",
+      "text": "Среди дня погасло солнце. Люди попрятались, жрецы гадают, чем прогневили небо.",
+      "result": "Солнце вернулось, но паника улеглась не сразу.",
+      "effects": { "mood": -6 }
+    },
+    {
+      "id": "succession_dispute", "kind": "choice", "eras": [1, 10], "trigger": true, "icon": "crown", "importance": 2,
+      "when": { "flags": ["ruler.died"], "min": { "heirs": 2 }, "requires": ["succession"] },
+      "title": "Спор о наследстве",
+      "text": "Правитель умер, и у трона стоят сразу несколько наследников. Знать ждёт решения.",
+      "options": [
+        { "text": "По закону", "result": "Трон перешёл к старшему. Обиженные промолчали.", "effects": { "clearFlags": ["ruler.died"] } },
+        { "text": "Самому способному", "result": "Трон достался самому толковому. Закон подвинулся.",
+          "effects": { "clearFlags": ["ruler.died"], "trait": "wise", "modifiers": [{ "id": "stability", "permille": -100, "cycles": 30 }] } },
+        { "text": "Самозванцу, раз уж он при дворе", "when": { "flags": ["state.pretender_heir"] },
+          "result": "На трон сел тот самый самозванец. Летописец не знает, как это записать.",
+          "effects": { "clearFlags": ["ruler.died", "state.pretender_heir"], "stability": -15, "mood": 5 } }
+      ]
+    },
+    {
+      "id": "succession_plain", "kind": "chronicle", "eras": [0, 10], "trigger": true, "icon": "crown",
+      "when": { "flags": ["ruler.died"], "max": { "heirs": 1 } },
+      "title": "Новый правитель",
+      "text": "Правитель умер. Наследник принял власть без споров.",
+      "effects": { "clearFlags": ["ruler.died"] }
+    },
+    {
+      "id": "wonder_behind", "kind": "choice", "eras": [1, 10], "icon": "hourglass",
+      "when": { "flags": ["state.wonder_building"], "requires": ["wonders"] },
+      "title": "Великая стройка отстаёт",
+      "text": "Зодчие докладывают: великая стройка отстала от замысла на годы. Камень есть, рук мало.",
+      "options": [
+        { "text": "Позвать мастеров", "result": "Мастера взялись за дело, стройка пошла быстрее.",
+          "effects": { "gold": -80, "modifiers": [{ "id": "wonder_speed", "permille": 500, "cycles": 60 }] } },
+        { "text": "Согнать крестьян", "result": "Крестьяне таскают камни. Столица ропщет.",
+          "effects": { "moodCapital": -8, "modifiers": [{ "id": "wonder_speed", "permille": 300, "cycles": 60 }] } },
+        { "text": "Ждать", "result": "Стройка идёт своим чередом. Внуки достроят." }
+      ]
+    },
+    {
+      "id": "hungry_city", "kind": "choice", "eras": [1, 10], "subject": "capital", "icon": "building-warehouse",
+      "when": { "min": { "foodPrice": 2000 }, "requires": ["food_market"] },
+      "title": "Голодный город",
+      "text": "Хлеб в провинции {province} подорожал вдвое. У пекарен очереди, на площадях недобрые разговоры.",
+      "options": [
+        { "text": "Открыть амбары", "result": "Хлеб раздали из запасов. Город успокоился.", "effects": { "gold": -30 } },
+        { "text": "Закупить зерно у соседей", "result": "Привезли зерно. Цены пошли вниз, но не сразу.",
+          "effects": { "modifiers": [{ "id": "food_price", "permille": 1500, "cycles": 20, "local": true }] } },
+        { "text": "Ничего не делать", "result": "Хлебный бунт разнёс рынок. Город долго не простит.", "effects": { "moodLocal": -10 } }
+      ]
+    },
+    {
+      "id": "library_fire", "kind": "choice", "eras": [2, 6], "icon": "torch",
+      "when": { "buildings": { "library": 1 } },
+      "title": "Библиотека горит",
+      "text": "Ночью загорелась библиотека. Огонь бежит по полкам быстрее, чем носят воду.",
+      "options": [
+        { "text": "Спасать свитки", "result": "Свитки вынесли, здание сгорело. Несколько смельчаков не вернулись.", "effects": { "pop": -10 } },
+        { "text": "Спасать здание", "result": "Стены устояли, свитки сгорели. Учёные пишут всё заново.", "effects": { "science": -30 } }
+      ]
+    },
+    {
+      "id": "refugees", "kind": "choice", "eras": [1, 10], "subject": "foreign", "icon": "users",
+      "when": { "max": { "neighborMoodMin": 29 } },
+      "title": "Беженцы",
+      "text": "Из {foreign:gen} бегут люди: там голод и смута. Они стоят у нашей границы.",
+      "options": [
+        { "text": "Принять", "result": "Беженцы осели у нас. Работы хватит всем.", "effects": { "pop": 40, "axes": { "open": 3 } } },
+        { "text": "Закрыть границу", "result": "Граница закрыта. Своих бы прокормить.", "effects": { "axes": { "closed": 8 } } }
+      ]
+    },
+    {
+      "id": "mine_collapse", "kind": "choice", "eras": [1, 8], "subject": "province", "icon": "pick",
+      "when": { "terrain": ["mountain", "hills"], "buildings": { "mine": 1 } },
+      "title": "Обвал в руднике",
+      "text": "В руднике {province:gen} обвалился штрек. Под землёй остались горняки.",
+      "options": [
+        { "text": "Спасать горняков", "result": "Горняков откопали. Рудник простоял, но люди запомнят.", "effects": { "gold": -30, "moodLocal": 4 } },
+        { "text": "Продолжать работы", "result": "Руду добыли, горняков не нашли. Посёлок в трауре.",
+          "effects": { "popLocal": -10, "moodLocal": -6, "modifiers": [{ "id": "ore", "permille": 200, "cycles": 20, "local": true }] } }
+      ]
+    },
+    {
+      "id": "city_charter", "kind": "choice", "eras": [2, 8], "subject": "province", "icon": "scale",
+      "when": { "min": { "unrest": 3 }, "requires": ["unrest"] },
+      "title": "Город просит вольностей",
+      "text": "Горожане {province:gen} прислали челобитную: своё право, свой суд и налог поменьше.",
+      "options": [
+        { "text": "Дать грамоту", "result": "Город получил вольности и уплатил поменьше.",
+          "effects": { "moodLocal": 8, "modifiers": [{ "id": "tax", "permille": -300, "cycles": 12000, "local": true }] } },
+        { "text": "Отказать",
+          "roll": [
+            { "permille": 500, "result": "Горожане поворчали и разошлись.", "effects": { "moodLocal": -4 } },
+            { "permille": 500, "result": "Горожане заперли ворота и собирают ополчение.", "effects": { "moodLocal": -8, "followUp": { "event": "city_secession", "after": 20 } } } ] }
+      ]
+    },
+    {
+      "id": "city_secession", "kind": "chronicle", "eras": [0, 10], "followUpOnly": true, "subject": "province", "icon": "flag", "importance": 2,
+      "when": { "min": { "unrest": 2 } },
+      "title": "Вольный город",
+      "text": "Горожане {province:gen} объявили свой город вольным и больше не платят в казну.",
+      "effects": { "stability": -5, "modifiers": [{ "id": "secession", "permille": 1000, "cycles": 0, "local": true }] }
+    },
+    {
+      "id": "strike", "kind": "choice", "eras": [4, 10], "icon": "users",
+      "when": { "min": { "unrest": 2 }, "requires": ["unrest"] },
+      "title": "Забастовка",
+      "text": "Мастеровые побросали инструмент и не выходят на работу, пока не поднимут плату.",
+      "options": [
+        { "text": "Поднять жалованье", "result": "Плату подняли, работа пошла.", "effects": { "modifiers": [{ "id": "profit", "permille": -100, "cycles": 600 }] } },
+        { "text": "Переждать", "result": "Хозяева ждут, рабочие ждут. Цеха стоят.", "effects": { "modifiers": [{ "id": "output", "permille": -300, "cycles": 15 }] } },
+        { "text": "Принять закон о труде", "result": "Закон о труде принят. Обе стороны недовольны — значит, честно.",
+          "effects": { "gold": -20, "stability": 3, "axes": { "communal": 3 } } }
+      ]
+    }
+  ]
+}

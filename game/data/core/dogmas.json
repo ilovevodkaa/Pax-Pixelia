@@ -1,0 +1,25 @@
+{
+  "$schema": "../schema/tables.schema.json",
+  "dogmas": [
+    { "id": "sacred_groves", "name": "Священные рощи", "slot": "teaching", "mvp": true, "desc": "Лес нельзя рубить; каждый лес даёт настроение +3 и веру +1 (спорит с индустрией)", "mods": { "forestMood": 3, "forestFaith": 1 } },
+    { "id": "ancestor_worship", "name": "Почитание предков", "slot": "teaching", "mvp": true, "desc": "Смерть правителя не бьёт по стабильности; культура +5 за каждую эпоху династии", "mods": { "dynastyCulturePerEra": 5 } },
+    { "id": "asceticism", "name": "Аскеза", "slot": "teaching", "mvp": true, "desc": "Спрос на роскошь −30%, бедным +3, знати −3", "excludes": ["harvest_feast"], "mods": { "luxuryDemandPct": -30, "poorMood": 3, "nobleMood": -3 } },
+    { "id": "harvest_feast", "name": "Праздник урожая", "slot": "teaching", "mvp": true, "desc": "Фермы +10%; раз в ~2 условных года праздник: +3, выпуск −5% на 10 циклов", "excludes": ["asceticism"], "mods": { "farmPct": 10 } },
+    { "id": "cat_veneration", "name": "Почитание кошек", "slot": "teaching", "mvp": true, "desc": "Амбары теряют на 20% меньше, кошачьи события ×3", "mods": { "granaryLossPct": -20, "catEventsPct": 300 } },
+    { "id": "sacred_rivers", "name": "Священные реки", "slot": "teaching", "mvp": true, "desc": "Речные провинции +3, еда +10%; дамбы — только через событие", "mods": { "riverMood": 3, "foodPct": 10 } },
+    { "id": "star_teaching", "name": "Звёздное учение", "slot": "teaching", "mvp": false, "desc": "Наука +10% при храме; кометы и затмения к добру", "mods": { "templeSciencePct": 10 } },
+    { "id": "labor_prayer", "name": "Труд — молитва", "slot": "teaching", "mvp": false, "desc": "Выпуск +5%, праздников нет (−2)", "mods": { "outputPct": 5, "mood": -2 } },
+    { "id": "fire_temples", "name": "Огненные храмы", "slot": "rite", "mvp": true, "desc": "Храм даёт веру +2; «Вечный огонь» — святое место ×2", "mods": { "templeFaith": 2 } },
+    { "id": "pilgrimage", "name": "Паломничество", "slot": "rite", "mvp": true, "desc": "Святые места: золото +2 за условный год на каждую провинцию этой веры в мире; пути к ним +10%", "mods": { "holyGoldPerProvince": 2, "holyRoutesPct": 10 } },
+    { "id": "temple_schools", "name": "Храмовые школы", "slot": "rite", "mvp": true, "desc": "Храмы дают грамотность; жрецы быстрее становятся учёными", "mods": { "templeLiteracy": 1 } },
+    { "id": "mysteries", "name": "Мистерии", "slot": "rite", "mvp": false, "desc": "Культура +10%; раз в эпоху пророчество с выбором", "mods": { "culturePct": 10 } },
+    { "id": "tithe", "name": "Десятина", "slot": "founder", "mvp": false, "desc": "Золото +1 за условный год на каждые 10 провинций этой веры в мире", "mods": { "goldPer10Provinces": 1 } },
+    { "id": "priest_king", "name": "Первосвященник-правитель", "slot": "founder", "mvp": false, "desc": "Религиозные законы мгновенно, правителю черта «Благочестивый»", "mods": { "religiousLawsInstant": 1 } },
+    { "id": "holy_scripture", "name": "Святое писание", "slot": "founder", "mvp": false, "desc": "Вера через грамотных ×2, с книгопечатанием ещё ×2", "mods": { "literateFaithPct": 200 } },
+    { "id": "true_faith", "name": "Истинная вера", "slot": "founder", "mvp": false, "desc": "Чужая вера −5, обращение +30%; в фазе 2 — повод к священной войне", "excludes": ["tolerance"], "mods": { "foreignFaithMood": -5, "conversionPct": 30 } },
+    { "id": "missionaries", "name": "Миссионеры", "slot": "preaching", "mvp": true, "desc": "+1 миссионер, миссионеры на 30% дешевле", "mods": { "missionaries": 1, "missionaryCostPct": -30 } },
+    { "id": "merchant_faith", "name": "Вера торговцев", "slot": "preaching", "mvp": true, "desc": "Распространение по торговым путям ×2", "mods": { "routeSpreadPct": 200 } },
+    { "id": "tolerance", "name": "Терпимость", "slot": "preaching", "mvp": true, "desc": "Чужая вера не снижает настроение; пыл −10", "excludes": ["true_faith"], "mods": { "zeal": -10 } },
+    { "id": "prophets", "name": "Пророки", "slot": "preaching", "mvp": false, "desc": "Раз в ~10 условных лет «явился пророк»: вера +20 или наука +20; 20% — лжепророк (−5)", "mods": { "prophetEveryYears": 10 } }
+  ]
+}

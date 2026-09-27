@@ -1,0 +1,24 @@
+{
+  "$schema": "../schema/flags.schema.json",
+  "external": [
+    { "id": "tech.writing", "desc": "изучена Письменность" },
+    { "id": "tech.bronze", "desc": "изучена Бронза" },
+    { "id": "tech.astronomy", "desc": "изучена Астрономия" },
+    { "id": "tech.printing", "desc": "изучено Книгопечатание" },
+    { "id": "tech.steam", "desc": "изучена Паровая машина" },
+    { "id": "tech.medicine", "desc": "изучена медицина Индустриальной эпохи" },
+    { "id": "tech.telegraph", "desc": "изучен Телеграф" },
+    { "id": "tech.radio", "desc": "изучено Радио" },
+    { "id": "tech.computers", "desc": "изучены ЭВМ" },
+    { "id": "tech.spaceflight", "desc": "изучен Космический полёт" },
+    { "id": "ruler.died", "desc": "правитель умер, наследник ещё не утверждён (Sim ставит, событие снимает)" },
+    { "id": "state.wonder_building", "desc": "держава строит чудо" },
+    { "id": "state.epidemic", "desc": "в державе идёт эпидемия" },
+    { "id": "state.first_contact", "desc": "встречена первая чужая держава" },
+    { "id": "state.neighbor_satellite", "desc": "встреченная держава запустила спутник" },
+    { "id": "quirk.mammoth_island", "desc": "в державе причуда «Остров мамонтов»" },
+    { "id": "quirk.singing_dunes", "desc": "в державе причуда «Поющие дюны»" },
+    { "id": "quirk.eternal_fire", "desc": "в державе причуда «Вечный огонь»" },
+    { "id": "quirk.giant_volcano", "desc": "в мире есть Вулкан-исполин" }
+  ]
+}

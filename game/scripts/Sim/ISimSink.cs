@@ -14,4 +14,6 @@ public interface ISimSink
     void RaiseProvincesChanged(IReadOnlyList<int> provinces);
     /// <summary>Fog state changed for these provinces (null = all).</summary>
     void RaiseFogChanged(IReadOnlyList<int> provinces);
+    /// <summary>A human nation's event choice opened or closed (SimEvents; read GameState.Events.Pending).</summary>
+    void EventChoiceChanged(int nation) { }
 }

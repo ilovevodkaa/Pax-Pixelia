@@ -17,15 +17,17 @@ internal sealed class MapTextures
     /// <summary>Explored-but-unseen land: faded like an old map, not darkened into mud (same numbers in stale_grade).</summary>
     public const float StaleDesat = .45f, StaleDim = .78f;
 
-    public ImageTexture Base, BaseHalf, Prov, Tint, Info, Own, FogDist, Cloud;
+    public ImageTexture Base, BaseHalf, Prov, Tint, Info, Own, FogDist, Cloud, Water;
     Image _tintImg, _infoImg, _ownImg, _fogImg;
     byte[] _tint = Array.Empty<byte>(), _info = Array.Empty<byte>(), _own = Array.Empty<byte>();
     int _pw, _ph;
 
     public void Build(WorldData w, FogField fog)
     {
-        Base = ImageTexture.CreateFromImage(Image.CreateFromData(w.W, w.H, false, Image.Format.Rgba8, w.BaseColor));
-        BaseHalf = ImageTexture.CreateFromImage(Image.CreateFromData(w.W / 2, (w.H + 1) / 2, false, Image.Format.Rgba8, HalfSize(w)));
+        var colour = TerrainPolish.Apply(w);
+        Base = ImageTexture.CreateFromImage(Image.CreateFromData(w.W, w.H, false, Image.Format.Rgba8, colour));
+        BaseHalf = ImageTexture.CreateFromImage(Image.CreateFromData(w.W / 2, (w.H + 1) / 2, false, Image.Format.Rgba8, HalfSize(w, colour)));
+        Water = ImageTexture.CreateFromImage(Image.CreateFromData(w.W, w.H, false, Image.Format.R8, WaterAnim(w)));
         var ids = new byte[w.N * 2];
         for (int i = 0; i < w.N; i++) { int p = w.Prov[i]; ids[i * 2] = (byte)(p & 255); ids[i * 2 + 1] = (byte)(p >> 8); }
         Prov = ImageTexture.CreateFromImage(Image.CreateFromData(w.W, w.H, false, Image.Format.Rg8, ids));
@@ -43,10 +45,10 @@ internal sealed class MapTextures
     }
 
     /// <summary>Terrain colour averaged over 2×2 blocks, for the ×½ atlas (nearest sampling of the full texture would shimmer).</summary>
-    static byte[] HalfSize(WorldData w)
+    static byte[] HalfSize(WorldData w, byte[] src)
     {
         int hw = w.W / 2, hh = (w.H + 1) / 2;
-        var src = w.BaseColor; var dst = new byte[hw * hh * 4];
+        var dst = new byte[hw * hh * 4];
         System.Threading.Tasks.Parallel.For(0, hh, y =>
         {
             int r0 = 2 * y * w.W * 4, r1 = Math.Min(2 * y + 1, w.H - 1) * w.W * 4;
@@ -55,6 +57,44 @@ internal sealed class MapTextures
                     dst[o + c] = (byte)((src[r0 + a + c] + src[r0 + a + 4 + c] + src[r1 + a + c] + src[r1 + a + 4 + c] + 2) >> 2);
         });
         return dst;
+    }
+
+    /// <summary>
+    /// Per water pixel (ART_BIBLE §5): bits 0–3 phase of its 3×3 cluster (hash), bits 4–5 distance to the shore (1, 2;
+    /// 0 = open water), bit 6 a sparkle pixel. The shader cycles foam, shallow shimmer and sparse glints from it.
+    /// </summary>
+    static byte[] WaterAnim(WorldData w)
+    {
+        var d = new byte[w.N];
+        System.Threading.Tasks.Parallel.For(0, w.H, y =>
+        {
+            for (int x = 0; x < w.W; x++)
+            {
+                int i = y * w.W + x;
+                if (w.Land[i] != 0) continue;
+                int shore = 0;
+                for (int r = 1; r <= 2 && shore == 0; r++)
+                    if (IsLand(w, x - r, y) || IsLand(w, x + r, y) || IsLand(w, x, y - r) || IsLand(w, x, y + r)) shore = r;
+                int cy = y / 3, cx = (x + (cy & 1) * 2) / 3;
+                uint h = Hash(cx, cy, w.Seed), hp = Hash(x, y, w.Seed + 3);
+                d[i] = (byte)((h & 15) | (uint)(shore << 4) | ((hp % 11 == 0) ? 64u : 0u));
+            }
+        });
+        return d;
+    }
+
+    static bool IsLand(WorldData w, int x, int y)
+    {
+        if (y < 0 || y >= w.H) return false;
+        if (x < 0) x += w.W; else if (x >= w.W) x -= w.W;
+        return w.Land[y * w.W + x] != 0;
+    }
+
+    static uint Hash(int x, int y, int seed)
+    {
+        uint h = (uint)x * 374761393u + (uint)y * 668265263u + (uint)seed * 1442695041u;
+        h = (h ^ (h >> 13)) * 1274126177u;
+        return h ^ (h >> 16);
     }
 
     public void UploadFog(WorldData w, FogField fog)
@@ -67,7 +107,7 @@ internal sealed class MapTextures
     public void UpdateProvinces(WorldData w, GameState s, MapMode mode)
     {
         bool fogOn = s.FogEnabled;
-        var nations = Data.Nations;
+        int nations = Game.I.Nations.Length;
         for (int p = 0; p < w.P; p++)
         {
             int k = p * 4, o = s.VisibleOwner(p);
@@ -77,7 +117,7 @@ internal sealed class MapTextures
             if (fogOn && fog == 1) { desat = MathF.Max(desat, land ? StaleDesat : .3f); dim *= land ? StaleDim : .85f; }
             _tint[k] = tint.R; _tint[k + 1] = tint.G; _tint[k + 2] = tint.B; _tint[k + 3] = ToByte(tintA);
             _info[k] = ToByte(desat); _info[k + 1] = ToByte(dim); _info[k + 2] = (byte)(fog == 0 ? 0 : fog == 1 ? 128 : 255); _info[k + 3] = land ? (byte)255 : (byte)0;
-            if (o >= 0 && o < nations.Length)
+            if (o >= 0 && o < nations)
             {
                 var b = MapPalette.BorderColor(o);
                 _own[k] = b.R; _own[k + 1] = b.G; _own[k + 2] = b.B; _own[k + 3] = (byte)(o + 1);

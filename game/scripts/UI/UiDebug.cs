@@ -12,16 +12,31 @@ namespace PaxPixelia.UI;
 ///   --tipui=gold|pop|stab|clock|pause|session|nation|screen|trophy|fog|mode|regen|zoom   force a UI tooltip
 ///   --lead  --toast[=text] [--toastkind=pick|err]  --loading  --build  --targeting  --notes  --scroll=px
 ///   --session=minutes  --noselect   (--pause / --speed are handled by the sim, --select=x,y / --hover=x,y by the map)
+///   --event[=id]  open an event of the deck now (default: the first choice that fits)
 ///   --clicks=x,y@sec;x,y@sec  --moves=x,y@sec  --keys=space@sec;5@sec;esc@sec   synthetic input through the real GUI pipeline
 /// fog / fogsea / stale pick a province that really is unexplored / stale under the current fog.
 /// </summary>
 public static class UiDebug
 {
-    public static void Setup(Hud hud)
+    /// <summary>Hooks the debug flags to WorldReady; returns the handler, which the Hud removes when it leaves the tree
+    /// (the Game autoload outlives every game scene).</summary>
+    public static Action Setup(Hud hud)
     {
         if (Cli.Has("session")) hud.Top.SessionMinuteOffset = Cli.Int("session", 0);
         if (Cli.Has("loading")) hud.KeepLoading = true;
-        Game.I.WorldReady += () => hud.GetTree().CreateTimer(.05).Timeout += () => Apply(hud);
+        Action onReady = () => hud.GetTree().CreateTimer(.05).Timeout += () => { if (GodotObject.IsInstanceValid(hud)) Apply(hud); };
+        Game.I.WorldReady += onReady;
+        return onReady;
+    }
+
+    /// <summary>--event[=id]: open an event now (the given one, else the first choice that fits the player).</summary>
+    static void ForceEvent(Game g, string id)
+    {
+        if (g.State.Events is not { } ev) return;
+        int me = GameState.LocalPlayer, want = ev.Db.EventIndex(id);
+        if (want >= 0) { ev.Force(g.State, me, want, g); return; }
+        for (int e = 0; e < ev.Db.Events.Length && ev.Pending(me) == null; e++)
+            if (ev.Db.Events[e].IsChoice) ev.Force(g.State, me, e, g);
     }
 
     static void Apply(Hud hud)
@@ -32,10 +47,11 @@ public static class UiDebug
         if (Cli.Has("notes"))
         {
             var w = g.World; int cap = g.State.NationCapital[GameState.LocalPlayer];
-            g.Notify("scale", $"{Data.Nations[1].Name} предлагает обмен: камень на вино");
+            g.Notify("scale", $"{g.Nations[1].Name} предлагает обмен: камень на вино");
             g.Notify("shovel", $"Геологи нашли медь в холмах у {w.PName[cap]}");
             g.Notify("bulb", "Эврика! Три фермы ускорили «Ирригацию» на 20%");
         }
+        if (Cli.Has("event")) ForceEvent(g, Cli.Str("event"));
         var sel = Cli.Str("select");
         if (sel != null) { int p = Find(sel); if (p >= 0) g.Select(p); }
         if (Cli.Has("build")) hud.Panel.DebugOpenBuild();
@@ -58,6 +74,7 @@ public static class UiDebug
             hud.ToastView.Display(text, 60, kind);
         }
         if (Cli.Has("icons")) IconSheet(hud);
+        if (Cli.Has("fontsheet")) FontSheet(hud);
         if (Cli.Has("scroll")) hud.GetTree().CreateTimer(.2).Timeout += () => hud.Panel.DebugScroll(Cli.Int("scroll", 0));
         foreach (var (arg, at) in Schedule("clicks"))
         {
@@ -104,20 +121,47 @@ public static class UiDebug
         Input.ParseInputEvent(new InputEventKey { Keycode = k, PhysicalKeycode = k, Pressed = false });
     }
 
-    /// <summary>--icons: contact sheet of every icon at 16/19/21 px (to eyeball the SVGs).</summary>
+    /// <summary>--icons: contact sheet of every pixel icon at ×1 and ×2, plus the inverted (shadowless) variant.</summary>
     static void IconSheet(Hud hud)
     {
-        var grid = new GridContainer { Columns = 8 };
+        var grid = new GridContainer { Columns = 6 };
         grid.AddThemeConstantOverride("h_separation", 14);
         grid.AddThemeConstantOverride("v_separation", 6);
-        foreach (var f in DirAccess.GetFilesAt("res://assets/ui/icons"))
+        foreach (var name in PixelIconArt.Art.Keys)
         {
-            if (!f.EndsWith(".svg")) continue;
-            var name = f[..^4];
-            grid.AddChild(Ui.HBox(4, Ui.Icon(name, 16), Ui.Icon(name, 19), Ui.Icon(name, 21), Ui.Text(name, "SmallMu").MinSize(96, 0)));
+            var inv = Ui.Panel(St.Inverted(), Ui.Icon(name, 1, Pal.Ink, shadow: false)).MinSize(20, 20);
+            grid.AddChild(Ui.HBox(6, Ui.Icon(name, 1, Pal.Ac), Ui.Icon(name, 2, Pal.Ac), inv, Ui.Text(name, "SmallMu").MinSize(110, 0)));
         }
         var card = Ui.Panel(St.Card().Pad(16), grid, Control.MouseFilterEnum.Stop);
-        card.Position = new Vector2(330, 70);
+        card.Position = new Vector2(60, 70);
+        hud.GetChild(0).AddChild(card);
+    }
+
+    /// <summary>--fontsheet: the pixel font at every HUD size / weight / hinting mode (to pick crisp combinations).</summary>
+    static void FontSheet(Hud hud)
+    {
+        var col = Ui.VBox(2);
+        const string sample = "Отправить разведчиков · Казна 1 278 +13 · март 3200 до н. э. · ВЛИЯНИЕ Святилище";
+        foreach (var hint in new[] { TextServer.Hinting.None, TextServer.Hinting.Light, TextServer.Hinting.Normal })
+        {
+            var file = new FontFile();
+            file.LoadDynamicFont(ProjectSettings.GlobalizePath(PixelKit.FontPath));
+            file.Antialiasing = TextServer.FontAntialiasing.None;
+            file.Hinting = hint;
+            file.SubpixelPositioning = TextServer.SubpixelPositioning.Disabled;
+            foreach (int w in new[] { 400, 600 })
+            foreach (int size in new[] { 11, 13, 14, 15, 16, 18 })
+            {
+                var v = new FontVariation { BaseFont = file };
+                v.VariationOpentype = new Godot.Collections.Dictionary { { "wght", w } };
+                var l = Ui.Text($"{hint} {w} {size}: {sample}");
+                l.AddThemeFontOverride("font", v);
+                l.AddThemeFontSizeOverride("font_size", size);
+                col.AddChild(l);
+            }
+        }
+        var card = Ui.Panel(St.Card().Pad(12), col, Control.MouseFilterEnum.Stop);
+        card.Position = new Vector2(10, 60);
         hud.GetChild(0).AddChild(card);
     }
 

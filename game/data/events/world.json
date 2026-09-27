@@ -1,0 +1,108 @@
+{
+  "$schema": "../schema/events.schema.json",
+  "title": "Мировые события (CONTENT §16.2, №21 §2): одно небо на всех, выбор у каждого свой. Колода их не сдаёт — их зовёт мировая система через EventRunner.Force",
+  "events": [
+    {
+      "id": "year_without_summer", "kind": "world", "eras": [1, 10], "icon": "cloud-fog", "importance": 2,
+      "when": { "flags": ["quirk.giant_volcano"], "requires": ["world_events"] },
+      "title": "Год без лета",
+      "text": "Далёкий вулкан-исполин закрыл небо пеплом. В разгар лета идёт снег, хлеб не вызревает.",
+      "options": [
+        { "text": "Открыть амбары", "result": "Амбары кормят страну до новой весны.", "effects": { "gold": -40, "food": -40 } },
+        { "text": "Закупить зерно", "result": "Зерно везут из дальних стран. Дорого, но сытно.", "effects": { "gold": -70 } },
+        { "text": "Молиться", "effects": { "faith": 5 },
+          "roll": [
+            { "permille": 400, "result": "Пепел рассеялся раньше, чем боялись.", "effects": { "mood": 2 } },
+            { "permille": 600, "result": "Лето так и не пришло. Голодный год.", "effects": { "pop": -30, "mood": -4 } } ] }
+      ]
+    },
+    {
+      "id": "world_comet", "kind": "world", "eras": [0, 8], "icon": "comet",
+      "when": { "requires": ["world_events"] },
+      "title": "Хвостатая звезда",
+      "text": "Над всем миром повисла хвостатая звезда. Каждый народ толкует её по-своему.",
+      "options": [
+        { "text": "Добрый знак",
+          "roll": [
+            { "permille": 500, "result": "Знамение сбылось к добру: год выдался урожайным.", "effects": { "mood": 3 } },
+            { "permille": 500, "result": "Звезда ушла, а тревога осталась.", "effects": { "mood": -3 } } ] },
+        { "text": "Спросить звездочётов", "when": { "anyFlags": ["trait.stargazer", "dogma.star_teaching", "tech.astronomy"] },
+          "result": "Звездочёты рассчитали её путь. Народ гордится своими мудрецами.", "effects": { "mood": 5, "science": 10 } }
+      ]
+    },
+    {
+      "id": "great_pestilence", "kind": "world", "eras": [3, 4], "icon": "alert-triangle", "importance": 2,
+      "when": { "requires": ["world_events", "epidemics"] },
+      "title": "Великий мор",
+      "text": "По торговым путям идёт великий мор. Открытые народы страдают первыми.",
+      "options": [
+        { "text": "Закрыть пути", "result": "Пути закрыты, мор обходит нас стороной. Купцы разорены.",
+          "effects": { "axes": { "closed": 5 }, "modifiers": [{ "id": "trade", "permille": -300, "cycles": 60 }] } },
+        { "text": "Держать пути открытыми", "result": "Торговля идёт, а с ней и мор.", "effects": { "pop": -80, "mood": -5 } }
+      ]
+    },
+    {
+      "id": "sky_stone", "kind": "world", "eras": [0, 10], "icon": "comet",
+      "when": { "requires": ["world_events"] },
+      "title": "Небесный камень",
+      "text": "С неба упал огненный камень и повалил лес на много вёрст. Весь мир видел вспышку.",
+      "effects": { "science": 10 }
+    },
+    {
+      "id": "little_ice_age", "kind": "world", "eras": [4, 4], "icon": "cloud-fog", "importance": 1,
+      "when": { "requires": ["world_events"] },
+      "title": "Малый ледниковый период",
+      "text": "Зимы стали длиннее, реки замерзают раньше. Тундра наступает на поля.",
+      "effects": { "food": -30, "modifiers": [{ "id": "food", "permille": -100, "cycles": 60 }] }
+    },
+    {
+      "id": "world_fair", "kind": "world", "eras": [5, 5], "icon": "trophy",
+      "when": { "requires": ["world_events"] },
+      "title": "Всемирная выставка",
+      "text": "Народы съезжаются на Всемирную выставку. Что повезём показать?",
+      "options": [
+        { "text": "Машины", "result": "Наши машины гудели громче всех. Инженеры в почёте.", "effects": { "science": 20 } },
+        { "text": "Искусство", "result": "Наш павильон собрал самые длинные очереди.", "effects": { "culture": 20 } }
+      ]
+    },
+    {
+      "id": "world_games", "kind": "world", "eras": [2, 7], "icon": "trophy",
+      "when": { "requires": ["world_events"] },
+      "title": "Игры народов",
+      "text": "Народы шлют лучших атлетов на великие игры. Во время игр все распри затихают.",
+      "options": [
+        { "text": "Послать скромную команду", "result": "Команда вернулась с честью, но без венков.", "effects": { "culture": 3 } },
+        { "text": "Послать лучших", "effects": { "gold": -30 },
+          "roll": [
+            { "permille": 400, "result": "Наш атлет выиграл главный забег! Страна ликует.", "effects": { "culture": 20, "mood": 4 } },
+            { "permille": 600, "result": "Наши были близко. Следующие игры — наши.", "effects": { "culture": 5 } } ] }
+      ]
+    },
+    {
+      "id": "barbarian_raid", "kind": "world", "eras": [1, 4], "icon": "walk",
+      "when": { "requires": ["world_events"] },
+      "title": "Набег варваров",
+      "text": "Из-за края мира идут варварские орды. Они жгут поля и уходят с добычей.",
+      "options": [
+        { "text": "Откупиться", "result": "Варвары взяли дань и прошли мимо.", "effects": { "gold": -50 } },
+        { "text": "Поднять стены", "result": "Стены выдержали. Поля за стенами — нет.", "effects": { "gold": -30, "food": -20 } },
+        { "text": "Потерять урожай", "result": "Варвары унесли урожай. Зима будет голодной.", "effects": { "food": -60, "mood": -3 } }
+      ]
+    },
+    {
+      "id": "solar_storm", "kind": "world", "eras": [5, 10], "icon": "sun",
+      "when": { "flags": ["tech.telegraph"], "requires": ["world_events"] },
+      "title": "Солнечная буря",
+      "text": "Небо светится зелёным до самого экватора. Телеграф искрит и печатает сам по себе.",
+      "lore": "1859, событие Кэррингтона: полярные сияния видели у экватора, телеграфы работали без батарей.",
+      "options": [
+        { "text": "Отключить линии", "result": "Линии отключили. Связи нет, пожаров тоже.",
+          "effects": { "modifiers": [{ "id": "trade", "permille": -100, "cycles": 5 }] } },
+        { "text": "Изучать небесный ток",
+          "roll": [
+            { "permille": 500, "result": "Телеграфисты записали всё. У физиков праздник.", "effects": { "science": 10 } },
+            { "permille": 500, "result": "Небесный ток сжёг станцию. Физики в раздумьях.", "effects": { "gold": -20 } } ] }
+      ]
+    }
+  ]
+}

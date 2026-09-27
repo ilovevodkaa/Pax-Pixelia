@@ -6,30 +6,33 @@ using PaxPixelia.Sim;
 namespace PaxPixelia.UI;
 
 /// <summary>
-/// #top — 54px ledger across the screen: nation plate (framed pixel flag, name, government · era, 3px nation rule),
-/// resources with captions, screen buttons (trophy = leaderboard), clock plate (round pause, date, speed pips) and
-/// the real-time session counter with its escalating jokes.
+/// The 52px pixel bar across the top: nation plate (framed pixel flag, name, era), resources (26px icons, spaced
+/// captions, values, deltas), square screen buttons (trophy = leaderboard), the clock (pause, a two-line date in a
+/// fixed-width slot so month names never shift the bar, 5 speed bars) and the real-time session counter.
+/// Density tiers: ≤1440 px compact paddings; &lt;1280 px captions, deltas and the session counter fold away.
 /// </summary>
 public partial class TopBar : PanelContainer
 {
-    public const int Height = 54;
+    public const int Height = 52;
     public Button Trophy { get; private set; }
     public event Action LeaderboardToggled;
     public event Action PauseClicked;
 
     readonly FlagView _flag = new();
-    Label _name, _gov, _era;
+    Label _name, _era;
     PanelContainer _nation;
-    Box _nationBox;
+    Box _nationBox, _nationHover;
     readonly Res[] _res = new Res[5];
-    PanelContainer _screensBox;
+    HBoxContainer _screens;
     readonly Button[] _screenBtns = new Button[6];
     PanelContainer _clock;
     Box _clockBox;
-    Label _date;
+    Label _month, _year;
+    Control _dateSlot;
     Button _pause;
     readonly SpeedPips _pips = new();
     Button _session;
+    Control _sessionGap;
 
     bool _incomeKnown;
     int _lastMinute = -1;
@@ -38,23 +41,21 @@ public partial class TopBar : PanelContainer
     {
         MouseFilter = MouseFilterEnum.Stop;
         CustomMinimumSize = new Vector2(0, Height);
-        AddThemeStyleboxOverride("panel", new Box().Fill(Pal.Hd1, Pal.Hd2).Border(Pal.Ln2, 0, 0, 0, 1)
-            .Rule(0, 1, Colors.White).Rule(4, 1, Pal.Ln, fromBottom: true).Rule(1, 3, Pal.Hd2, fromBottom: true)
-            .Shadow(Pal.Shade(.10f), 12, 5).Shadow(Pal.Shade(.08f), 3, 1).Pad(0, 0, 10, 0));
+        AddThemeStyleboxOverride("panel", new Box().Fill(Pal.Hex(0x141417)).Dither(Pal.Hex(0x222226), Pal.Hex(0x141417), Height - 2)
+            .Grain().Border(Pal.Ln2, 0, 0, 0, 2).Shadow(0, 4).Pad(0, 0, 8, 0));
 
         var row = Ui.HBox(0);
         AddChild(row);
         row.AddChild(BuildNation());
-        var resBar = Ui.HBox(0);
         _res[0] = new Res("coins", "Казна"); _res[1] = new Res("flask", "Наука"); _res[2] = new Res("users", "Население");
         _res[3] = new Res("scale", "Стабильность"); _res[4] = new Res("feather", "Влияние");
-        foreach (var r in _res) resBar.AddChild(r.Root);
-        row.AddChild(resBar);
+        foreach (var r in _res) row.AddChild(r.Root);
         row.AddChild(Ui.Expand());
         row.AddChild(BuildScreens());
-        row.AddChild(Ui.Gap(12, 0));
+        row.AddChild(Ui.Gap(14, 0));
         row.AddChild(BuildClock());
-        row.AddChild(Ui.Gap(4, 0));
+        _sessionGap = Ui.Gap(6, 0);
+        row.AddChild(_sessionGap);
         row.AddChild(BuildSession());
         WireTips();
     }
@@ -63,14 +64,16 @@ public partial class TopBar : PanelContainer
     Control BuildNation()
     {
         _name = Ui.Text("Ардания", "NName");
-        _gov = Ui.Text("Вождество", "SmallMu");
-        _era = Ui.Text("Древний мир", "SmallMu");
-        var sub = Ui.HBox(6, _gov, new Dot(), _era);
-        var text = Ui.VBox(1, _name, sub).Center();
-        _nationBox = new Box().Fill(Colors.White, Pal.Plate2).Border(Pal.Ln2, 0, 0, 1, 0).Rule(1, 4, Pal.Plate2, fromBottom: true)
-            .Accent(Colors.Transparent).Pad(14, 0, 22, 0);
-        _nation = Ui.Panel(_nationBox, Ui.HBox(13, _flag, text), MouseFilterEnum.Stop);
+        _name.Uppercase = true;
+        _era = Ui.Text("Древний мир", "Kick");
+        _era.Uppercase = true;
+        var text = Ui.VBox(1, _name, _era).Center();
+        _nationBox = NationBox(Pal.Hex(0x141417), false);
+        _nationHover = NationBox(Pal.SurfaceHover, true);
+        _nation = Ui.Panel(_nationBox, Ui.HBox(12, _flag, text), MouseFilterEnum.Stop);
         _nation.MouseDefaultCursorShape = CursorShape.PointingHand;
+        _nation.MouseEntered += () => _nation.AddThemeStyleboxOverride("panel", _nationHover);
+        _nation.MouseExited += () => _nation.AddThemeStyleboxOverride("panel", _nationBox);
         _nation.GuiInput += e =>
         {
             if (e is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Left } && Game.I.IsReady)
@@ -82,48 +85,57 @@ public partial class TopBar : PanelContainer
         return _nation;
     }
 
+    /// <summary>Nation plate: a slightly darker slab with the 2px divider; hover lifts it and adds the left accent.</summary>
+    static Box NationBox(Color fill, bool hover)
+    {
+        var b = new Box().Fill(fill).Border(Pal.Ln2, 0, 0, 2, 0).Pad(12, 0, 20, 0);
+        if (hover) b.AccentLeft(Pal.Ac, 4);
+        return b;
+    }
+
     Control BuildScreens()
     {
-        var h = Ui.HBox(0);
+        _screens = Ui.HBox(2);
         (string icon, string name)[] screens = { ("atom", "Технологии"), ("building-bank", "Политика и законы"), ("building-store", "Рынок"), ("affiliate", "Дипломатия"), ("sun", "Религия") };
         for (int i = 0; i < screens.Length; i++)
         {
             var (icon, name) = screens[i];
-            var b = Ui.IconButton(icon, i == 0 ? "SegStart" : "Seg", 38, 34, 18, () => Game.I.ShowToast($"Экран «{name}» — нарисуем следующим"));
+            var b = Ui.IconButton(icon, "Ib", 36, 34, 2, () => Game.I.ShowToast($"Экран «{name}» — нарисуем следующим"));
             b.MouseFilter = MouseFilterEnum.Stop;
             b.Tip(name, null, "Экран в разработке");
-            if (i > 0) h.AddChild(Ui.Rule(Pal.Ln, 1, 34));
-            h.AddChild(b);
+            _screens.AddChild(b);
             _screenBtns[i] = b;
         }
-        h.AddChild(Ui.Rule(Pal.Ln2, 1, 34));
-        Trophy = Ui.IconButton("trophy", "SegEnd", 38, 34, 18, () => LeaderboardToggled?.Invoke());
+        _screens.AddChild(Ui.Margin(Ui.Rule(Pal.Ln2, 2, 22), 6, 0, 6, 0));
+        Trophy = Ui.IconButton("trophy", "Ib", 36, 34, 2, () => LeaderboardToggled?.Invoke());
         Trophy.MouseFilter = MouseFilterEnum.Stop;
         Trophy.Tip("Таблица лидеров", null, "Чужие державы появляются в ней после встречи");
         _screenBtns[5] = Trophy;
-        h.AddChild(Trophy);
-        _screensBox = Ui.Panel(new Box().Fill(Colors.White).Border(Pal.Ln2).Radius(St.R).Shadow(Pal.Shade(.06f), 1, 1).Pad(1), h, MouseFilterEnum.Stop);
-        _screensBox.SizeFlagsVertical = SizeFlags.ShrinkCenter;
-        return _screensBox;
+        _screens.AddChild(Trophy);
+        _screens.SizeFlagsVertical = SizeFlags.ShrinkCenter;
+        return _screens;
     }
 
     Control BuildClock()
     {
-        _pause = Ui.IconButton("player-pause-filled", "Pause", 32, 32, 14, () => PauseClicked?.Invoke());
+        _pause = Ui.IconButton("player-pause-filled", "Pause", 34, 32, 1, () => PauseClicked?.Invoke());
         _pause.MouseFilter = MouseFilterEnum.Stop;
         _pause.Center();
-        _date = Ui.Text("1250 до н. э.", "Date");
+        _month = Ui.Text("", "SmallMu");
+        _year = Ui.Text("", "Date");
+        _dateSlot = Ui.VBox(0, _month, _year).Center();
         _pips.SpeedPicked += s => Game.I.SetSpeed(s);
-        var right = Ui.VBox(4, _date, _pips).Center();
-        _clockBox = new Box().Fill(Colors.White, Pal.Plate2).Border(Pal.Ln2, 1, 0, 1, 1).Rule(1, 4, Pal.Plate2, fromBottom: true).Pad(14, 0, 18, 0);
-        _clock = Ui.Panel(_clockBox, Ui.HBox(11, _pause, right), MouseFilterEnum.Stop);
-        _clock.CustomMinimumSize = new Vector2(184, 0);
+        _pips.SizeFlagsVertical = SizeFlags.ShrinkEnd;
+        var pipsWrap = Ui.Margin(_pips, 0, 0, 0, 12);
+        _clockBox = new Box().Fill(Pal.Hex(0x111113)).Border(Pal.Ln2, 2, 0, 2, 0).Pad(12, 0, 14, 0);
+        _clock = Ui.Panel(_clockBox, Ui.HBox(12, _pause, _dateSlot, pipsWrap), MouseFilterEnum.Stop);
+        SizeDateSlot();
         return _clock;
     }
 
     Control BuildSession()
     {
-        _session = Ui.Button("0:00", "hourglass", "Session", OnSessionClick, 17, 32);
+        _session = Ui.Button("0:00", "hourglass", "Session", OnSessionClick, 1, 32);
         _session.MouseFilter = MouseFilterEnum.Stop;
         _session.Center();
         return _session;
@@ -133,23 +145,37 @@ public partial class TopBar : PanelContainer
     {
         _nation.Tip(t =>
         {
-            var n = Data.Nations[GameState.LocalPlayer];
-            t.Title(n.Name).Line($"{n.Gov} · Древний мир").Mu("Нажмите, чтобы показать столицу");
+            var n = Game.I.Nations[GameState.LocalPlayer];
+            t.Title(n.Name).Line($"{n.Gov} · {Game.I.EraName}").Mu("Нажмите, чтобы показать столицу");
         });
         _res[0].Root.Tip(t =>
         {
             t.Title("Казна");
-            if (!Game.I.IsReady || !_incomeKnown) { t.Mu("Доход появится после первого года"); return; }
+            if (!Game.I.IsReady || !_incomeKnown) { t.Mu("Доход появится после первого цикла"); return; }
             var s = Game.I.State;
             t.Line($"Налоги {Fmt.Signed(s.LastTaxes)} · Содержание {Fmt.Signed(-s.LastUpkeep)}")
-             .Kv("Итого за год", Fmt.Signed(s.LastIncome, 1), s.LastIncome >= 0 ? Pal.Ok : Pal.Bad)
-             .Mu("Тратится на присоединение земель, постройки и геологов");
+             .Kv("Итого за цикл", Fmt.Signed(s.LastIncome, 1), s.LastIncome >= 0 ? Pal.Ok : Pal.Bad)
+             .Kv("В минуту", Fmt.Signed(s.LastIncome * Game.CyclesPerMinute(s.Speed)), s.LastIncome >= 0 ? Pal.Ok : Pal.Bad)
+             .Mu("Цикл — полсекунды при скорости 3. Золото тратится на земли, постройки и геологов");
         });
-        _res[1].Root.Tip("Наука", "Жрецы +22 · Святилища +10 · Соседи +6", "Экран технологий — следующим");
+        _res[1].Root.Tip(t =>
+        {
+            var g = Game.I;
+            var sp = g.ScienceParts;
+            t.Title("Наука").Line($"Мудрецы +{sp.Sages} · Земли +{sp.Lands} · Святилища +{sp.Shrines}" + (sp.CatchUp > 0 ? $" · Догоняем +{sp.CatchUp}" : ""))
+             .Kv("За цикл", "+" + g.ScienceRate, Pal.Ok);
+            if (g.NextEraName != "") t.Kv($"До эпохи «{g.NextEraName}»", $"{g.EraProgressPermille / 10}%", Pal.Hi);
+            t.Mu("Эпоха наступает, когда наука наберёт свою цену");
+        });
         _res[2].Root.Tip("Население", "Во всех провинциях державы");
         _res[3].Root.Tip("Стабильность", "Довольство попов · законы · вера", "Среднее довольство провинций державы");
         _res[4].Root.Tip("Влияние", "Тратится на законы и дипломатию");
-        _clock.Tip(t => t.Title("Время").Line("Древний мир: 1 день игры ≈ 1 год.").Mu("Пробел — пауза, 1–5 — скорость"));
+        _clock.Tip(t =>
+        {
+            t.Title(Game.I.DateText).Line($"Эпоха: {Game.I.EraName}");
+            if (!_session.Visible) t.Line($"Вы играете {Fmt.Duration(SessionMinutes)}");
+            t.Mu("Пробел — пауза, 1–5 — скорость");
+        });
         _pause.Tip(t => t.Title(Game.I.IsReady && Game.I.State.Paused ? "Продолжить" : "Пауза").Mu("Пробел"));
         _pips.Tip(t => t.Title("Скорость " + (Game.I.IsReady ? Game.I.State.Speed : 2) + " из 5").Mu("Клавиши 1–5"));
         _session.Tip("Сколько ты уже играешь", null, "Нажми — совет придворных");
@@ -158,23 +184,22 @@ public partial class TopBar : PanelContainer
     // ---------------- refresh ----------------
     public void OnWorldReady()
     {
-        var n = Data.Nations[GameState.LocalPlayer];
-        var c = Pal.Nation(GameState.LocalPlayer);
-        _flag.SetNation(c);
-        _nationBox.SetAccent(c);
-        _nation.QueueRedraw();
+        var n = Game.I.Nations[GameState.LocalPlayer];
+        _flag.SetFlag(n.Flag, (n.R, n.G, n.B));
         _name.Text = n.Name;
-        _gov.Text = n.Gov;
+        _era.Text = Game.I.EraName;
         _incomeKnown = false;
         RefreshResources();
         RefreshClock();
     }
 
-    public void OnYearTick()
+    /// <summary>A rules cycle ran: the budget is known (the HUD refreshes the readouts, at most 5× a second).</summary>
+    public void OnCycleTick() => _incomeKnown = true;
+
+    public void OnDateChanged()
     {
-        _incomeKnown = true;
-        RefreshResources();
         RefreshDate();
+        if (_era.Text != Game.I.EraName) _era.Text = Game.I.EraName;
     }
 
     public void RefreshResources()
@@ -186,7 +211,7 @@ public partial class TopBar : PanelContainer
             if (s.Owner[p] == GameState.LocalPlayer) { pop += s.Pop[p]; mood += s.Mood[p] * s.Pop[p]; }
         double income = s.LastIncome;
         _res[0].Set(Fmt.Int(s.Gold), _incomeKnown ? Fmt.Signed(income, Math.Abs(income) < 10 ? 1 : 0) : null, income >= 0 ? Pal.Ok : Pal.Bad);
-        _res[1].Set("38", "+4", Pal.Ok);
+        _res[1].Set($"{Game.I.EraProgressPermille / 10}%", "+" + Game.I.ScienceRate, Pal.Ok);
         _res[2].Set(Fmt.Pop(pop), null, default);
         _res[3].Set(pop > 0 ? $"{Math.Round(mood / pop)}%" : "—", null, default);
         _res[4].Set("14", null, default);
@@ -197,16 +222,50 @@ public partial class TopBar : PanelContainer
         if (!Game.I.IsReady) return;
         var s = Game.I.State;
         _pause.ThemeTypeVariation = s.Paused ? "PauseRed" : "Pause";
-        _pause.Icon = Icons.Get(s.Paused ? "player-play-filled" : "player-pause-filled", 14);
+        _pause.Icon = Icons.Get(s.Paused ? "player-play-filled" : "player-pause-filled");
         _pips.SetSpeed(s.Speed);
         RefreshDate();
     }
 
+    string _shownDate;
+    bool _shownPaused;
+
     void RefreshDate()
     {
-        var s = Game.I.State;
-        _date.Text = Fmt.Year(s.Year);
-        if (s.Paused) _date.Colored(Pal.Bad); else _date.RemoveThemeColorOverride("font_color");
+        if (!Game.I.IsReady) return;
+        string date = Game.I.DateText;
+        if (date == _shownDate && Game.I.State.Paused == _shownPaused) return;
+        _shownDate = date;
+        _shownPaused = Game.I.State.Paused;
+        var (month, year) = SplitDate(date);
+        _month.Text = month;
+        _month.Visible = month.Length > 0;
+        _year.Text = year;
+        if (Game.I.State.Paused) _year.Colored(Pal.Bad); else _year.RemoveThemeColorOverride("font_color");
+        float need = Mathf.Max(UiFonts.Width(UiFonts.Regular, month, UiFonts.Small), UiFonts.Width(UiFonts.Semi, year, UiFonts.Value));
+        if (need > _dateSlot.CustomMinimumSize.X) _dateSlot.CustomMinimumSize = new Vector2(Mathf.Ceil(need), 0);   // grows only
+    }
+
+    /// <summary>«март 3200 до н. э.» → («март», «3200 до н. э.»); «12 марта 1893» → («12 марта», «1893»). The year is the
+    /// last run of digits with whatever follows it (era suffix); a text without digits stays on the second line.</summary>
+    public static (string month, string year) SplitDate(string text)
+    {
+        if (string.IsNullOrEmpty(text)) return ("", "");
+        int end = text.Length - 1;
+        while (end >= 0 && !char.IsDigit(text[end])) end--;
+        if (end < 0) return ("", text);
+        int start = end;
+        while (start > 0 && char.IsDigit(text[start - 1])) start--;
+        return (text[..start].TrimEnd(' ', ','), text[start..]);
+    }
+
+    /// <summary>Wide enough for the widest month line and year line the calendar can produce, so the bar never jumps.</summary>
+    void SizeDateSlot()
+    {
+        float w = 0;
+        foreach (var m in new[] { "сентябрь", "28 сентября", "28 февраля" }) w = Mathf.Max(w, UiFonts.Width(UiFonts.Regular, m, UiFonts.Small));
+        foreach (var y in new[] { "8888 до н. э.", "2888 н. э." }) w = Mathf.Max(w, UiFonts.Width(UiFonts.Semi, y, UiFonts.Value));
+        _dateSlot.CustomMinimumSize = new Vector2(Mathf.Ceil(w), 0);
     }
 
     internal Control DebugTarget(string name) => name switch
@@ -216,16 +275,27 @@ public partial class TopBar : PanelContainer
         _ => null,
     };
 
-    public void SetLeaderboardOpen(bool open) => Trophy.ThemeTypeVariation = open ? "SegEndOn" : "SegEnd";
-
-    /// <summary>≤1440px: tighter paddings; ≤1180px: captions and deltas hidden (CSS media queries).</summary>
-    public void SetDensity(bool compact, bool tiny)
+    public void SetLeaderboardOpen(bool open)
     {
+        Trophy.ThemeTypeVariation = open ? "IbOn" : "Ib";
+        Trophy.Icon = Icons.Get("trophy", 2, !open);
+    }
+
+    /// <summary>
+    /// Fits the bar to the window width: ≤1440 tighter paddings; ≤1366 the session counter moves into the clock's
+    /// tooltip; &lt;1280 captions, deltas and the era line fold away and the resource icons drop to 1×.
+    /// </summary>
+    public void SetWidth(float width)
+    {
+        bool compact = width <= 1440, narrow = width <= 1366, tiny = width < 1280;
         foreach (var r in _res) r.SetDensity(compact, tiny);
-        foreach (var b in _screenBtns) b.CustomMinimumSize = new Vector2(compact ? 34 : 38, 34);
-        _clock.CustomMinimumSize = new Vector2(compact ? 170 : 184, 0);
-        _clockBox.Pad(compact ? 12 : 14, 0, compact ? 14 : 18, 0);
-        _nationBox.Pad(14, 0, compact ? 18 : 22, 0);
+        foreach (var b in _screenBtns) b.CustomMinimumSize = new Vector2(tiny ? 30 : narrow ? 32 : compact ? 34 : 36, 34);
+        _clockBox.Pad(compact ? 10 : 12, 0, compact ? 10 : 14, 0);
+        _nationBox.Pad(compact ? 10 : 12, 0, tiny ? 10 : compact ? 14 : 20, 0);
+        _nationHover.Pad(compact ? 10 : 12, 0, tiny ? 10 : compact ? 14 : 20, 0);
+        _name.Sized(tiny ? UiFonts.Value : UiFonts.Title);
+        _era.Visible = !tiny;
+        _session.Visible = _sessionGap.Visible = !narrow;
         _clock.UpdateMinimumSize();
         _nation.UpdateMinimumSize();
     }
@@ -246,7 +316,7 @@ public partial class TopBar : PanelContainer
 
     void OnSessionClick() => Game.I.ShowToast(SessionJokes.For(SessionMinutes), 5);
 
-    /// <summary>One resource cell: icon · CAPTION over value + delta, hairline divider on the right.</summary>
+    /// <summary>One resource cell: 26px pixel icon · spaced CAPTION over value + delta, 2px divider on the right.</summary>
     sealed class Res
     {
         public readonly PanelContainer Root;
@@ -255,46 +325,51 @@ public partial class TopBar : PanelContainer
         readonly Label _cap, _val, _delta;
         readonly HBoxContainer _row;
         readonly string _iconName;
+        bool _tiny, _hasDelta;
 
         public Res(string icon, string caption)
         {
             _iconName = icon;
-            _normal = new Box().Border(Pal.Ln, 0, 0, 1, 0).Pad(15, 0, 17, 0);
-            _hover = new Box().Fill(Pal.White(.85f)).Border(Pal.Ln, 0, 0, 1, 0).Pad(15, 0, 17, 0);
-            _icon = Ui.Icon(icon, 21);
+            _normal = Cell(false);
+            _hover = Cell(true);
+            _icon = Ui.Icon(icon, 2, Pal.Ac);
             _cap = Ui.Cap(caption);
             _val = Ui.Text("0", "Val");
             _delta = Ui.Text("", "Delta");
-            _delta.VerticalAlignment = VerticalAlignment.Bottom;
-            _val.VerticalAlignment = VerticalAlignment.Bottom;
-            var values = Ui.HBox(5, _val, Ui.Margin(_delta, 0, 0, 0, 1));
-            var col = Ui.VBox(0, _cap, values).Center();
-            _row = Ui.HBox(10, _icon, col);
+            var values = Ui.HBox(6, _val, _delta);
+            var col = Ui.VBox(1, _cap, values).Center();
+            _row = Ui.HBox(9, _icon, col);
             Root = Ui.Panel(_normal, _row, MouseFilterEnum.Stop);
-            Root.MouseEntered += () => Root.AddThemeStyleboxOverride("panel", _hover);
-            Root.MouseExited += () => Root.AddThemeStyleboxOverride("panel", _normal);
+            Root.MouseEntered += () => { Root.AddThemeStyleboxOverride("panel", _hover); _icon.SelfModulate = Pal.Hi; };
+            Root.MouseExited += () => { Root.AddThemeStyleboxOverride("panel", _normal); _icon.SelfModulate = Pal.Ac; };
+        }
+
+        static Box Cell(bool hover)
+        {
+            var b = new Box().Border(Pal.Ln, 0, 0, 2, 0).Pad(14, 0, 16, 0);
+            if (hover) b.Fill(Pal.A(Pal.SurfaceHover, .7f));
+            return b;
         }
 
         public void Set(string value, string delta, Color deltaColor)
         {
             _val.Text = value;
-            _delta.Visible = delta != null && !_tiny;
-            if (delta != null) { _delta.Text = delta; _delta.Colored(deltaColor); }
             _hasDelta = delta != null;
+            _delta.Visible = _hasDelta && !_tiny;
+            if (delta != null) { _delta.Text = delta; _delta.Colored(deltaColor); }
         }
 
-        bool _tiny, _hasDelta;
         public void SetDensity(bool compact, bool tiny)
         {
             _tiny = tiny;
             _cap.Visible = !tiny;
             _delta.Visible = _hasDelta && !tiny;
-            int l = compact ? 11 : 15, r = compact ? 12 : 17;
+            int l = tiny ? 8 : compact ? 10 : 14, r = tiny ? 10 : compact ? 12 : 16;
             _normal.Pad(l, 0, r, 0); _hover.Pad(l, 0, r, 0);
-            _row.AddThemeConstantOverride("separation", compact ? 8 : 10);
-            int size = compact ? 19 : 21;
-            _icon.Texture = Icons.Get(_iconName, size);
-            _icon.CustomMinimumSize = new Vector2(size, size);
+            _row.AddThemeConstantOverride("separation", tiny ? 5 : compact ? 7 : 9);
+            int scale = tiny ? 1 : 2;
+            _icon.Texture = Icons.Get(_iconName, scale);
+            _icon.CustomMinimumSize = new Vector2(Icons.Size(scale), Icons.Size(scale));
             Root.UpdateMinimumSize();
         }
     }

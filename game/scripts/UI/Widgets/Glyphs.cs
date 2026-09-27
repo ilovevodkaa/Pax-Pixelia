@@ -3,53 +3,51 @@ using Godot;
 
 namespace PaxPixelia.UI;
 
-/// <summary>Framed pixel flag of the nation plate (18×12 pixels drawn at ×2, white passe-partout, hairline frame).</summary>
+/// <summary>
+/// The nation's pixel flag, 18×12 art pixels drawn at ×2 inside a hard 2px ink frame with a hard shadow.
+/// </summary>
 public partial class FlagView : Control
 {
+    const int W = 18, H = 12, Px = 2;
     ImageTexture _tex;
-    static readonly StyleBoxFlat Shadow = new() { BgColor = Colors.Transparent, ShadowColor = Pal.Shade(.12f), ShadowSize = 5, ShadowOffset = new Vector2(0, 2) };
 
     public FlagView()
     {
-        CustomMinimumSize = new Vector2(44, 32);
+        CustomMinimumSize = new Vector2(W * Px + 4 + 2, H * Px + 4 + 2);
         SizeFlagsVertical = SizeFlags.ShrinkCenter;
         MouseFilter = MouseFilterEnum.Ignore;
         TextureFilter = TextureFilterEnum.Nearest;
     }
 
-    public void SetNation(Color c)
+    /// <summary>The nation's real flag (FlagRender, the same 18×12 art as the menu, the chapter card and the map).</summary>
+    public void SetFlag(Core.Flags.FlagSpec spec, (byte R, byte G, byte B) nation)
     {
-        var img = Image.CreateEmpty(18, 12, false, Image.Format.Rgba8);
-        img.Fill(c);
-        var gold = Pal.Hex(0xf0c850);
-        img.FillRect(new Rect2I(8, 3, 2, 6), gold);
-        img.FillRect(new Rect2I(6, 5, 6, 2), gold);
-        img.FillRect(new Rect2I(7, 4, 4, 4), gold);
-        img.FillRect(new Rect2I(0, 10, 18, 2), new Color(c.R * .6f, c.G * .6f, c.B * .6f));
-        _tex = ImageTexture.CreateFromImage(img);
+        var px = Core.Flags.FlagRender.Render(spec, nation, W, H);
+        _tex = ImageTexture.CreateFromImage(Image.CreateFromData(W, H, false, Image.Format.Rgba8, px));
         QueueRedraw();
     }
 
     public override void _Draw()
     {
-        DrawStyleBox(Shadow, new Rect2(0, 0, 44, 32));
-        DrawRect(new Rect2(0, 0, 44, 32), Pal.Ln2);
-        DrawRect(new Rect2(1, 1, 42, 30), Colors.White);
-        DrawRect(new Rect2(3, 3, 38, 26), new Color(0, 0, 0, .4f));
-        if (_tex != null) DrawTextureRect(_tex, new Rect2(4, 4, 36, 24), false);
+        float w = W * Px + 4, h = H * Px + 4;
+        DrawRect(new Rect2(2, h, w, 2), Pal.Shadow);
+        DrawRect(new Rect2(w, 2, 2, h - 2), Pal.Shadow);
+        DrawRect(new Rect2(0, 0, w, h), Pal.Ink);
+        if (_tex != null) DrawTextureRect(_tex, new Rect2(2, 2, W * Px, H * Px), false);
     }
 }
 
-/// <summary>#pips — five ascending speed bars; click a bar to set that speed.</summary>
+/// <summary>Five ascending speed bars; click a bar to set that speed (hover previews it).</summary>
 public partial class SpeedPips : Control
 {
+    const int Bar = 6, Gap = 2, Tall = 12;
     int _speed = 2;
     int _hover = -1;
     public event Action<int> SpeedPicked;
 
     public SpeedPips()
     {
-        CustomMinimumSize = new Vector2(5 * 9 + 4 * 3, 12);
+        CustomMinimumSize = new Vector2(5 * Bar + 4 * Gap, Tall);
         MouseFilter = MouseFilterEnum.Stop;
         MouseDefaultCursorShape = CursorShape.PointingHand;
         MouseExited += () => { _hover = -1; QueueRedraw(); };
@@ -71,27 +69,28 @@ public partial class SpeedPips : Control
         }
     }
 
-    static int PipAt(float x) => Math.Clamp((int)(x / 12), 0, 4);
+    static int PipAt(float x) => Math.Clamp((int)(x / (Bar + Gap)), 0, 4);
 
     public override void _Draw()
     {
+        float y0 = Size.Y - Tall;
         for (int i = 0; i < 5; i++)
         {
             int h = 4 + 2 * i;
-            var c = i < _speed ? Pal.Tx : _hover >= 0 ? Pal.PipHover : Pal.PipOff;
-            DrawRect(new Rect2(i * 12, 12 - h, 9, h), c);
+            var c = i < _speed ? Pal.Hi : i <= _hover ? Pal.Ln3 : Pal.Ln2;
+            DrawRect(new Rect2(i * (Bar + Gap), y0 + Tall - h, Bar, h), c);
         }
     }
 }
 
-/// <summary>.pips5 — five-step meter (fertility).</summary>
+/// <summary>Five-step meter (fertility): square pixel cells.</summary>
 public partial class Pips5 : Control
 {
     readonly int _n;
     public Pips5(int n)
     {
         _n = Math.Clamp(n, 0, 5);
-        CustomMinimumSize = new Vector2(5 * 13 + 4 * 3, 8);
+        CustomMinimumSize = new Vector2(5 * 10 + 4 * 2, 8);
         SizeFlagsVertical = SizeFlags.ShrinkCenter;
         MouseFilter = MouseFilterEnum.Ignore;
     }
@@ -100,98 +99,81 @@ public partial class Pips5 : Control
     {
         for (int i = 0; i < 5; i++)
         {
-            var r = new Rect2(i * 16, 0, 13, 8);
-            DrawRect(r, i < _n ? Pal.Tx2 : Pal.IbPress);
-            if (i >= _n) DrawRect(r, new Color(0, 0, 0, .05f), false, 1);
+            var r = new Rect2(i * 12, 0, 10, 8);
+            if (i < _n) { DrawRect(r, Pal.Ac); DrawRect(new Rect2(r.Position, new Vector2(10, 2)), Pal.Hi); }
+            else { DrawRect(r, Pal.Ln); DrawRect(r.Grow(-2), Pal.Well); }
         }
     }
 }
 
-/// <summary>.bar — segmented population-class bar with white separators and rounded ends.</summary>
+/// <summary>Segmented population-class bar: square segments split by 2px ink, framed, lit top edge.</summary>
 public partial class ClassBar : Control
 {
     readonly float[] _parts;
-    readonly StyleBoxFlat[] _segments;
-    static readonly StyleBoxFlat Outline = MakeOutline();
+    readonly Color[] _colors;
 
     public ClassBar(float[] parts, Color[] colors)
     {
         _parts = parts;
-        _segments = new StyleBoxFlat[parts.Length];
-        for (int i = 0; i < parts.Length; i++)
-        {
-            var sb = new StyleBoxFlat { BgColor = colors[i], AntiAliasingSize = .5f };
-            if (i == 0) { sb.CornerRadiusTopLeft = 3; sb.CornerRadiusBottomLeft = 3; }
-            if (i == parts.Length - 1) { sb.CornerRadiusTopRight = 3; sb.CornerRadiusBottomRight = 3; }
-            _segments[i] = sb;
-        }
-        CustomMinimumSize = new Vector2(0, 10);
+        _colors = colors;
+        CustomMinimumSize = new Vector2(0, 14);
         MouseFilter = MouseFilterEnum.Ignore;
-    }
-
-    static StyleBoxFlat MakeOutline()
-    {
-        var o = new StyleBoxFlat { DrawCenter = false, BorderColor = new Color(0, 0, 0, .12f), AntiAliasingSize = .5f };
-        o.SetBorderWidthAll(1);
-        o.SetCornerRadiusAll(3);
-        o.ExpandMarginLeft = o.ExpandMarginTop = o.ExpandMarginRight = o.ExpandMarginBottom = 1;
-        return o;
     }
 
     public override void _Draw()
     {
         float total = 0; foreach (var p in _parts) total += p;
-        float x = 0, w = Size.X;
+        DrawRect(new Rect2(Vector2.Zero, Size), Pal.Ink);
+        float x = 2, w = Size.X - 4, h = Size.Y - 4;
         for (int i = 0; i < _parts.Length; i++)
         {
-            float sw = i == _parts.Length - 1 ? w - x : Mathf.Round(_parts[i] / total * w);
-            DrawStyleBox(_segments[i], new Rect2(x, 0, sw, Size.Y));
-            if (i > 0) DrawRect(new Rect2(x, 0, 1, Size.Y), new Color(1, 1, 1, .9f));
+            float sw = i == _parts.Length - 1 ? 2 + w - x : Mathf.Round(_parts[i] / total * w);
+            float gap = i < _parts.Length - 1 ? 2 : 0;
+            DrawRect(new Rect2(x, 2, sw - gap, h), _colors[i]);
+            DrawRect(new Rect2(x, 2, sw - gap, 2), _colors[i].Lightened(.22f));
             x += sw;
         }
-        DrawStyleBox(Outline, new Rect2(Vector2.Zero, Size));
     }
 }
 
-/// <summary>.prog — thin graphite progress bar.</summary>
+/// <summary>Segmented pixel progress bar: 6px cells with 2px gaps in a sunken frame; cells light up one by one.</summary>
 public partial class Progress : Control
 {
+    const int Cell = 6, Gap = 2;
     float _value;
-    readonly StyleBoxFlat _track, _fill;
-    public float Value { get => _value; set { _value = Mathf.Clamp(value, 0, 1); QueueRedraw(); } }
+    public float Value { get => _value; set { value = Mathf.Clamp(value, 0, 1); if (value == _value) return; _value = value; QueueRedraw(); } }
 
-    public Progress(int height = 6)
+    public Progress(int height = 12)
     {
         CustomMinimumSize = new Vector2(0, height);
         MouseFilter = MouseFilterEnum.Ignore;
-        _track = new StyleBoxFlat { BgColor = Pal.Track, AntiAliasingSize = .5f };
-        _track.SetCornerRadiusAll(height / 2);
-        _fill = new StyleBoxFlat { BgColor = Pal.G2, AntiAliasingSize = .5f };
-        _fill.SetCornerRadiusAll(height / 2);
     }
 
     public override void _Draw()
     {
-        DrawStyleBox(_track, new Rect2(Vector2.Zero, Size));
-        float w = Mathf.Round(Size.X * _value);
-        if (w >= Size.Y)
+        DrawRect(new Rect2(Vector2.Zero, Size), Pal.Ln);
+        DrawRect(new Rect2(2, 2, Size.X - 4, Size.Y - 4), Pal.Well);
+        int cells = (int)((Size.X - 6 + Gap) / (Cell + Gap));
+        int lit = Mathf.RoundToInt(cells * _value);
+        for (int i = 0; i < cells; i++)
         {
-            DrawStyleBox(_fill, new Rect2(0, 0, w, Size.Y));
-            // subtle left-to-right sheen of the CSS gradient (#59616a → graphite)
-            DrawRect(new Rect2(Size.Y / 2, 1, Mathf.Max(0, w * .35f - Size.Y / 2), Size.Y - 2), new Color(1, 1, 1, .08f));
+            var r = new Rect2(4 + i * (Cell + Gap), 4, Cell, Size.Y - 8);
+            DrawRect(r, i < lit ? Pal.Ac : Pal.Surface);
         }
     }
 }
 
-/// <summary>Hairline that fills the remaining width of a heading row (h4::after) or a dashed divider (.kv).</summary>
+public enum LineStyle { Solid, Dotted, Dashed }
+
+/// <summary>2px line that fills the rest of a row: solid separator, dotted heading rule, dashed divider.</summary>
 public partial class HairLine : Control
 {
     readonly Color _color;
-    readonly bool _dashed;
-    public HairLine(Color c, bool dashed = false)
+    readonly LineStyle _style;
+    public HairLine(Color c, LineStyle style = LineStyle.Solid)
     {
-        _color = c; _dashed = dashed;
-        CustomMinimumSize = new Vector2(12, 1);
+        _color = c; _style = style;
+        CustomMinimumSize = new Vector2(12, 2);
         SizeFlagsHorizontal = SizeFlags.ExpandFill;
         SizeFlagsVertical = SizeFlags.ShrinkCenter;
         MouseFilter = MouseFilterEnum.Ignore;
@@ -199,14 +181,8 @@ public partial class HairLine : Control
 
     public override void _Draw()
     {
-        if (!_dashed) { DrawRect(new Rect2(0, 0, Size.X, 1), _color); return; }
-        for (float x = 0; x < Size.X; x += 6) DrawRect(new Rect2(x, 0, Mathf.Min(3, Size.X - x), 1), _color);
+        if (_style == LineStyle.Solid) { DrawRect(new Rect2(0, 0, Size.X, 2), _color); return; }
+        int step = _style == LineStyle.Dashed ? 8 : 4, len = _style == LineStyle.Dashed ? 4 : 2;
+        for (float x = 0; x < Size.X; x += step) DrawRect(new Rect2(x, 0, Mathf.Min(len, Size.X - x), 2), _color);
     }
-}
-
-/// <summary>Small round dot separator (.nsub .dot).</summary>
-public partial class Dot : Control
-{
-    public Dot() { CustomMinimumSize = new Vector2(3, 3); SizeFlagsVertical = SizeFlags.ShrinkCenter; MouseFilter = MouseFilterEnum.Ignore; }
-    public override void _Draw() => DrawCircle(new Vector2(1.5f, 1.5f), 1.5f, Pal.Mu2, true, -1, true);
 }

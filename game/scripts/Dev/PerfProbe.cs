@@ -3,13 +3,15 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using Godot;
 using PaxPixelia.Core;
+using PaxPixelia.Sim;
 
 namespace PaxPixelia.Dev;
 
 /// <summary>
 /// --perf: measures the real game with vsync off and prints a report, then quits.
 ///   generation time (per stage), frame times while panning at ×1 / ×3 / ×8 (avg, p95, p99, worst, fps),
-///   a fog-heavy phase (two auto scouts at speed 5), draw calls and memory (managed heap, Godot static, VRAM, process).
+///   a fog-heavy phase (two auto scouts at speed 5), draw calls and memory (managed heap, Godot static, VRAM, process),
+///   and a headless benchmark of the rules: µs per tick and per rules-cycle tick, worst tick, bytes allocated per tick.
 ///   --perf-seconds=N   seconds measured per phase (default 4)
 /// </summary>
 public partial class PerfProbe : Node
@@ -55,7 +57,8 @@ public partial class PerfProbe : Node
         await Seconds(1.5);   // loading fade, first chunk recording, glyph cache
         Memory("after start");
 
-        g.SetPaused(true);    // map-only phases: no years ticking
+        g.SetPaused(true);    // map-only phases: no ticks
+        SimBench(w);
         foreach (int level in new[] { 1, 3, 8 })
         {
             await ZoomTo(level);
@@ -67,7 +70,7 @@ public partial class PerfProbe : Node
         g.SetPaused(false);
         g.SetSpeed(5);
         g.SendScoutAuto(); g.SendScoutAuto();
-        await Measure("×3 scouts + years at speed 5", 0);
+        await Measure("×3 scouts + ticks at speed 5", 0);
         Memory("end");
         GetTree().Quit();
     }
@@ -100,6 +103,32 @@ public partial class PerfProbe : Node
         double avg = sum / sorted.Length;
         double P(double q) => sorted[Math.Min(sorted.Length - 1, (int)(q * sorted.Length))];
         GD.Print($"perf: {name,-30} frames={sorted.Length,5}  avg={avg,6:F2} ms ({1000 / avg,5:F0} fps)  p95={P(.95),6:F2}  p99={P(.99),6:F2}  worst={sorted[^1],6:F2} ms  draws≈{draws / Math.Max(1, samples):F0}{(panSpeed != 0 ? $"  panned {moved:F0} world px" : "")}");
+    }
+
+    /// <summary>The rules alone on a fresh copy of this world's game: 2 hours of play at speed 3, all nations bots.</summary>
+    static void SimBench(World.WorldData w)
+    {
+        var s = NationGen.CreateInitialState(w, Game.I.Nations);
+        Simulation.Begin(w, s);
+        for (int k = 0; k < 400; k++) Simulation.Step(w, s, null);   // warm-up (JIT, scratch buffers)
+        int ticks = (int)Clock.TicksFor(2 * 3600);
+        var times = new double[ticks];
+        long bytes0 = GC.GetAllocatedBytesForCurrentThread();
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        double cycleSum = 0; int cycles = 0;
+        for (int k = 0; k < ticks; k++)
+        {
+            bool cycle = Clock.IsCycleTick(s.Tick);
+            long t0 = System.Diagnostics.Stopwatch.GetTimestamp();
+            Simulation.Step(w, s, null);
+            times[k] = System.Diagnostics.Stopwatch.GetElapsedTime(t0).TotalMilliseconds * 1000;
+            if (cycle) { cycleSum += times[k]; cycles++; }
+        }
+        long bytes = GC.GetAllocatedBytesForCurrentThread() - bytes0;
+        Array.Sort(times);
+        GD.Print($"perf: sim {ticks} ticks (2 h at speed 3) in {sw.ElapsedMilliseconds} ms: avg {sw.Elapsed.TotalMilliseconds * 1000 / ticks:F1} µs/tick, " +
+                 $"cycle ticks avg {cycleSum / Math.Max(1, cycles):F0} µs, p99 {times[(int)(ticks * .99)]:F0} µs, worst {times[^1]:F0} µs, " +
+                 $"{bytes / ticks} B allocated per tick → {Calendar.Text(s.Date, true)}, leader era {Eras.Name(Science.LeaderEra(s))}");
     }
 
     /// <summary>Step to a zoom level and report the worst frame of the glides (overlays re-record after a zoom change).</summary>

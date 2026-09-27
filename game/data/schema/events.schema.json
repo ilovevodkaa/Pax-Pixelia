@@ -1,0 +1,132 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "events.schema.json",
+  "title": "Pax Pixelia — колода событий (game/data/events/*.json)",
+  "description": "Формат событий. Длительности в циклах (1 цикл = 0,5 с на скорости 3, 120 циклов ≈ условный год). Проверка смысла — tests/ContentTests (ContentCheck).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["events"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "title": { "type": "string", "description": "Что лежит в файле (для людей)" },
+    "events": { "type": "array", "items": { "$ref": "#/$defs/event" } }
+  },
+  "$defs": {
+    "text": { "type": "string", "minLength": 1, "maxLength": 180, "description": "До 180 символов, панчлайн в конце. Подстановки: {province} {capital} {foreign} {ruler} {nation} {year}, формы :gen :adj" },
+    "flags": { "type": "array", "items": { "type": "string", "pattern": "^[a-z0-9_.]+$" } },
+    "stats": {
+      "type": "object",
+      "propertyNames": { "enum": ["provinces", "population", "gold", "mood", "stability", "science", "culture", "metNations", "tradeRoutes", "caravans", "biggestCity", "unrest", "heirs", "foodPrice", "neighborMoodMin", "pollution", "peacefulness", "rulerAge"] },
+      "additionalProperties": { "type": "integer" }
+    },
+    "cond": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "years": { "type": "array", "items": { "type": "integer" }, "minItems": 2, "maxItems": 2, "description": "[с, по] календарные годы, до н. э. — отрицательные" },
+        "terrain": { "type": "array", "items": { "enum": ["coast", "river", "mountain", "hills", "steppe", "savanna", "plains", "desert", "forest", "jungle", "tundra", "swamp", "island", "lake"] }, "description": "Любая из земель; при subject province — выбирает саму провинцию" },
+        "flags": { "$ref": "#/$defs/flags", "description": "Все эти флаги стоят" },
+        "notFlags": { "$ref": "#/$defs/flags", "description": "Ни одного из этих флагов" },
+        "anyFlags": { "$ref": "#/$defs/flags", "description": "Хотя бы один из флагов" },
+        "min": { "$ref": "#/$defs/stats" },
+        "max": { "$ref": "#/$defs/stats" },
+        "buildings": { "type": "object", "additionalProperties": { "type": "integer", "minimum": 1 }, "description": "id здания → минимум штук в державе (список в core/deck.json)" },
+        "requires": { "type": "array", "items": { "type": "string" }, "description": "Системы, без которых событие не попадает в колоду (core/deck.json systems)" }
+      }
+    },
+    "effects": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "gold": { "type": "integer" },
+        "mood": { "type": "integer", "description": "Настроение во всех провинциях" },
+        "moodLocal": { "type": "integer", "description": "В провинции события (иначе в столице)" },
+        "moodCapital": { "type": "integer" },
+        "pop": { "type": "integer", "description": "Население державы, промилле (−60 = −6%)" },
+        "popLocal": { "type": "integer", "description": "Население провинции события, промилле" },
+        "stability": { "type": "integer" },
+        "science": { "type": "integer" },
+        "culture": { "type": "integer" },
+        "faith": { "type": "integer" },
+        "legacy": { "type": "integer" },
+        "food": { "type": "integer" },
+        "setFlags": { "$ref": "#/$defs/flags" },
+        "clearFlags": { "$ref": "#/$defs/flags" },
+        "axes": { "type": "object", "additionalProperties": { "type": "integer" }, "description": "Шкалы характера: agrarian mercantile traditional innovative closed open pious secular communal free" },
+        "modifiers": {
+          "type": "array",
+          "items": {
+            "type": "object", "additionalProperties": false, "required": ["id"],
+            "properties": {
+              "id": { "type": "string" },
+              "permille": { "type": "integer" },
+              "cycles": { "type": "integer", "minimum": 0, "description": "0 = навсегда / мгновенно" },
+              "local": { "type": "boolean" }
+            }
+          }
+        },
+        "trait": { "type": "string", "description": "Черта правителя из core/leader_traits.json" },
+        "followUp": {
+          "type": "object", "additionalProperties": false, "required": ["event", "after"],
+          "properties": { "event": { "type": "string" }, "after": { "type": "integer", "minimum": 1 } }
+        }
+      }
+    },
+    "option": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["text"],
+      "properties": {
+        "text": { "$ref": "#/$defs/text" },
+        "result": { "$ref": "#/$defs/text" },
+        "ai": { "type": "integer", "minimum": 1, "description": "Вес для бота; по умолчанию 50 / 30 / 20 по порядку" },
+        "when": { "$ref": "#/$defs/cond", "description": "Скрытый вариант: показывается, только если условие выполнено. Вариант 1 — всегда" },
+        "effects": { "$ref": "#/$defs/effects" },
+        "roll": {
+          "type": "array", "minItems": 2,
+          "items": {
+            "type": "object", "additionalProperties": false, "required": ["permille", "result"],
+            "properties": {
+              "permille": { "type": "integer", "minimum": 1, "maximum": 999 },
+              "result": { "$ref": "#/$defs/text" },
+              "effects": { "$ref": "#/$defs/effects" }
+            }
+          }
+        }
+      }
+    },
+    "event": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "title", "text"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+        "kind": { "enum": ["chronicle", "choice", "world"], "default": "chronicle" },
+        "tone": { "enum": ["serious", "joke"], "default": "serious" },
+        "eras": { "type": "array", "items": { "type": "integer", "minimum": 0, "maximum": 10 }, "minItems": 2, "maxItems": 2 },
+        "weight": { "type": "integer", "minimum": 1, "default": 100, "description": "Обычное событие 100, пасхалка 30–60" },
+        "cooldown": { "type": "integer", "minimum": 0, "description": "Циклов до повтора; 0 = по умолчанию колоды" },
+        "once": { "type": "boolean" },
+        "followUpOnly": { "type": "boolean", "description": "Только как продолжение (followUp) или через Force" },
+        "trigger": { "type": "boolean", "description": "Срабатывает сразу, как выполнены условия" },
+        "thread": { "type": "string", "description": "Нить памяти" },
+        "stage": { "type": "integer", "minimum": 1 },
+        "subject": { "enum": ["none", "province", "capital", "foreign"] },
+        "when": { "$ref": "#/$defs/cond" },
+        "boost": {
+          "type": "array",
+          "items": { "type": "object", "additionalProperties": false, "required": ["flag"], "properties": { "flag": { "type": "string" }, "percent": { "type": "integer", "minimum": 1 } } }
+        },
+        "icon": { "type": "string" },
+        "title": { "type": "string", "minLength": 1, "maxLength": 40 },
+        "text": { "$ref": "#/$defs/text" },
+        "lore": { "$ref": "#/$defs/text", "description": "Справка летописца: год, место, факт (обязательна у шуток)" },
+        "localizable": { "type": "boolean", "default": true },
+        "importance": { "type": "integer", "minimum": 0, "maximum": 3 },
+        "effects": { "$ref": "#/$defs/effects" },
+        "result": { "$ref": "#/$defs/text" },
+        "options": { "type": "array", "minItems": 2, "maxItems": 3, "items": { "$ref": "#/$defs/option" } }
+      }
+    }
+  }
+}

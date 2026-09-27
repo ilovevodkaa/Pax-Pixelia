@@ -5,8 +5,8 @@ using PaxPixelia.Sim;
 namespace PaxPixelia.UI;
 
 /// <summary>
-/// #lead — leaderboard dropping from the trophy button with a notch. Only nations the player has met are listed
-/// (GDD 9.2); the rest are summarised in one muted row.
+/// Leaderboard card dropping from the trophy button with a stepped pixel notch. Only nations the player has met are
+/// listed (GDD 9.2); the rest are summarised in one muted row.
 /// </summary>
 public partial class Leaderboard : Control
 {
@@ -21,11 +21,13 @@ public partial class Leaderboard : Control
     {
         Visible = false;
         MouseFilter = MouseFilterEnum.Ignore;
-        var head = Ui.Panel(St.Header().Pad(14, 11, 14, 9), Ui.HBox(8, Ui.Text("Таблица лидеров", "LeadTitle"), Ui.Expand(), _met));
+        var title = Ui.Text("Таблица лидеров", "LeadTitle");
+        title.Uppercase = true;
+        var head = Ui.Panel(St.Header(36).Pad(14, 11, 14, 10), Ui.HBox(8, Ui.Icon("trophy", 1, Pal.Ac), title, Ui.Expand(), _met));
         _scroll = new ScrollContainer { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, MouseFilter = MouseFilterEnum.Pass };
         _rows.SizeFlagsHorizontal = SizeFlags.ExpandFill;
         _scroll.AddChild(Ui.Margin(_rows, 0, 4, 0, 6).Grow());
-        _card = Ui.Panel(St.Card().Pad(1), Ui.VBox(0, head, _scroll), MouseFilterEnum.Stop);
+        _card = Ui.Panel(St.Card().Pad(2), Ui.VBox(0, head, _scroll), MouseFilterEnum.Stop);
         _card.CustomMinimumSize = new Vector2(CardWidth, 0);
         AddChild(_card);
         AddChild(_notch);
@@ -42,8 +44,8 @@ public partial class Leaderboard : Control
     public void Place(Rect2 trophy, Vector2 screen)
     {
         float lx = Mathf.Max(8, Mathf.Min(screen.X - CardWidth - 10, trophy.Position.X - 140));
-        Position = new Vector2(Mathf.Round(lx), TopBar.Height + 9);
-        _notch.Position = new Vector2(Mathf.Round(trophy.Position.X + trophy.Size.X / 2 - lx) - 9, -8);
+        Position = new Vector2(Mathf.Round(lx), TopBar.Height + 12);
+        _notch.Position = new Vector2(Mathf.Round(trophy.Position.X + trophy.Size.X / 2 - lx) - Notch.W / 2, -Notch.H + 2);
         float maxRows = screen.Y - 140 - 44;
         float content = _rows.GetParent<Control>().GetCombinedMinimumSize().Y;
         _scroll.CustomMinimumSize = new Vector2(0, Mathf.Min(content, maxRows));
@@ -63,14 +65,14 @@ public partial class Leaderboard : Control
         if (unk > 0)
         {
             string text = $"Ещё {unk} {Fmt.Plural(unk, "держава не встречена", "державы не встречены", "держав не встречены")}";
-            var r = Ui.Margin(Ui.HBox(7, Ui.Icon("help-hexagon", 15, Pal.Mu), Ui.Text(text, "SmallMu")), 14, 6, 14, 7);
+            var r = Ui.Margin(Ui.HBox(8, Ui.Icon("help-hexagon", 1, Pal.Mu), Ui.Text(text, "SmallMu")), 14, 8, 14, 8);
             r.Tip("Неизвестные державы", "Отправьте разведчиков: державы появятся в таблице после встречи.");
             r.MouseFilter = MouseFilterEnum.Pass;
             _rows.AddChild(r);
         }
     }
 
-    /// <summary>.lr — rank · colour · name · score, thin share bar underneath; the player's row is highlighted.</summary>
+    /// <summary>A row: rank · colour · name · score, a 2px share bar underneath; the player's row is lifted with the accent bar.</summary>
     sealed partial class Row : PanelContainer
     {
         readonly float _share;
@@ -82,12 +84,12 @@ public partial class Leaderboard : Control
             _share = share;
             _me = nation == GameState.LocalPlayer;
             MouseFilter = MouseFilterEnum.Pass;
-            var box = new Box().Border(Pal.Ln, 0, 0, 0, last ? 0 : 1).Pad(14, 5, 14, 7);
-            if (_me) box.Fill(Pal.Hex(0xeceef1));
+            var box = new Box().Border(Pal.Ln, 0, 0, 0, last ? 0 : 2).Pad(14, 6, 14, 9);
+            if (_me) box.Fill(Pal.Surface).AccentLeft(Pal.Ac, 4);
             AddThemeStyleboxOverride("panel", box);
             var rk = Ui.Text(rank.ToString(), "SmallMu").MinSize(22, 0);
             rk.HorizontalAlignment = HorizontalAlignment.Right;
-            var n = Data.Nations[nation];
+            var n = Game.I.Nations[nation];
             var name = Ui.HBox(0, Ui.Text(n.Name, _me ? "Semi" : null), _me ? Ui.Text(" · вы", "Mu") : null);
             AddChild(Ui.HBox(8, rk, new Swatch(Pal.Nation(nation), 12), name.Grow(), Ui.Text(score.ToString(), "Semi")));
             this.Tip(t => t.Title(n.Name).Line($"{n.Gov} · {n.CultureAdj} культура").Kv("Очки", score.ToString()));
@@ -95,33 +97,32 @@ public partial class Leaderboard : Control
 
         public override void _Draw()
         {
-            float x0 = 56, x1 = Size.X - 14, y = Size.Y - 4;
-            DrawRect(new Rect2(x0, y, x1 - x0, 2), Pal.IbHover);
-            DrawRect(new Rect2(x0, y, Mathf.Round((x1 - x0) * _share), 2), _me ? Pal.Ac : Pal.Hex(0xa9b0b7));
-            if (_me) DrawRect(new Rect2(0, 0, 3, Size.Y), Pal.G2);
+            float x0 = 58, x1 = Size.X - 14, y = Size.Y - 6;
+            DrawRect(new Rect2(x0, y, x1 - x0, 2), Pal.Ln);
+            DrawRect(new Rect2(x0, y, Mathf.Round((x1 - x0) * _share), 2), _me ? Pal.Hi : Pal.Ln3);
         }
     }
 
-    /// <summary>The rotated-square notch pointing at the trophy (#lead::after).</summary>
+    /// <summary>Stepped pixel notch pointing at the trophy: 2px stairs of frame colour around the card fill.</summary>
     sealed partial class Notch : Control
     {
-        readonly Vector2[] _tri = new Vector2[3];
-        readonly Color[] _fill = { Pal.Hd1, Pal.Hd1, Pal.Hd1 };
-        readonly Vector2[] _edge = new Vector2[3];
+        public const int W = 20, H = 12;
 
         public Notch()
         {
             MouseFilter = MouseFilterEnum.Ignore;
-            Size = new Vector2(18, 10);
+            Size = new Vector2(W, H);
         }
 
         public override void _Draw()
         {
-            _tri[0] = new Vector2(1, 9); _tri[1] = new Vector2(9, 1); _tri[2] = new Vector2(17, 9);
-            DrawPolygon(_tri, _fill);
-            _edge[0] = new Vector2(1.5f, 8.5f); _edge[1] = new Vector2(9, 1); _edge[2] = new Vector2(16.5f, 8.5f);
-            DrawPolyline(_edge, Pal.Ln2, 1, true);
-            DrawRect(new Rect2(2, 8, 14, 2), Pal.Hd1);
+            // rows of 2px from the tip down; each row is frame | fill | frame, the last row merges into the card's top frame
+            for (int i = 0; i < H / 2; i++)
+            {
+                float half = 2 + i * 2, y = i * 2;
+                DrawRect(new Rect2(W / 2f - half, y, half * 2, 2), Pal.Ln2);
+                if (half > 2) DrawRect(new Rect2(W / 2f - half + 2, y, half * 2 - 4, 2), Pal.Hex(0x1f1f23));
+            }
         }
     }
 }

@@ -255,10 +255,10 @@ public partial class QaTest : Node
             int mk = Array.FindIndex(Simulation.Projects, pr => pr.Building == Bld.Market);
             s.Buildings[cap].Remove(Bld.Market);
             if (s.Buildings[cap].Count >= s.Slots[cap]) s.Slots[cap]++;
-            s.ProjectIndex = mk; s.QueueName = Simulation.Projects[mk].Name; s.QueuePct = 99;
+            s.ProjectIndex = mk; s.QueuePct = 99;
             G.Build(cap, Bld.Market);
             int notes0 = _notes.Count;
-            Simulation.YearTick(G);
+            G.RunTicks(Clock.CycleTicks);
             await Frames(2);
             bool lie = _notes.Skip(notes0).Any(n => n.text == Simulation.Projects[mk].DoneText);
             int markets = s.Buildings[cap].Count(b => b == Bld.Market);
@@ -277,13 +277,11 @@ public partial class QaTest : Node
     {
         var s = G.State;
         G.SetPaused(true);
-        int y0 = s.Year;
-        s.Year = -2;
         var years = new List<int>();
-        for (int i = 0; i < 3; i++) { Simulation.YearTick(G); years.Add(s.Year); }
-        Check("calendar: −2 → −1 → 1 → 2 (no year zero)", string.Join(",", years) == "-1,1,2", string.Join(",", years));
-        Info("year text", $"{GameState.YearText(-1)} | {GameState.YearText(1)}");
-        s.Year = y0;
+        foreach (int y in new[] { -2, -1, 1, 2 }) years.Add(Calendar.DateOf(Calendar.DayOfYear(y)).Year);
+        years.Add(Calendar.DateOf(Calendar.DayOfYear(1) - Calendar.DayUnit).Year);
+        Check("calendar: −2 → −1 → 1 → 2, the day before 1 н. э. is in 1 до н. э. (no year zero)", string.Join(",", years) == "-2,-1,1,2,-1", string.Join(",", years));
+        Info("date text", $"{G.DateText} | {GameState.YearText(-1)} | {GameState.YearText(1)}");
 
         G.SetPaused(false);
         foreach (var (k, want) in new[] { (Key.Kp3, 3), (Key.Key1, 1), (Key.Kp5, 5), (Key.Key2, 2) })
@@ -304,17 +302,17 @@ public partial class QaTest : Node
         // speed while paused
         G.SetPaused(true);
         PressKey(Key.Key4); await Frames(3);
-        int y1 = s.Year;
+        long y1 = s.Tick;
         await Seconds(.6);
-        Check("speed key while paused keeps the pause", s.Paused && s.Year == y1 && s.Speed == 4);
+        Check("speed key while paused keeps the pause", s.Paused && s.Tick == y1 && s.Speed == 4);
         G.SetPaused(false);
 
         // speed 5 rate and speed 1 rate
-        G.SetSpeed(1); y1 = s.Year; await Seconds(2.05);
-        int r1 = s.Year - y1;
-        G.SetSpeed(5); y1 = s.Year; await Seconds(2.05);
-        int r5 = s.Year - y1;
-        Check("speed 1 ≈ 0.5 y/s and speed 5 ≈ 10 y/s", r1 >= 1 && r1 <= 2 && r5 >= 18 && r5 <= 22, $"speed1 {r1} y / 2 s, speed5 {r5} y / 2 s");
+        G.SetSpeed(1); y1 = s.Tick; await Seconds(2.05);
+        long r1 = s.Tick - y1;
+        G.SetSpeed(5); y1 = s.Tick; await Seconds(2.05);
+        long r5 = s.Tick - y1;
+        Check("speed 1 = 2 ticks/s and speed 5 = 40 ticks/s", r1 >= 3 && r1 <= 5 && r5 >= 72 && r5 <= 84, $"speed1 {r1} ticks / 2 s, speed5 {r5} ticks / 2 s");
         G.SetSpeed(2);
     }
 
@@ -335,7 +333,7 @@ public partial class QaTest : Node
         Check("scout → capital refused, still targeting", G.IsTargeting && s.Scouts.Count == 0 && ErrorSince(t0, "столице"), ToastsSince(t0));
         int island = First(q => w.PLand[q] == 1 && s.Fog[q] == 0 && !w.SameBody(q, cap));
         t0 = _toasts.Count; G.SendScout(island);
-        Check("scout → unexplored island refused (Far), still targeting", island >= 0 && G.IsTargeting && s.Scouts.Count == 0 && ErrorSince(t0, "добраться"), ToastsSince(t0));
+        Check("scout → unexplored island refused without revealing why, still targeting", island >= 0 && G.IsTargeting && s.Scouts.Count == 0 && ErrorSince(t0, "не нашли туда пути"), ToastsSince(t0));
         int islandKnown = First(q => w.PLand[q] == 1 && s.Fog[q] != 0 && !w.SameBody(q, cap));
         if (islandKnown >= 0)
         {
@@ -379,10 +377,10 @@ public partial class QaTest : Node
         G.SetPaused(true);
         await Frames(2);
         var snap = s.Scouts.Select(x => (x.Step, x.Sub, x.Path.Length)).ToList();
-        int y0 = s.Year;
+        long y0 = s.Tick;
         await Seconds(1.2);
         var snap2 = s.Scouts.Select(x => (x.Step, x.Sub, x.Path.Length)).ToList();
-        Check("pause freezes scouts and years", snap.SequenceEqual(snap2) && s.Year == y0, $"{string.Join(";", snap)} → {string.Join(";", snap2)}");
+        Check("pause freezes scouts and the clock", snap.SequenceEqual(snap2) && s.Tick == y0, $"{string.Join(";", snap)} → {string.Join(";", snap2)}");
         await Shot("scouts_paused");
         G.SetPaused(false);
 
@@ -393,7 +391,7 @@ public partial class QaTest : Node
         G.SetSpeed(5);
         st0 = s.Scouts.Sum(x => x.Steps); await Seconds(2);
         int r5 = s.Scouts.Sum(x => x.Steps) - st0;
-        Info("scout steps in 2 s (2 parties)", $"speed1={r1} speed5={r5} (expect ≈3.3 and ≈26)");
+        Info("scout steps in 2 s (2 parties)", $"speed1={r1} speed5={r5} (expect ≈3.2 and ≈64)");
         G.SetSpeed(2);
 
         // observer toggles while walking
@@ -437,31 +435,33 @@ public partial class QaTest : Node
         Check("auto scout with nothing left refused", !ok && ErrorSince(t0, "не осталось"), ToastsSince(t0));
         Array.Copy(ex, s.Explored, ex.Length);
 
-        // frame-rate dependence of scouts: Advance(n) vs n × Advance(1)
+        // frame-rate dependence of scouts: the same real time at 30, 60 and 144 fps
         ScoutBatching();
     }
 
     void ScoutBatching()
     {
         var w = G.World;
-        string Run(int chunk, int offset)
+        string Run(int fps, int offset)
         {
             var st = NationGen.CreateInitialState(w);
             Simulation.Begin(w, st);
-            Scouts.Send(w, st, -1, null, out _);
-            Scouts.Advance(w, st, offset, null);
-            Scouts.Send(w, st, -1, null, out _);
-            int total = 40 * 60;
-            for (int done = 0; done < total; done += chunk) Scouts.Advance(w, st, Math.Min(chunk, total - done), null);
+            Scouts.Send(w, st, 0, -1, null, out _);
+            for (int k = 0; k < offset; k++) Scouts.Tick(w, st, null);
+            Scouts.Send(w, st, 0, -1, null, out _);
+            var pump = new TickPump();
+            long frame = TickPump.MicrosPerSecond / fps, left = 60 * TickPump.MicrosPerSecond;
+            for (; left > 0; left -= frame)
+                for (int n = pump.Advance(Math.Min(frame, left), Clock.TicksPerSecond[3]); n > 0; n--) Scouts.Tick(w, st, null);
             var h = new Hash();
             foreach (var e in st.Explored) h.Add(e ? 1 : 0);
             foreach (var sc in st.Scouts) { h.Add(sc.Step); h.Add(sc.Sub); foreach (var q in sc.Path) h.Add(q); }
             return $"{h.Value:X16} explored={st.Explored.Count(e => e)} scouts={st.Scouts.Count}";
         }
-        foreach (int off in new[] { 7, 39 })
+        foreach (int off in new[] { 1, 3 })
         {
-            string a = Run(1, off), b = Run(8, off), c = Run(26, off);
-            Check($"scouts reproducible regardless of frame batching (offset {off})", a == b && b == c, $"n=1 {a} | n=8 {b} | n=26 {c}");
+            string a = Run(30, off), b = Run(60, off), c = Run(144, off);
+            Check($"scouts reproducible at any frame rate (offset {off})", a == b && b == c, $"30 fps {a} | 60 fps {b} | 144 fps {c}");
         }
     }
 
@@ -505,7 +505,7 @@ public partial class QaTest : Node
         Check("zoom clamps at ×8", G.ZoomLevel == 8 && Math.Abs(Map.View.Zoom - 8) < 1e-4);
         for (int i = 0; i < 20; i++) { G.RequestZoom(-1); }
         await Seconds(.5);
-        Check("zoom clamps at ×1", G.ZoomLevel == 1 && Math.Abs(Map.View.Zoom - 1) < 1e-4);
+        Check("zoom clamps at ×½ (the atlas level)", G.ZoomLevel == 0 && Math.Abs(Map.View.Zoom - .5f) < 1e-4, $"level {G.ZoomLevel}, view {Map.View.Zoom}");
 
         // seam jumps
         G.SetFogEnabled(false);
@@ -576,7 +576,8 @@ public partial class QaTest : Node
             await ZoomTo(lv);
             G.JumpCamera(new Vector2(500, -5000)); await Seconds(.5);
             var r = G.CameraRect;
-            Check($"top clamp at ×{lv}", r.Position.Y > -60 / (float)lv && r.Position.Y < 60, $"rect {r}");
+            // the camera may show up to ~94 screen px above the map so its top edge clears the top bar
+            Check($"top clamp at ×{lv}", r.Position.Y > -100 / (float)lv && r.Position.Y < 60, $"rect {r}");
             G.JumpCamera(new Vector2(500, 99999)); await Seconds(.5);
             r = G.CameraRect;
             Check($"bottom clamp at ×{lv}", r.End.Y < w.H + 60 && r.End.Y > w.H - 60, $"rect {r}");
@@ -819,7 +820,7 @@ public partial class QaTest : Node
         var staleOwner = new Dictionary<int, int>();
         for (int p = 0; p < w.P; p++) if (s.Fog[p] == 1 && w.PLand[p] == 1) staleOwner[p] = s.Owner[p];
         var rec = new Recorder();
-        for (int y = 0; y < 300; y++) Simulation.Year(w, s, rec);
+        for (int y = 0; y < 300 * Clock.CycleTicks; y++) Simulation.Step(w, s, rec);
         int changed = staleOwner.Count(kv => s.Fog[kv.Key] == 1 && s.Owner[kv.Key] != kv.Value);
         int metNotes = rec.Notes.Count(n => n.icon == "affiliate");
         Info("stale provinces whose owner changed while stale (visible on the map / tooltip / panel)", $"{changed} of {staleOwner.Count}; «Встречена новая держава» notes: {metNotes}");
@@ -850,7 +851,7 @@ public partial class QaTest : Node
         var w = G.World; var s = G.State;
         ulong wh = HashWorld(w), ih = HashState(s);
         var rec = new Recorder();
-        for (int y = 0; y < years; y++) Simulation.Year(w, s, rec);
+        for (int y = 0; y < years * Clock.CycleTicks; y++) Simulation.Step(w, s, rec);
         var eh = new Hash(); foreach (var (i, t) in rec.Notes) { eh.Add(i); eh.Add(t); }
         ulong fh = HashState(s);
         G.SetPaused(false);
@@ -881,9 +882,9 @@ public partial class QaTest : Node
     static ulong HashState(GameState s)
     {
         var h = new Hash();
-        h.Add(s.Year); h.Add(BitConverter.DoubleToInt64Bits(s.Gold)); h.Add(s.EventCount); h.Add(s.ProjectIndex); h.Add(s.QueuePct);
+        h.Add(s.Tick); h.Add(s.Day256); h.Add(BitConverter.DoubleToInt64Bits(s.Gold)); h.Add(s.EventCount); h.Add(s.ProjectIndex); h.Add(s.QueuePct);
         foreach (var v in s.Owner) h.Add(v);
-        foreach (var v in s.Pop) h.Add(BitConverter.SingleToInt32Bits(v));
+        foreach (var v in s.Pop) h.Add(v);
         foreach (var v in s.Religion) h.Add(v);
         foreach (var v in s.Mood) h.Add(v);
         foreach (var v in s.Slots) h.Add(v);
@@ -920,7 +921,7 @@ public partial class QaTest : Node
         for (int k = 0; k < years; k += 25)
         {
             var bsw = System.Diagnostics.Stopwatch.StartNew();
-            for (int j = 0; j < 25; j++) Simulation.YearTick(G);
+            G.RunTicks(25 * Clock.CycleTicks);
             worstBatch = Math.Max(worstBatch, bsw.Elapsed.TotalMilliseconds);
             await Frames(1);
             if (k % 250 == 0)
@@ -960,7 +961,7 @@ public partial class QaTest : Node
         {
             if (w.PLand[p] == 1 && (float.IsNaN(s.Pop[p]) || float.IsInfinity(s.Pop[p]) || s.Pop[p] < 0)) return $"pop[{p}]={s.Pop[p]}";
             if (s.Mood[p] > 100) return $"mood[{p}]={s.Mood[p]}";
-            if (s.Owner[p] >= Data.Nations.Length) return $"owner[{p}]={s.Owner[p]}";
+            if (s.Owner[p] >= s.Nations.Length) return $"owner[{p}]={s.Owner[p]}";
             if (s.Owner[p] >= 0 && w.PLand[p] != 1) return $"sea owned {p}";
             if (s.Buildings[p].Count > s.Slots[p]) return $"buildings {s.Buildings[p].Count} > slots {s.Slots[p]} in {p}";
             if (s.Buildings[p].Distinct().Count() != s.Buildings[p].Count) return $"duplicate building in {p}";
@@ -1047,7 +1048,7 @@ public partial class QaTest : Node
         // capital queue repeats walls and roads forever
         G.SetPaused(true);
         var rec = new Recorder();
-        for (int y = 0; y < 400; y++) Simulation.Year(w, s, rec);
+        for (int y = 0; y < 400 * Clock.CycleTicks; y++) Simulation.Step(w, s, rec);
         var walls = rec.Notes.Count(x => x.text == Simulation.Projects[1].DoneText);
         var roads = rec.Notes.Count(x => x.text == Simulation.Projects[4].DoneText);
         Info("capital projects over 400 years", $"walls built {walls}×, road paved {roads}× ; all notes: {rec.Notes.Count(x => x.icon == "hammer")} hammer");
@@ -1153,14 +1154,14 @@ public partial class QaTest : Node
         // explore a lot with two auto parties (pure sim, no real time)
         for (int round = 0; round < 3; round++)
         {
-            Scouts.Send(w, s, -1, G, out _); Scouts.Send(w, s, -1, G, out _);
-            for (int i = 0; i < 400 && s.Scouts.Count > 0; i++) Scouts.Advance(w, s, 40, G);
+            Scouts.Send(w, s, 0, -1, G, out _); Scouts.Send(w, s, 0, -1, G, out _);
+            for (int i = 0; i < 1000 && s.Scouts.Count > 0; i++) Scouts.Tick(w, s, G);
         }
         var snap = new Dictionary<int, int>();
         for (int p = 0; p < w.P; p++) if (s.Fog[p] == 1 && w.PLand[p] == 1) snap[p] = s.Owner[p];
         int metBefore = s.Met.Count(m => m);
         var rec = new Recorder();
-        for (int y = 0; y < 600; y++) Simulation.Year(w, s, rec);
+        for (int y = 0; y < 600 * Clock.CycleTicks; y++) Simulation.Step(w, s, rec);
         var changed = snap.Where(kv => s.Fog[kv.Key] == 1 && s.Owner[kv.Key] != kv.Value).Select(kv => kv.Key).ToList();
         int metAfter = s.Met.Count(m => m);
         var metNotes = rec.Notes.Where(n => n.icon == "affiliate").Select(n => n.text).ToList();
@@ -1177,7 +1178,7 @@ public partial class QaTest : Node
             Hud.FakeMouse = ScreenOf(p);
             await Seconds(.3);
             await Shot("stale_owner_changed");
-            Info("stale example", $"{w.PName[p]}: was {(snap[p] < 0 ? "ничья" : Data.Nations[snap[p]].Name)}, now shown as {Data.Nations[s.Owner[p]].Name}");
+            Info("stale example", $"{w.PName[p]}: was {(snap[p] < 0 ? "ничья" : s.Nations[snap[p]].Name)}, now shown as {s.Nations[s.Owner[p]].Name}");
             Hud.FakeMouse = null;
         }
         G.SetPaused(false);
@@ -1227,13 +1228,13 @@ public partial class QaTest : Node
 
     // ------------------------------------------------------------------ helpers
 
-    /// <summary>Unpause until one real year ticks through Game._Process (raises YearTick), then pause again.</summary>
+    /// <summary>Unpause until one rules cycle ticks through Game._Process (raises CycleTick), then pause again.</summary>
     async Task RealYear()
     {
-        int y = G.State.Year; bool was = G.State.Paused;
+        long y = G.State.Tick + Clock.CycleTicks; bool was = G.State.Paused;
         G.SetPaused(false);
         var t = Time.GetTicksMsec();
-        while (G.State.Year == y && Time.GetTicksMsec() - t < 5000) await Frames(1);
+        while (G.State.Tick < y && Time.GetTicksMsec() - t < 5000) await Frames(1);
         G.SetPaused(was);
     }
 

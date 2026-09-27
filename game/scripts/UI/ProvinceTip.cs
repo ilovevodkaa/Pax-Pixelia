@@ -18,7 +18,7 @@ public partial class ProvinceTipView : VBoxContainer
     readonly Label _unit = Ui.Text("чел.", "Mu");
     readonly Control _stale;
     readonly Control _pick;
-    readonly TextureRect _pickIcon = Ui.Icon("map-pin", 15);
+    readonly TextureRect _pickIcon = Ui.Icon("map-pin", 1, Pal.Ac);
     readonly Label _pickText = Ui.Text("", "Strong");
 
     public ProvinceTipView()
@@ -26,17 +26,17 @@ public partial class ProvinceTipView : VBoxContainer
         MouseFilter = MouseFilterEnum.Ignore;
         AddThemeConstantOverride("separation", 0);
         AddChild(_title);
-        AddChild(Ui.Gap(0, 2));
+        AddChild(Ui.Gap(0, 4));
         AddChild(_sub);
-        _row = Ui.VBox(0, Ui.Gap(0, 6), Ui.Rule(Pal.Ln, 0, 1), Ui.Gap(0, 6),
+        _row = Ui.VBox(0, Ui.Gap(0, 7), new HairLine(Pal.Ln2), Ui.Gap(0, 7),
             Ui.HBox(16, Ui.HBox(6, _swatch, _owner).Grow(), Ui.HBox(4, _pop, _unit)));
         AddChild(_row);
-        var chip = Ui.Panel(St.Stale().Pad(5, 0, 7, 0), Ui.HBox(5, Ui.Icon("history", 13, Pal.Mu), Ui.Cap("Сведения устарели").Sized(10)));
-        chip.CustomMinimumSize = new Vector2(0, 20);
+        var chip = Ui.Panel(St.Stale().Pad(5, 0, 7, 0), Ui.HBox(5, Ui.Icon("history", 1, Pal.Mu), Ui.Cap("Сведения устарели")));
+        chip.CustomMinimumSize = new Vector2(0, 22);
         chip.SizeFlagsHorizontal = SizeFlags.ShrinkBegin;
         _stale = Ui.VBox(0, Ui.Gap(0, 8), chip);
         AddChild(_stale);
-        _pick = Ui.VBox(0, Ui.Gap(0, 7), Ui.Rule(Pal.Ln, 0, 1), Ui.Gap(0, 6), Ui.HBox(6, _pickIcon, _pickText));
+        _pick = Ui.VBox(0, Ui.Gap(0, 7), new HairLine(Pal.Ln2), Ui.Gap(0, 7), Ui.HBox(6, _pickIcon, _pickText));
         AddChild(_pick);
     }
 
@@ -54,10 +54,10 @@ public partial class ProvinceTipView : VBoxContainer
         {
             // under the clouds even land and sea are unknown: every unexplored province looks like a valid pick
             bool ok = land || f == 0;
-            _pickIcon.Texture = Icons.Get(ok ? "map-pin" : "ban", 15);
-            _pickIcon.SelfModulate = ok ? Pal.Tx2 : Pal.Bad;
+            _pickIcon.Texture = Icons.Get(ok ? "map-pin" : "ban");
+            _pickIcon.SelfModulate = ok ? Pal.Ac : Pal.Bad;
             _pickText.Text = ok ? "Отправить разведчиков сюда" : "Разведчики ходят только по суше";
-            _pickText.Colored(ok ? Pal.Tx : Pal.Bad);
+            _pickText.Colored(ok ? Pal.Hi : Pal.Bad);
         }
 
         if (f == 0)
@@ -78,9 +78,9 @@ public partial class ProvinceTipView : VBoxContainer
         int o = s.VisibleOwner(p);
         _row.Visible = true;
         _swatch.Color = o >= 0 ? Pal.Nation(o) : Pal.Unowned;
-        _owner.Text = o >= 0 ? Data.Nations[o].Name : "Ничья земля";
+        _owner.Text = o >= 0 ? g.Nations[o].Name : "Ничья земля";
         bool stale = f == 1;
-        _pop.Text = stale ? "население неизвестно" : "~" + Fmt.Int(s.Pop[p]);
+        _pop.Text = stale ? "население неизвестно" : "≈" + Fmt.Int(s.Pop[p]);
         _pop.ThemeTypeVariation = stale ? "Mu" : "Semi";
         _unit.Visible = !stale;
         return true;

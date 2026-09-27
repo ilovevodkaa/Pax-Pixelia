@@ -24,12 +24,13 @@ public static class Ui
     public static Label Sized(this Label l, int size) { l.AddThemeFontSizeOverride("font_size", size); return l; }
     public static Label Spacing(this Label l, int lineSpacing) { l.AddThemeConstantOverride("line_spacing", lineSpacing); return l; }
 
-    public static TextureRect Icon(string name, int size, Color? tint = null) => new()
+    /// <summary>Pixel icon at scale 1 (13 px) or 2 (26 px), tinted.</summary>
+    public static TextureRect Icon(string name, int scale = 1, Color? tint = null, bool shadow = true) => new()
     {
-        Texture = Icons.Get(name, size),
+        Texture = Icons.Get(name, scale, shadow),
         StretchMode = TextureRect.StretchModeEnum.KeepCentered,
-        CustomMinimumSize = new Vector2(size, size),
-        SelfModulate = tint ?? Pal.Tx2,
+        CustomMinimumSize = new Vector2(Icons.Size(scale, shadow), Icons.Size(scale, shadow)),
+        SelfModulate = tint ?? Pal.Sec,
         MouseFilter = Control.MouseFilterEnum.Ignore,
         SizeFlagsVertical = Control.SizeFlags.ShrinkCenter,
     };
@@ -38,17 +39,18 @@ public static class Ui
     /// A themed button. With both icon and text it is a <see cref="TextButton"/> (icon and text centred together,
     /// like the CSS inline-flex buttons); icon-only buttons use Godot's own centred icon.
     /// </summary>
-    public static Button Button(string text, string icon = null, string skin = null, Action onPress = null, int iconSize = 16, int height = 30)
+    public static Button Button(string text, string icon = null, string skin = null, Action onPress = null, int iconScale = 1, int height = 30)
     {
         bool composite = icon != null && !string.IsNullOrEmpty(text);
-        var b = composite ? new TextButton(text, Icons.Get(icon, iconSize)) : new Button { Text = text ?? "" };
+        var b = composite ? new TextButton(text, Icons.Get(icon, iconScale)) : new Button { Text = text ?? "" };
         b.FocusMode = Control.FocusModeEnum.None;
         b.MouseFilter = Control.MouseFilterEnum.Pass;
         b.MouseDefaultCursorShape = Control.CursorShape.PointingHand;
         SetHeight(b, height);
         if (skin != null) b.ThemeTypeVariation = skin;
-        if (icon != null && !composite) b.Icon = Icons.Get(icon, iconSize);
+        if (icon != null && !composite) b.Icon = Icons.Get(icon, iconScale);
         if (onPress != null) b.Pressed += Deferred(onPress);
+        if (skin == "Pri") PixelKit.AddPressMotion(b);   // the kit's springy hover/press on the main actions only
         return b;
     }
 
@@ -59,9 +61,9 @@ public static class Ui
     /// </summary>
     public static Action Deferred(Action a) => () => Callable.From(a).CallDeferred();
 
-    public static Button IconButton(string icon, string skin, int w, int h, int iconSize, Action onPress = null)
+    public static Button IconButton(string icon, string skin, int w, int h, int iconScale, Action onPress = null)
     {
-        var b = Button(null, icon, skin, onPress, iconSize, h);
+        var b = Button(null, icon, skin, onPress, iconScale, h);
         b.CustomMinimumSize = new Vector2(w, h);
         b.IconAlignment = HorizontalAlignment.Center;
         return b;
@@ -72,11 +74,11 @@ public static class Ui
         if (b is TextButton tb) tb.MinHeight = h; else b.CustomMinimumSize = new Vector2(b.CustomMinimumSize.X, h);
     }
 
-    /// <summary>Disabled buttons fade to 50% like the CSS; the pointer cursor goes away too.</summary>
+    /// <summary>Disabled buttons take the theme's sunken «disabled» skin; the pointer cursor goes away too.</summary>
     public static void Enable(Button b, bool on)
     {
+        if (b.Disabled == !on) return;
         b.Disabled = !on;
-        b.Modulate = on ? Colors.White : new Color(1, 1, 1, .5f);
         b.MouseDefaultCursorShape = on ? Control.CursorShape.PointingHand : Control.CursorShape.Arrow;
     }
 
@@ -132,21 +134,16 @@ public static class Ui
     }
 }
 
-/// <summary>Square colour swatch with the 1px inner dark ring (.sw, .chip:before, .leg i, leaderboard squares).</summary>
+/// <summary>Square pixel colour swatch with a hard dark frame (legend squares, nation chips, leaderboard).</summary>
 public partial class Swatch : Control
 {
-    static readonly Color Ring = new(0, 0, 0, .28f);
-    readonly StyleBoxFlat _fill, _ring;
-    public Color Color { get => _fill.BgColor; set { _fill.BgColor = value; QueueRedraw(); } }
+    Color _color;
+    public Color Color { get => _color; set { if (_color == value) return; _color = value; QueueRedraw(); } }
 
     public Swatch() : this(Colors.Gray) { }
-    public Swatch(Color c, int size = 10, int radius = 2)
+    public Swatch(Color c, int size = 10)
     {
-        _fill = new StyleBoxFlat { BgColor = c, AntiAliasingSize = .5f };
-        _fill.SetCornerRadiusAll(radius);
-        _ring = new StyleBoxFlat { DrawCenter = false, BorderColor = Ring, AntiAliasingSize = .5f };
-        _ring.SetBorderWidthAll(1);
-        _ring.SetCornerRadiusAll(radius);
+        _color = c;
         CustomMinimumSize = new Vector2(size, size);
         SizeFlagsVertical = SizeFlags.ShrinkCenter;
         MouseFilter = MouseFilterEnum.Ignore;
@@ -154,9 +151,9 @@ public partial class Swatch : Control
 
     public override void _Draw()
     {
-        var r = new Rect2(Vector2.Zero, Size);
-        DrawStyleBox(_fill, r);
-        DrawStyleBox(_ring, r);
+        DrawRect(new Rect2(Vector2.Zero, Size), Pal.Ink);
+        DrawRect(new Rect2(2, 2, Size.X - 4, Size.Y - 4), _color);
+        DrawRect(new Rect2(2, 2, Size.X - 4, 2), _color.Lightened(.25f));   // lit top edge, as on the map sprites
     }
 }
 
@@ -208,10 +205,25 @@ public partial class TextButton : Button
     {
         _label.AddThemeFontOverride("font", GetThemeFont("font"));
         _label.AddThemeFontSizeOverride("font_size", GetThemeFontSize("font_size"));
-        _label.AddThemeColorOverride("font_color", GetThemeColor("font_color"));
-        _icon.SelfModulate = GetThemeColor("icon_normal_color");
+        SyncColors();
         Fit();
     }
+
+    /// <summary>Caption and icon follow the skin's hover / pressed / disabled colours like a native Button's text.</summary>
+    void SyncColors()
+    {
+        var (font, icon) = GetDrawMode() switch
+        {
+            DrawMode.Disabled => ("font_disabled_color", "icon_disabled_color"),
+            DrawMode.Hover => ("font_hover_color", "icon_hover_color"),
+            DrawMode.Pressed or DrawMode.HoverPressed => ("font_pressed_color", "icon_pressed_color"),
+            _ => ("font_color", "icon_normal_color"),
+        };
+        _label.AddThemeColorOverride("font_color", GetThemeColor(font));
+        _icon.SelfModulate = GetThemeColor(icon);
+    }
+
+    public override void _Draw() => SyncColors();
 
     /// <summary>Width from font metrics (child min-sizes are not reliable before the children enter the tree).</summary>
     float ContentWidth()

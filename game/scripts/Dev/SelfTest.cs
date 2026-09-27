@@ -29,7 +29,7 @@ public partial class SelfTest : Node
     readonly List<(string icon, string text)> _notes = new();
     readonly List<(string text, ToastKind kind)> _toasts = new();
     readonly List<IReadOnlyList<int>> _provChanges = new();
-    int _fogEvents, _worldReady;
+    int _fogEvents, _worldReady, _dateEvents;
 
     Game G => Game.I;
     Hud Hud => _main.Hud;
@@ -45,6 +45,7 @@ public partial class SelfTest : Node
         g.ProvincesChanged += ps => _provChanges.Add(ps);
         g.FogChanged += _ => _fogEvents++;
         g.WorldReady += () => _worldReady++;
+        g.DateChanged += () => _dateEvents++;
         if (_shots != null) DirAccess.MakeDirRecursiveAbsolute(_shots);
         Run();
     }
@@ -67,6 +68,8 @@ public partial class SelfTest : Node
             await TimeControl();
             await Observer();
             await LeaderboardFlow();
+            await EventChoiceFlow();
+            await PauseMenuFlow();
             await Regenerate();
             await SmallWindow();
         }
@@ -91,6 +94,9 @@ public partial class SelfTest : Node
         Check("boot: camera published", G.CameraRect.Size.X > 0 && G.ZoomLevel == 3, $"rect={G.CameraRect} zoom={G.ZoomLevel}");
         Check("boot: capital visible, some land explored", s.Fog[cap] == 2 && Explored() > 30, $"explored={Explored()}");
         Check("boot: the player's queue is not already built", !(Simulation.Projects[s.ProjectIndex].Building is Data.Bld b && s.Buildings[cap].Contains(b)), s.QueueName);
+        Check("boot: calendar starts in 4000 до н. э., month format", G.DateText.EndsWith("4000 до н. э.") && !char.IsDigit(G.DateText[0]), G.DateText);
+        Check("boot: era and science", G.EraName == Eras.Name(G.EraIndex) && G.ScienceRate > 0, $"{G.EraName}, +{G.ScienceRate} science");
+        Check("boot: the roster comes from the setup", G.Nations.Length == G.State.Nat.Length && G.Setup != null, $"{G.Nations.Length} nations");
         await Shot("start");
     }
 
@@ -367,9 +373,9 @@ public partial class SelfTest : Node
     {
         var s = G.State;
         G.SetPaused(true);
-        int y = s.Year;
+        long tick = s.Tick; string date = G.DateText;
         await Seconds(1.1);
-        Check("pause: the year stands still", s.Year == y && s.Paused);
+        Check("pause: the clock and the date stand still", s.Tick == tick && G.DateText == date && s.Paused, date);
         await Shot("paused");
         PressKey(Key.Space);
         await Frames(2);
@@ -377,9 +383,10 @@ public partial class SelfTest : Node
         PressKey(Key.Key5);
         await Frames(2);
         Check("key 5 → speed 5", s.Speed == 5);
-        y = s.Year;
+        tick = s.Tick; var d0 = s.Date; int dates = _dateEvents;
         await Seconds(1.05);
-        Check("speed 5: ~10 years a second", s.Year - y >= 8, $"{s.Year - y} years");
+        Check("speed 5: 40 ticks a second", s.Tick - tick >= 34 && s.Tick - tick <= 44, $"{s.Tick - tick} ticks");
+        Check("speed 5: months pass and DateChanged fires", s.Date.MonthIndex > d0.MonthIndex && _dateEvents > dates, $"{Calendar.Text(d0, true)} → {G.DateText}, {_dateEvents - dates} events");
         PressKey(Key.Key2);
         await Frames(2);
         Check("key 2 → speed 2", s.Speed == 2);
@@ -390,7 +397,7 @@ public partial class SelfTest : Node
         int metBefore = G.Leaderboard().Count;
         G.SetFogEnabled(false);
         await Frames(3);
-        Check("observer: every nation listed", G.Leaderboard().Count == Data.Nations.Length && G.UnmetNations == 0);
+        Check("observer: every nation listed", G.Leaderboard().Count == G.Nations.Length && G.UnmetNations == 0);
         await ZoomTo(1);
         await Shot("observer");
         G.SetFogEnabled(true);
@@ -408,6 +415,47 @@ public partial class SelfTest : Node
         PressKey(Key.Escape);
         await Frames(3);
         Check("Esc closes the leaderboard", !Hud.Lead.Visible);
+    }
+
+    /// <summary>The deck of fates: a forced choice opens the event window, its first button answers through a command.</summary>
+    async Task EventChoiceFlow()
+    {
+        var s = G.State;
+        var ev = s.Events;
+        Check("events: the content deck is attached", ev != null, ev == null ? "no deck" : $"{ev.Db.Events.Length} events, {s.Nat[GameState.LocalPlayer].EventCount} dealt so far");
+        if (ev == null) return;
+        for (int e = 0; e < ev.Db.Events.Length && ev.Pending(GameState.LocalPlayer) == null; e++)
+            if (ev.Db.Events[e].IsChoice) ev.Force(s, GameState.LocalPlayer, e, G);
+        await Frames(2);
+        var info = G.PendingChoice();
+        Check("events: a choice opens the event window", info != null && Hud.Events.Visible && info.Options.Length > 0, info?.Title);
+        if (info == null) return;
+        await Shot("event");
+        int notes = _notes.Count, journal = G.Journal.Count;
+        Button first = null;
+        foreach (var b in Hud.Events.FindChildren("*", "Button", true, false)) { first = (Button)b; break; }
+        first?.EmitSignal(BaseButton.SignalName.Pressed);
+        await Frames(3);
+        Check("events: the first button answers and closes the window", G.PendingChoice() == null && !Hud.Events.Visible && _notes.Count > notes,
+            _notes.Count > notes ? _notes[^1].text : "no chronicle entry");
+        Check("events: the answer is a journaled command", G.Journal.Count == journal + 1 && G.Journal[^1].Type == CmdType.Choose);
+    }
+
+    /// <summary>Esc with nothing else open ends in the pause menu; Esc again closes it and gives the time back.</summary>
+    async Task PauseMenuFlow()
+    {
+        G.Select(-1);
+        await Frames(2);
+        bool paused = G.State.Paused;
+        PressKey(Key.Escape);
+        await Frames(3);
+        Check("pause menu: Esc with nothing open opens it and pauses", PauseMenu.IsOpen && G.State.Paused);
+        await Shot("pausemenu");
+        PressKey(Key.Escape);
+        await Frames(3);
+        Check("pause menu: Esc closes it and restores the clock", !PauseMenu.IsOpen && G.State.Paused == paused);
+        G.Select(G.State.NationCapital[GameState.LocalPlayer]);
+        await Frames(2);
     }
 
     async Task Regenerate()
@@ -433,7 +481,7 @@ public partial class SelfTest : Node
         await Seconds(.8);
         Check("regen: exactly one new world", _worldReady == ready + 1 && G.IsReady && G.World != old && G.World.Seed == G.Seed, $"ready events {_worldReady - ready}, seed {G.Seed}");
         var s = G.State; int cap = Cap;
-        Check("regen: clean state", s.Scouts.Count == 0 && !G.IsTargeting && !s.Paused && s.Year <= -1245, $"year {s.Year}, scouts {s.Scouts.Count}");
+        Check("regen: clean state", s.Scouts.Count == 0 && !G.IsTargeting && !s.Paused && s.Year <= -3990 && G.Journal.Count == 0, $"{G.DateText}, scouts {s.Scouts.Count}, journal {G.Journal.Count}");
         Check("regen: capital selected again", G.Selected == cap && Hud.Panel.Visible && Hud.Panel.TitleText == G.World.PName[cap]);
         Check("regen: overlays closed", !Hud.Lead.Visible && !Hud.Loading.Visible);
         Check("regen: map rebuilt", MapView.Current is { HasWorld: true } && G.CameraRect.Size.X > 0);

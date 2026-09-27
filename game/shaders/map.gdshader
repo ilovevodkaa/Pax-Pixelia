@@ -12,6 +12,8 @@ uniform sampler2D base_tex : filter_nearest, repeat_disable;  // RGBA8 per pixel
 uniform sampler2D base_half_tex : filter_nearest, repeat_disable; // base_tex averaged over 2×2 blocks (atlas zoom)
 uniform sampler2D ptint_tex : filter_nearest, repeat_disable; // RGBA8 per province: map-mode tint rgb + strength
 uniform sampler2D pown_tex : filter_nearest, repeat_disable;  // RGBA8 per province: country-border rgb, owner + 1
+uniform sampler2D water_tex : filter_nearest, repeat_disable; // R8 per pixel: cluster phase (0-3), shore distance (4-5), sparkle (6)
+uniform float anim_t = 0.0;      // seconds of water animation (MapView: a quarter speed on pause)
 uniform float zoom = 3.0;        // screen px per world px
 uniform int hovered = -1;
 uniform int selected = -1;
@@ -40,6 +42,18 @@ vec3 mode_color(vec3 c, int p, vec4 info) {
 
 int owner_of(vec4 own) { return int(own.a * 255.0 + 0.5) - 1; }
 
+// Living water, palette-cycle style (ART_BIBLE §5): foam flickers along the shore, the shallows shimmer in 3×3
+// clusters, rare single-pixel glints in open water. Steps, never fades.
+vec3 water_anim(vec3 c, ivec2 t) {
+	int v = int(texelFetch(water_tex, t, 0).r * 255.0 + 0.5);
+	int ph = v & 15, shore = (v >> 4) & 3;
+	int step = int(anim_t * 4.0);
+	if (shore == 1 && (ph + step) % 7 == 0) return mix(c, vec3(0.612, 0.765, 0.816), 0.55);
+	if (shore > 0 && (ph + step / 2) % 8 == 0) return c * 1.1;
+	if (shore == 0 && (v & 64) != 0 && (ph + step / 3) % 16 == 0) return mix(c, vec3(0.45, 0.6, 0.7), 0.35);
+	return c;
+}
+
 void fragment() {
 	vec2 w = wpos;
 	if (w.y < 0.0 || w.y >= world_size.y) {
@@ -64,6 +78,7 @@ void fragment() {
 			bool hov = p == hovered;
 			bool stale = fog_on && info.b > 0.25 && info.b < 0.75;
 			bool landP = info.a > 0.5;
+			if (!landP && !atlas) base = water_anim(base, t);
 			vec3 c = mode_color(base, p, info);
 			// hovering a stale province peeks at the old map: its dimming is lifted
 			if (hov && stale) c = min(c / max(info.g, 0.2), vec3(1.0));

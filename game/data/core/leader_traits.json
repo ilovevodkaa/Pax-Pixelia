@@ -1,0 +1,31 @@
+{
+  "$schema": "../schema/tables.schema.json",
+  "traits": [
+    { "id": "wise", "name": "Мудрый", "group": "character", "stage": "MVP", "desc": "Наука +10%", "mods": { "sciencePct": 10 } },
+    { "id": "generous", "name": "Щедрый", "group": "character", "stage": "MVP", "desc": "Настроение +3 везде, доход −5%", "mods": { "mood": 3, "incomePct": -5 } },
+    { "id": "stingy", "name": "Скупой", "group": "character", "stage": "MVP", "desc": "Налоги +8%, настроение −2", "mods": { "taxPct": 8, "mood": -2 } },
+    { "id": "ambitious", "name": "Честолюбивый", "group": "character", "stage": "MVP", "desc": "Стройка +10%, знать −3", "mods": { "buildPct": 10, "nobleMood": -3 } },
+    { "id": "pious", "name": "Благочестивый", "group": "character", "stage": "MVP", "desc": "Распространение веры +15%, наука −5%", "mods": { "faithSpreadPct": 15, "sciencePct": -5 } },
+    { "id": "skeptic", "name": "Скептик", "group": "character", "stage": "MVP", "desc": "Наука +8%, вера −10%, события жрецов чаще к худу", "mods": { "sciencePct": 8, "faithPct": -10 } },
+    { "id": "gentle", "name": "Мягкий", "group": "character", "stage": "MVP", "desc": "Настроение +4, законы на 20% медленнее", "mods": { "mood": 4, "lawSpeedPct": -20 } },
+    { "id": "stern", "name": "Суровый", "group": "character", "stage": "MVP", "desc": "Законы на 30% быстрее, настроение −4, риск отделения −25%", "mods": { "lawSpeedPct": 30, "mood": -4, "secessionPct": -25 } },
+    { "id": "curious", "name": "Любознательный", "group": "character", "stage": "MVP", "desc": "Разведчики +20% скорости, озарения +10%", "mods": { "scoutSpeedPct": 20, "eurekaPct": 10 } },
+    { "id": "recluse", "name": "Затворник", "group": "character", "stage": "MVP", "desc": "Эмиграция −50%, торговые пути −10%", "mods": { "emigrationPct": -50, "routesPct": -10 } },
+    { "id": "eccentric", "name": "Эксцентрик", "group": "character", "stage": "MVP", "desc": "Шуточные события ×2, открывает нить «конь-сенатор», культура +5%", "mods": { "jokeWeightPct": 200, "culturePct": 5 } },
+    { "id": "merry", "name": "Весельчак", "group": "character", "stage": "MVP", "desc": "После праздников настроение +5; танцевальная чума вдвое вероятнее", "mods": { "feastMood": 5 } },
+    { "id": "architect", "name": "Зодчий", "group": "upbringing", "stage": "M2", "desc": "Стройка +15%, чудеса +10%", "mods": { "buildPct": 15, "wonderPct": 10 } },
+    { "id": "merchant", "name": "Купец", "group": "upbringing", "stage": "M2", "desc": "Доход путей +15%, колебания цен −20%", "mods": { "routeIncomePct": 15, "priceSwingPct": -20 } },
+    { "id": "stargazer", "name": "Звездочёт", "group": "upbringing", "stage": "M2", "desc": "Наука +10%, затмения и кометы всегда к добру", "mods": { "sciencePct": 10 } },
+    { "id": "farmer", "name": "Землепашец", "group": "upbringing", "stage": "M2", "desc": "Еда +10%, рост +0,1% за условный год", "mods": { "foodPct": 10, "growthPermille": 1 } },
+    { "id": "seafarer", "name": "Мореход", "group": "upbringing", "stage": "M2", "desc": "Морские пути +20%, +1 морской разведчик", "mods": { "seaRoutesPct": 20, "seaScouts": 1 } },
+    { "id": "lawgiver", "name": "Законник", "group": "upbringing", "stage": "M2", "desc": "Законы на 25% быстрее, ворчание фракций −25%", "mods": { "lawSpeedPct": 25, "factionGrumblePct": -25 } },
+    { "id": "cat_lover", "name": "Кошатник", "group": "acquired", "stage": "MVP", "desc": "Амбары теряют на 10% меньше, на портрете кот", "mods": { "granaryLossPct": -10 } },
+    { "id": "gourmet", "name": "Гурман", "group": "acquired", "stage": "M2", "desc": "Спрос на роскошь +10%, знать +3", "mods": { "luxuryDemandPct": 10, "nobleMood": 3 } },
+    { "id": "beardless", "name": "Безбородый", "group": "acquired", "stage": "Later", "desc": "Новаторство +1 за условный год, Традиционным −3", "mods": { "innovativePerYear": 1, "traditionalMood": -3 } },
+    { "id": "long_lived", "name": "Долгожитель", "group": "acquired", "stage": "MVP", "desc": "После 70 лет с шансом 20%: +15 лет к ожидаемой жизни", "mods": { "lifeYears": 15 } },
+    { "id": "sickly", "name": "Хворый", "group": "acquired", "stage": "MVP", "desc": "−10 лет жизни, стройка −5%; лекарь может излечить", "mods": { "lifeYears": -10, "buildPct": -5 } },
+    { "id": "reformer", "name": "Реформатор", "group": "acquired", "stage": "M2", "desc": "Пять законов за правление: законы на 15% быстрее", "mods": { "lawSpeedPct": 15 } },
+    { "id": "beloved", "name": "Любимец народа", "group": "acquired", "stage": "M2", "desc": "Среднее настроение выше 75 за 30 условных лет: +3, наследнику половина", "mods": { "mood": 3 } },
+    { "id": "one_eyed", "name": "Одноглазый", "group": "acquired", "stage": "M2", "desc": "Несчастный случай на охоте: наука −3%, знать +5 («суров, но жизнь повидал»)", "mods": { "sciencePct": -3, "nobleMood": 5 } }
+  ]
+}
