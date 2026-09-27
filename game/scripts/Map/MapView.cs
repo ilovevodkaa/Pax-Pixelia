@@ -19,6 +19,7 @@ public partial class MapView : Node2D
     internal MapViewport View;
     internal readonly FogField Fog = new();
     internal readonly MapTextures Tex = new();
+    internal readonly LabelPlan Labels = new();
     internal bool HasWorld { get; private set; }
 
     Node2D _world;
@@ -33,11 +34,11 @@ public partial class MapView : Node2D
     static readonly StringName UZoom = "zoom", UHovered = "hovered", USelected = "selected", UFogOn = "fog_on", UWater = "water_color";
 
     readonly ChangeSet _provChanges = new(), _fogChanges = new();
-    bool _modeDirty;
+    bool _modeDirty, _selDirty;
     int _routesKey;
     int[] _stamp = System.Array.Empty<int>();
     int _stampGen;
-    readonly List<int> _expanded = new();
+    readonly List<int> _expanded = new(), _merged = new();
 
     public override void _EnterTree() => Current = this;
 
@@ -107,10 +108,13 @@ public partial class MapView : Node2D
         if (w == null || s == null) { HasWorld = false; return; }
         var sw = System.Diagnostics.Stopwatch.StartNew();
         Fog.Init(w, s);
+        Labels.Reset(w, Fog);
+        Labels.SetSelected(g.Selected);
         long tFog = sw.ElapsedMilliseconds;
         Tex.Build(w, Fog);
         foreach (var m in _mats) Tex.Bind(m, w);
         _mapMat.SetShaderParameter("base_tex", Tex.Base);
+        _mapMat.SetShaderParameter("base_half_tex", Tex.BaseHalf);
         _mapMat.SetShaderParameter("ptint_tex", Tex.Tint);
         _mapMat.SetShaderParameter("pown_tex", Tex.Own);
         Tex.UpdateProvinces(w, s, g.Mode);
@@ -123,9 +127,9 @@ public partial class MapView : Node2D
         ApplyMode(g.Mode);
         OnHovered(g.Hovered); OnSelected(g.Selected);
         HasWorld = true;
-        _provChanges.Clear(); _fogChanges.Clear(); _modeDirty = false;
+        _provChanges.Clear(); _fogChanges.Clear(); _modeDirty = _selDirty = false;
         _stamp = new int[w.P];
-        _sprites.Refresh(); _names.Refresh(); _labels.Refresh(); _scouts.QueueRedraw();
+        _sprites.Refresh(); _names.Refresh(); _labels.QueueRedraw(); _scouts.QueueRedraw();
         GD.Print($"map: fog field {tFog} ms, textures+meshes {sw.ElapsedMilliseconds - tFog} ms, river verts {(rivers == null ? 0 : rivers.SurfaceGetArrayLen(0))}");
     }
 
@@ -134,7 +138,7 @@ public partial class MapView : Node2D
     void OnFogChanged(IReadOnlyList<int> ps) { if (HasWorld) _fogChanges.Add(ps); }
 
     void OnHovered(int p) => _mapMat.SetShaderParameter(UHovered, p);
-    void OnSelected(int p) => _mapMat.SetShaderParameter(USelected, p);
+    void OnSelected(int p) { _mapMat.SetShaderParameter(USelected, p); _selDirty = true; }
     void OnTimeControl(bool paused, int speed) => _scouts.QueueRedraw();
 
     void ApplyMode(MapMode m)
@@ -159,26 +163,49 @@ public partial class MapView : Node2D
         if (!Game.I.IsReady) { HasWorld = false; return; }   // «Новый мир» in progress: freeze until WorldReady
         if (!HasWorld) return;
         var w = Game.I.World; var s = Game.I.State;
-        bool fog = _fogChanges.Any, prov = _provChanges.Any;
-        if (!fog && !prov && !_modeDirty) return;
+        bool fog = _fogChanges.Any, prov = _provChanges.Any, sel = _selDirty && Labels.SetSelected(Game.I.Selected);
+        _selDirty = false;
+        if (!fog && !prov && !_modeDirty && !sel) return;
         if (fog)
         {
             SetFogUniform(s.FogEnabled);
             if (Fog.Update(s, _fogChanges.All ? null : _fogChanges.List)) Tex.UploadFog(w, Fog);
-            // cities/names near the cloud edge depend on the distance field: include neighbours
-            var ps = _fogChanges.All ? null : Expand(_fogChanges.List);
-            _sprites.Refresh(ps); _names.Refresh(ps);
             _scouts.QueueRedraw();
         }
-        if (prov)
+        if (prov && RouteMesh.Key(s) != _routesKey) RebuildRoutes();
+        if (fog || prov) Labels.Invalidate();
+        if (fog || prov || sel)
         {
-            var ps = _provChanges.All ? null : _provChanges.List;
-            _sprites.Refresh(ps); _names.Refresh(ps);
-            if (RouteMesh.Key(s) != _routesKey) RebuildRoutes();
+            // the label plan may show or hide names and sprites anywhere (a nation name moved, a town gave way)
+            var planned = Labels.Update(View.Level);
+            bool all = (fog && _fogChanges.All) || (prov && _provChanges.All);
+            if (all) { _sprites.Refresh(); _names.Refresh(); }
+            else
+            {
+                // cities/names near the cloud edge depend on the distance field: include neighbours
+                var ps = Merge(fog ? Expand(_fogChanges.List) : null, prov ? _provChanges.List : null, planned);
+                if (ps.Count > 0) { _sprites.Refresh(ps); _names.Refresh(ps); }
+            }
+            _labels.QueueRedraw();
         }
-        Tex.UpdateProvinces(w, s, Game.I.Mode);
-        if (fog || prov) _labels.Refresh();
+        if (fog || prov || _modeDirty) Tex.UpdateProvinces(w, s, Game.I.Mode);
         _fogChanges.Clear(); _provChanges.Clear(); _modeDirty = false;
+    }
+
+    /// <summary>Union of province lists without duplicates (reused buffer).</summary>
+    List<int> Merge(List<int> a, List<int> b, List<int> c)
+    {
+        if (++_stampGen == int.MaxValue) { System.Array.Clear(_stamp); _stampGen = 1; }
+        _merged.Clear();
+        Add(a); Add(b); Add(c);
+        return _merged;
+
+        void Add(List<int> list)
+        {
+            if (list == null) return;
+            foreach (int p in list)
+                if ((uint)p < (uint)_stamp.Length && _stamp[p] != _stampGen) { _stamp[p] = _stampGen; _merged.Add(p); }
+        }
     }
 
     /// <summary>Provinces plus their neighbours, without duplicates (reused buffer).</summary>

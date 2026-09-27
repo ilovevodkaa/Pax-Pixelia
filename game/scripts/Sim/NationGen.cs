@@ -46,9 +46,10 @@ public static class NationGen
 
     /// <summary>Capitals: the player's near the centre of the map, the rest by farthest-point sampling among fertile,
     /// non-polar provinces of big land masses; then ordered by distance from the first (neighbours get low indices).
-    /// One deliberate change from the mockup: the player's capital must lie on a land mass with at least
+    /// Two deliberate changes from the mockup: the player's capital must lie on a land mass with at least
     /// <see cref="PlayerMinLandShare"/> of all land — the mockup could start the player on a tiny island (seed 42),
-    /// and scouts can't cross the sea before seafaring. Worlds where the mockup's choice was fine are unaffected.</summary>
+    /// and scouts can't cross the sea before seafaring; and capitals sit in roomy, compact provinces (see
+    /// <see cref="Roomy"/>) so the castle, its name and the selection outline fit inside their own land.</summary>
     static int[] PlaceCapitals(WorldData w)
     {
         int nNations = Data.Nations.Length;
@@ -57,6 +58,8 @@ public static class NationGen
         for (int p = 0; p < w.P; p++)
             if (w.PLand[p] != 0 && w.PSize[p] >= 40 && w.PFert[p] >= .5 && w.BodySize[w.PBody[p]] >= 670 * ks * ks && Math.Abs(w.PCY[p] / (double)w.H - .5) < .36)
                 cand.Add(p);
+        var roomy = cand.FindAll(Roomy(w));
+        if (roomy.Count >= nNations * 4) cand = roomy;   // plenty left to spread 16 capitals: keep only the roomy ones
         if (cand.Count == 0) // degenerate world: any land will do
             for (int p = 0; p < w.P; p++) if (w.PLand[p] != 0) cand.Add(p);
 
@@ -75,6 +78,31 @@ public static class NationGen
             for (int c = 0; c < cand.Count; c++) nearest[c] = Math.Min(nearest[c], Dist(w, cand[c], bp));
         }
         return caps.Take(1).Concat(caps.Skip(1).OrderBy(p => Dist(w, p, first))).ToArray(); // OrderBy is stable, like V8's sort
+    }
+
+    /// <summary>Land provinces at least as big as 60% of all land provinces, whose bounding box they fill by more than 45%
+    /// (no slivers, triangles or long strips).</summary>
+    static Predicate<int> Roomy(WorldData w)
+    {
+        var sizes = new List<int>();
+        for (int p = 0; p < w.P; p++) if (w.PLand[p] != 0) sizes.Add(w.PSize[p]);
+        if (sizes.Count == 0) return _ => false;
+        sizes.Sort();
+        int minSize = sizes[(int)(sizes.Count * .6)];
+        return p => w.PSize[p] >= minSize && BoxFill(w, p) > .45;
+    }
+
+    /// <summary>Share of its bounding box that province p covers (x measured from its anchor, so the seam is no problem).</summary>
+    static double BoxFill(WorldData w, int p)
+    {
+        int x0 = int.MaxValue, x1 = int.MinValue, y0 = int.MaxValue, y1 = int.MinValue, half = w.W / 2;
+        for (int k = w.PixOffset[p]; k < w.PixOffset[p + 1]; k++)
+        {
+            int i = w.PixList[k], x = i % w.W - w.PCX[p], y = i / w.W;
+            if (x > half) x -= w.W; else if (x < -half) x += w.W;
+            x0 = Math.Min(x0, x); x1 = Math.Max(x1, x); y0 = Math.Min(y0, y); y1 = Math.Max(y1, y);
+        }
+        return x1 < x0 ? 0 : w.PSize[p] / (double)((x1 - x0 + 1) * (y1 - y0 + 1));
     }
 
     static int ClosestToCentre(WorldData w, List<int> cand, Func<int, bool> allowed)

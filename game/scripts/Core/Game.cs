@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 using Godot;
 using PaxPixelia.Sim;
@@ -54,10 +55,13 @@ public partial class Game : Node
     public override void _Ready() => AttachSimulation();   // Sim/GameActions.cs
 
     int _generation;   // a newer «Новый мир» supersedes a generation still running
+    CancellationTokenSource _genCancel;
 
     public async Task NewWorld(int seed)
     {
         int gen = ++_generation;
+        _genCancel?.Cancel();   // stop the superseded run instead of letting it finish on every core
+        var cancel = _genCancel = new CancellationTokenSource();
         World = null; State = null; Seed = seed;
         Hovered = -1; Selected = -1;
         // Progress marshals to the main thread; drop reports of a superseded run or ones arriving after WorldReady
@@ -68,13 +72,15 @@ public partial class Game : Node
         {
             (world, state) = await Task.Run(() =>
             {
-                var w = WorldGen.Generate(seed, WorldWidth, WorldHeight, s => ((IProgress<string>)progress).Report(s));
+                var w = WorldGen.Generate(seed, WorldWidth, WorldHeight, s => ((IProgress<string>)progress).Report(s), cancel.Token);
+                cancel.Token.ThrowIfCancellationRequested();
                 ((IProgress<string>)progress).Report("Державы и границы…");
                 var st = NationGen.CreateInitialState(w);
                 Simulation.Begin(w, st);
                 return (w, st);
-            });
+            }, cancel.Token);
         }
+        catch (OperationCanceledException) when (gen != _generation) { return; }
         catch (Exception e)
         {
             // a degenerate seed must not leave the player on the loading screen: log it and roll the next one
@@ -92,7 +98,7 @@ public partial class Game : Node
 
     // ---- camera bridge (MapCamera writes, UI/minimap reads & requests) ----
     public Rect2 CameraRect { get; set; }               // visible world rect; X may lie outside [0,W) (wrap)
-    public int ZoomLevel { get; set; } = 3;             // one of MapCamera.Levels
+    public int ZoomLevel { get; set; } = 3;             // MapCamera level: 0 = the ×½ atlas, 1..8
     public event Action CameraMoved;                    // raised by MapCamera when CameraRect/ZoomLevel change
     public event Action<Vector2> CameraJumpRequested;   // centre camera on a world position (minimap click, «show capital»)
     public event Action<int> ZoomRequested;             // +1 / -1 zoom step around screen centre (UI zoom buttons)
@@ -100,9 +106,10 @@ public partial class Game : Node
     public void JumpCamera(Vector2 world) => CameraJumpRequested?.Invoke(world);
     public void RequestZoom(int dir) => ZoomRequested?.Invoke(dir);
 
-    public void SetMode(MapMode m) { if (m == Mode) return; Mode = m; MapModeChanged?.Invoke(m); }
-    public void Hover(int p) { if (p == Hovered) return; Hovered = p; ProvinceHovered?.Invoke(p); }
-    public void Select(int p) { Selected = p; ProvinceSelected?.Invoke(p); }
+    public void SetMode(MapMode m) { if (m == Mode || !Enum.IsDefined(m)) return; Mode = m; MapModeChanged?.Invoke(m); }
+    public void Hover(int p) { p = ValidOrNone(p); if (p == Hovered) return; Hovered = p; ProvinceHovered?.Invoke(p); }
+    public void Select(int p) { Selected = ValidOrNone(p); ProvinceSelected?.Invoke(Selected); }
+    int ValidOrNone(int p) => World != null && (uint)p < (uint)World.P ? p : -1;
     public void RaiseProvincesChanged(IReadOnlyList<int> ps) => ProvincesChanged?.Invoke(ps);
     public void RaiseFogChanged(IReadOnlyList<int> ps) => FogChanged?.Invoke(ps);
     public void Notify(string icon, string text) => Notified?.Invoke(icon, text);
@@ -111,7 +118,10 @@ public partial class Game : Node
     public void ShowRefusal(string text) => ShowToast(text, 3.8f, ToastKind.Error);
 
     // ---- clock: 1 tick = 1 year in the ancient era ----
-    static readonly double[] TickSeconds = { 0, 2.0, 1.0, 0.5, 0.25, 0.1 };
+    /// <summary>Real seconds per game year by speed (the scouts' SimDriver moves them at the same game-time pace).</summary>
+    public static readonly double[] TickSeconds = { 0, 2.0, 1.0, 0.5, 0.25, 0.1 };
+    /// <summary>Longest frame the clocks catch up on: a long hitch must not fire a burst of years or teleport scouts.</summary>
+    public const double MaxCatchUp = 0.25;
     double _acc;
     public void SetPaused(bool p) { if (!IsReady) return; State.Paused = p; TimeControlChanged?.Invoke(p, State.Speed); }
     public void SetSpeed(int s) { if (!IsReady) return; State.Speed = Math.Clamp(s, 1, 5); TimeControlChanged?.Invoke(State.Paused, State.Speed); }
@@ -119,7 +129,7 @@ public partial class Game : Node
     public override void _Process(double delta)
     {
         if (!IsReady || State.Paused) return;
-        _acc += Math.Min(delta, 0.25);   // a long hitch must not fire a burst of years
+        _acc += Math.Min(delta, MaxCatchUp);
         double need = TickSeconds[State.Speed];
         while (_acc >= need) { _acc -= need; Simulation.YearTick(this); YearTick?.Invoke(); }
     }

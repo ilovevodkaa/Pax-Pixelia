@@ -1,5 +1,7 @@
 // World map: terrain + map-mode tint, province/coast/country borders (1 screen px at any zoom, like the
-// mockup's sub-pixel edge logic), hover/selection, fog of war (cloud texture with a frayed dithered edge).
+// mockup's sub-pixel edge logic), hover/selection, fog of war (cloud texture with a frayed dithered edge),
+// the old-map hatch of stale land. Below ×1 (the ×½ atlas) one screen px covers 2×2 world px: terrain comes from a
+// box-averaged half-size texture and only coasts and country borders are drawn.
 // Drawn as one big rect in world coordinates; x wraps (the world is a cylinder).
 shader_type canvas_item;
 render_mode blend_disabled, unshaded;
@@ -7,6 +9,7 @@ render_mode blend_disabled, unshaded;
 #include "res://shaders/map_common.gdshaderinc"
 
 uniform sampler2D base_tex : filter_nearest, repeat_disable;  // RGBA8 per pixel: shaded terrain colour
+uniform sampler2D base_half_tex : filter_nearest, repeat_disable; // base_tex averaged over 2×2 blocks (atlas zoom)
 uniform sampler2D ptint_tex : filter_nearest, repeat_disable; // RGBA8 per province: map-mode tint rgb + strength
 uniform sampler2D pown_tex : filter_nearest, repeat_disable;  // RGBA8 per province: country-border rgb, owner + 1
 uniform float zoom = 3.0;        // screen px per world px
@@ -48,7 +51,8 @@ void fragment() {
 		int p = prov_at(t);
 		vec4 info = pinfo(p);
 		bool explored = explored_info(info);
-		vec3 base = texelFetch(base_tex, t, 0).rgb;
+		bool atlas = zoom < 0.75;
+		vec3 base = atlas ? texelFetch(base_half_tex, t / 2, 0).rgb : texelFetch(base_tex, t, 0).rgb;
 		int tone; float tt;
 		int fog = fog_px(t, explored, tone, tt);
 		if (fog == 1) {
@@ -57,18 +61,26 @@ void fragment() {
 			float m = (base.r + base.g + base.b) / 3.0;
 			COLOR = vec4(mix(base, vec3(m), 0.7) * (0.5 - 0.16 * tt), 1.0);
 		} else {
+			bool hov = p == hovered;
+			bool stale = fog_on && info.b > 0.25 && info.b < 0.75;
+			bool landP = info.a > 0.5;
 			vec3 c = mode_color(base, p, info);
+			// hovering a stale province peeks at the old map: its dimming is lifted
+			if (hov && stale) c = min(c / max(info.g, 0.2), vec3(1.0));
+			// explored but unseen land: a faint old-map hatch (reads as «old information», not as darkness)
+			else if (stale && landP && ((t.x + t.y) & 3) == 0) c *= 0.9;
 			// Which sides of this screen pixel lie on a world-pixel edge (1 world px = zoom screen px).
 			// Left/top edges always; right/bottom only when zoomed in, so land borders stay 1 px while
 			// country borders and the selection get one pixel on each side (two-tone at zoom >= 2).
+			// In the atlas every screen pixel starts a new 2×2 block: compare with the previous block.
+			int st = atlas ? 2 : 1;
 			float s = 1.0 / zoom;
-			bool eL = floor(w.x - s) != floor(w.x);
-			bool eU = floor(w.y - s) != floor(w.y);
-			bool eR = zoom > 1.5 && floor(w.x + s) != floor(w.x);
-			bool eD = zoom > 1.5 && floor(w.y + s) != floor(w.y);
+			bool eL = atlas || floor(w.x - s) != floor(w.x);
+			bool eU = atlas || floor(w.y - s) != floor(w.y);
+			bool eR = !atlas && zoom > 1.5 && floor(w.x + s) != floor(w.x);
+			bool eD = !atlas && zoom > 1.5 && floor(w.y + s) != floor(w.y);
 			bool white = false;
 			if (eL || eU || eR || eD) {
-				bool landP = info.a > 0.5;
 				vec4 ownP = texelFetch(pown_tex, pcoord(p), 0);
 				int op = owner_of(ownP);
 				int kind = 0;
@@ -76,7 +88,7 @@ void fragment() {
 				for (int k = 0; k < 4; k++) {
 					bool on = k == 0 ? eL : k == 1 ? eU : k == 2 ? eR : eD;
 					if (!on) continue;
-					ivec2 d = k == 0 ? ivec2(-1, 0) : k == 1 ? ivec2(0, -1) : k == 2 ? ivec2(1, 0) : ivec2(0, 1);
+					ivec2 d = k == 0 ? ivec2(-st, 0) : k == 1 ? ivec2(0, -st) : k == 2 ? ivec2(st, 0) : ivec2(0, st);
 					int q = prov_at(wrap_texel(t + d));
 					if (q == p) continue;
 					if (p == selected || q == selected) { white = true; break; }
@@ -90,18 +102,29 @@ void fragment() {
 						ncol = op >= 0 ? ownP.rgb : ownQ.rgb;
 					} else if (k < 2 && landP != landQ) {
 						kind = max(kind, 2);
-					} else if (k < 2) {
+					} else if (k < 2 && !atlas) {
 						kind = max(kind, 1);
 					}
 				}
 				if (white) c = vec3(1.0);
 				else if (kind == 3) c = ncol;
 				else if (kind == 2) c *= 0.42;
-				else if (kind == 1) c *= landP ? (zoom >= 1.5 ? 0.72 : 0.84) : (zoom >= 1.5 ? 0.9 : 1.0);
+				else if (kind == 1) c *= landP ? (zoom < 1.5 ? 0.93 : zoom < 2.5 ? 0.86 : 0.78) : (zoom >= 1.5 ? 0.9 : 1.0);
 			}
 			if (!white) {
-				if (p == hovered) c += (1.0 - c) * 0.2;
-				else if (p == selected) c += (1.0 - c) * 0.1;
+				if (hov) {
+					// brighten without lifting the blacks (the relief keeps its contrast), plus a light inner rim;
+					// at ×1 and below the far sides of an edge belong to the neighbour's pixels, so test all four
+					c = min(c * 1.2 + 0.015, vec3(1.0));
+					bool all4 = zoom < 1.5;
+					for (int k = 0; k < 4; k++) {
+						bool on = k == 0 ? eL : k == 1 ? eU : k == 2 ? (eR || all4) : (eD || all4);
+						if (!on) continue;
+						ivec2 d = k == 0 ? ivec2(-st, 0) : k == 1 ? ivec2(0, -st) : k == 2 ? ivec2(st, 0) : ivec2(0, st);
+						if (prov_at(wrap_texel(t + d)) != p) { c = mix(c, vec3(1.0), 0.45); break; }
+					}
+				}
+				else if (p == selected) c = min(c * 1.08 + 0.01, vec3(1.0));
 			}
 			COLOR = vec4(c, 1.0);
 		}

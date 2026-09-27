@@ -61,8 +61,8 @@ internal static class PixelSprites
 
     public static Vector2I Size(Spr s) { var r = Rows[(int)s]; return new Vector2I(r[0].Length, r.Length); }
 
-    /// <summary>Screen px per sprite pixel for towns/capitals/scouts at a zoom level.</summary>
-    public static int CityScale(int level) => Math.Max(1, (int)MathF.Floor(level * .5f + .5f));
+    /// <summary>Screen px per sprite pixel for towns/capitals/scouts at a zoom level (capitals read at ×2 as well).</summary>
+    public static int CityScale(int level, bool capital = false) => capital && level == 2 ? 2 : Math.Max(1, (int)MathF.Floor(level * .5f + .5f));
     /// <summary>Screen px per sprite pixel for buildings (shown from ×5).</summary>
     public static int BuildingScale(int level) => Math.Max(1, (int)MathF.Floor(level * .4f + .5f));
 
@@ -115,6 +115,18 @@ internal static class PixelSprites
         var size = Size(s);
         float w = size.X * ps, h = size.Y * ps;
         ci.DrawTextureRectRegion(Atlas, new Rect2(MathF.Round(cx - w / 2) + ps, MathF.Round(cy - h / 2) + ps, w, h), Region(s, 0, true), ShadowTint);
+    }
+
+    /// <summary>A 1-px dark rim round the sprite's silhouette: a figure standing on a label reads as in front of it.</summary>
+    public static void DrawHalo(CanvasItem ci, Spr s, float cx, float cy, int ps, Color color)
+    {
+        var size = Size(s);
+        float w = size.X * ps, h = size.Y * ps, x = MathF.Round(cx - w / 2), y = MathF.Round(cy - h / 2);
+        var src = Region(s, 0, true);
+        ci.DrawTextureRectRegion(Atlas, new Rect2(x - 1, y, w, h), src, color);
+        ci.DrawTextureRectRegion(Atlas, new Rect2(x + 1, y, w, h), src, color);
+        ci.DrawTextureRectRegion(Atlas, new Rect2(x, y - 1, w, h), src, color);
+        ci.DrawTextureRectRegion(Atlas, new Rect2(x, y + 1, w, h), src, color);
     }
 
     public static void DrawSprite(CanvasItem ci, Spr s, int n, float cx, float cy, int ps)

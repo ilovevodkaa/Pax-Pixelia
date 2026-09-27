@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Godot;
 using PaxPixelia.Core;
@@ -5,14 +6,20 @@ using PaxPixelia.Core;
 namespace PaxPixelia.UI;
 
 /// <summary>
-/// #notes — event cards stacked top-left (newest first, at most 3). Cards slide in from the left, the stack eases into
-/// place, a click dismisses (× appears on hover). Laid out manually so moves can be animated.
+/// #notes — event cards stacked top-left (newest first, at most 3). Laid out manually so moves can be animated:
+/// incoming notes wait in a queue and appear one at a time (at most one every <see cref="Spacing"/> s, so a burst at
+/// speed 5 does not churn); the stack eases down first, then the new card fades in on top once the card below has
+/// settled; a card that leaves (pushed out or clicked away, × on hover) drops behind the others and fades quickly,
+/// holding no space. Heights come from the cards' minimum size, which is valid on their first frame.
 /// </summary>
 public partial class Notifications : Control
 {
     public const int Width = 364;
-    const int MaxNotes = 3, Gap = 6;
+    const int MaxNotes = 3, Gap = 6, MaxQueued = 6;
+    const double Spacing = .25, FadeIn = .18, FadeOut = .08;
     readonly List<Note> _notes = new();
+    readonly Queue<(string icon, string text, string year)> _queue = new();
+    double _cooldown;
 
     public Notifications()
     {
@@ -24,42 +31,62 @@ public partial class Notifications : Control
     public void Add(string icon, string text)
     {
         var year = Game.I.IsReady ? Fmt.Year(Game.I.State.Year) : "";
-        var note = new Note(icon, text, year);
-        note.Clicked += () => Dismiss(note);
-        AddChild(note);
-        note.Position = new Vector2(-10, 0);
-        note.Modulate = new Color(1, 1, 1, 0);
-        _notes.Insert(0, note);
-        for (int i = _notes.Count - 1; i >= MaxNotes; i--) Dismiss(_notes[i]);
+        if (_queue.Count >= MaxQueued) _queue.Dequeue();   // a flood: the oldest waiting note is skipped
+        _queue.Enqueue((icon, text, year));
     }
 
     public void Clear()
     {
-        foreach (var n in _notes) n.QueueFree();
+        foreach (var c in GetChildren()) c.QueueFree();
         _notes.Clear();
+        _queue.Clear();
+        _cooldown = 0;
+    }
+
+    void Show((string icon, string text, string year) n)
+    {
+        var note = new Note(n.icon, n.text, n.year);
+        note.Clicked += () => Dismiss(note);
+        AddChild(note);
+        note.Position = new Vector2(-8, 0);
+        note.Modulate = new Color(1, 1, 1, 0);
+        _notes.Insert(0, note);
+        for (int i = _notes.Count - 1; i >= MaxNotes; i--) Dismiss(_notes[i]);
     }
 
     void Dismiss(Note n)
     {
         if (!_notes.Remove(n)) return;
         n.Dying = true;   // keeps swallowing input until freed, so the click can't reach the map
+        MoveChild(n, 0);  // behind the live cards while it fades
     }
 
     public override void _Process(double delta)
     {
-        float k = 1 - Mathf.Exp(-(float)delta * 16), y = 0;
-        foreach (var n in _notes)
+        float dt = (float)delta, k = 1 - Mathf.Exp(-dt * 16);
+        _cooldown -= delta;
+        if (_queue.Count > 0 && _cooldown <= 0) { Show(_queue.Dequeue()); _cooldown = Spacing; }
+
+        bool belowSettled = true;   // evaluated bottom-up below; the top card waits for the one under it
+        for (int i = _notes.Count - 1; i >= 0; i--)
         {
-            var target = new Vector2(0, y);
+            var n = _notes[i];
+            float top = 0;
+            for (int j = 0; j < i; j++) top += _notes[j].GetCombinedMinimumSize().Y + Gap;
+            var target = new Vector2(0, top);
+            if (i == 0 && n.Modulate.A < 1 && !belowSettled)
+            {
+                n.Position = new Vector2(n.Position.X, top);   // wait in place, invisible, until the stack has made room
+                continue;
+            }
             n.Position = n.Position.DistanceTo(target) < .5f ? target : n.Position.Lerp(target, k);
-            n.Modulate = new Color(1, 1, 1, Mathf.MoveToward(n.Modulate.A, 1, (float)delta * 5));
-            y += n.Size.Y + Gap;
+            if (n.Modulate.A < 1) n.Modulate = new Color(1, 1, 1, Mathf.MoveToward(n.Modulate.A, 1, dt / (float)FadeIn));
+            if (i == 1) belowSettled = MathF.Abs(n.Position.Y - top) <= 2;
         }
         for (int i = GetChildCount() - 1; i >= 0; i--)
         {
             if (GetChild(i) is not Note n || !n.Dying) continue;
-            n.Modulate = new Color(1, 1, 1, n.Modulate.A - (float)delta * 7);
-            n.Position += new Vector2(-(float)delta * 40, 0);
+            n.Modulate = new Color(1, 1, 1, n.Modulate.A - dt / (float)FadeOut);
             if (n.Modulate.A <= 0) n.QueueFree();
         }
     }

@@ -26,7 +26,7 @@ public partial class Minimap : PanelContainer
         _zoom = Ui.Text("×3", "Semi");
         _zoom.HorizontalAlignment = HorizontalAlignment.Center;
         var zbox = Ui.Panel(new Box().Fill(Colors.White).Border(Pal.Ln2, 0, 1, 0, 1), _zoom, MouseFilterEnum.Stop).MinSize(40, 28);
-        zbox.Tip("Масштаб карты", null, "×1 — весь мир, ×8 — пиксель к пикселю");
+        zbox.Tip("Масштаб карты", null, "×½ — весь мир, ×8 — пиксель к пикселю");
         var regen = Ui.Button("Новый мир", "refresh", "Sm", onRegenerate, 14, 28).Tip("Сгенерировать новый мир", null, "Случайное зерно · текущая партия будет потеряна");
         regen.AddThemeConstantOverride("h_separation", 5);
         _regen = regen; _zbox = zbox;
@@ -39,7 +39,7 @@ public partial class Minimap : PanelContainer
     int _shownZoom = -1;
     public void OnCameraMoved()
     {
-        if (Game.I.ZoomLevel != _shownZoom) { _shownZoom = Game.I.ZoomLevel; _zoom.Text = "×" + _shownZoom; }
+        if (Game.I.ZoomLevel != _shownZoom) { _shownZoom = Game.I.ZoomLevel; _zoom.Text = _shownZoom <= 0 ? "×½" : "×" + _shownZoom; }
         View.QueueRedraw();
     }
 }
@@ -48,7 +48,8 @@ public partial class Minimap : PanelContainer
 public partial class MiniMapView : Control
 {
     static readonly Color Outline = new(20 / 255f, 24 / 255f, 29 / 255f, .55f);
-    static readonly Color[] FogTone = { Pal.Rgb(14, 15, 18), Pal.Rgb(20, 21, 25), Pal.Rgb(27, 29, 34), Pal.Rgb(36, 38, 45) };
+    // unexplored land and sea: flat slate in two calm tones (four cloud levels at this size read as dirty speckle)
+    static readonly Color[] FogTone = { Pal.Hex(0x2a2f35), Pal.Hex(0x2a2f35), Pal.Hex(0x30353c), Pal.Hex(0x30353c) };
 
     int _mw = 288, _mh = 162;
     int[] _sample;           // world pixel index per minimap pixel
@@ -94,7 +95,7 @@ public partial class MiniMapView : Control
                 int wx = Math.Min(wd.W - 1, (int)(x * sx + sx / 2));
                 int i = y * _mw + x;
                 _sample[i] = wy * wd.W + wx;
-                double v = Core.Noise.Fbm(wx, wy, 20, 3, wd.Seed + 911, wd.W);
+                double v = Core.Noise.Fbm(wx, wy, 6, 2, wd.Seed + 911, wd.W);   // broad, soft cloud banks
                 _cloud[i] = (byte)Math.Clamp((int)((v - .28) / .44 * 4), 0, 3);
             }
         }
@@ -141,7 +142,7 @@ public partial class MiniMapView : Control
         bool fogOn = s.FogEnabled && s.Fog != null;
         for (int p = 0; p < P; p++)
         {
-            bool L = wd.PLand[p] == 1; int o = s.Owner[p];
+            bool L = wd.PLand[p] == 1; int o = s.VisibleOwner(p);
             float a = 0, d = 0, f = 1; float cr = 0, cg = 0, cb = 0;
             switch (mode)
             {
@@ -159,7 +160,7 @@ public partial class MiniMapView : Control
                     if (L) { FertColor(wd.PFert[p], out cr, out cg, out cb); a = .62f; } else d = .5f;
                     break;
             }
-            if (fogOn && s.Fog[p] == 1) { d = Math.Max(d, L ? .6f : .3f); f *= L ? .6f : .8f; }
+            if (fogOn && s.Fog[p] == 1) { d = Math.Max(d, L ? .45f : .3f); f *= L ? .78f : .85f; }   // = MapTextures.StaleDesat/StaleDim
             _mR[p] = cr; _mG[p] = cg; _mB[p] = cb; _mA[p] = a; _mD[p] = d; _mF[p] = f;
         }
     }
@@ -170,6 +171,9 @@ public partial class MiniMapView : Control
         if (f < .5f) { r = 200; g = 90 + f * 2 * 120; b = 70; }
         else { r = 200 - (f - .5f) * 2 * 120; g = 210; b = 70 + (f - .5f) * 2 * 20; }
     }
+
+    /// <summary>The fertility mode's colour for f in 0..1 (same ramp as the map).</summary>
+    public static Color FertilityColor(float f) { FertColor(f, out float r, out float g, out float b); return new Color(r / 255f, g / 255f, b / 255f); }
 
     public override void _Draw()
     {

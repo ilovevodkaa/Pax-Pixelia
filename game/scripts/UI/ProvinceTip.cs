@@ -52,10 +52,12 @@ public partial class ProvinceTipView : VBoxContainer
         _pick.Visible = picking;
         if (picking)
         {
-            _pickIcon.Texture = Icons.Get(land ? "map-pin" : "ban", 15);
-            _pickIcon.SelfModulate = land ? Pal.Tx2 : Pal.Bad;
-            _pickText.Text = land ? "Отправить разведчиков сюда" : "Разведчики ходят только по суше";
-            _pickText.Colored(land ? Pal.Tx : Pal.Bad);
+            // under the clouds even land and sea are unknown: every unexplored province looks like a valid pick
+            bool ok = land || f == 0;
+            _pickIcon.Texture = Icons.Get(ok ? "map-pin" : "ban", 15);
+            _pickIcon.SelfModulate = ok ? Pal.Tx2 : Pal.Bad;
+            _pickText.Text = ok ? "Отправить разведчиков сюда" : "Разведчики ходят только по суше";
+            _pickText.Colored(ok ? Pal.Tx : Pal.Bad);
         }
 
         if (f == 0)
@@ -73,11 +75,14 @@ public partial class ProvinceTipView : VBoxContainer
             return true;
         }
         _sub.Text = $"{w.TerrainName(p)} · климат {Data.Climate(w.PBiome[p])}";
-        int o = s.Owner[p];
+        int o = s.VisibleOwner(p);
         _row.Visible = true;
         _swatch.Color = o >= 0 ? Pal.Nation(o) : Pal.Unowned;
         _owner.Text = o >= 0 ? Data.Nations[o].Name : "Ничья земля";
-        _pop.Text = f == 1 ? "~?" : "~" + Fmt.Int(s.Pop[p]);
+        bool stale = f == 1;
+        _pop.Text = stale ? "население неизвестно" : "~" + Fmt.Int(s.Pop[p]);
+        _pop.ThemeTypeVariation = stale ? "Mu" : "Semi";
+        _unit.Visible = !stale;
         return true;
     }
 }

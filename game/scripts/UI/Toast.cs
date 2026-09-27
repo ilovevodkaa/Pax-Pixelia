@@ -21,7 +21,7 @@ public partial class Toast : PanelContainer
     public Toast()
     {
         Visible = false;
-        MouseFilter = MouseFilterEnum.Stop;
+        MouseFilter = MouseFilterEnum.Ignore;   // nothing to click: a pick toast must not hide the provinces under it
         AddThemeStyleboxOverride("panel", St.Card(St.R).Pad(1));
         _icon = Ui.Icon("info-circle", 18, Colors.White);
         _icon.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;

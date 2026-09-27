@@ -94,7 +94,7 @@ internal abstract partial class ChunkedOverlay : Node2D
         if (Map == null || !Map.HasWorld || _chunks.Length == 0) return;
         var v = Map.View;
         if (v.Zoom <= 0) return;             // camera has not placed the view yet
-        if (MathF.Abs(v.Zoom - v.Level) < 1e-4f || _zoom <= 0) { _zoom = v.Zoom; _level = v.Level; }
+        if (v.AtRest || _zoom <= 0) { _zoom = v.Zoom; _level = v.Level; }
         float cs = CS * v.Zoom;
         _stale.Clear();
         foreach (var c in _chunks)

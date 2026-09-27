@@ -20,7 +20,9 @@ public sealed partial class WorldData
     public int[] Prov;         // province id per pixel, 0..P-1
 
     // ---- rivers as smoothed polylines in world pixel coords (x may be unwrapped beyond [0,W)) ----
-    public sealed class RiverPath { public float[] Xs, Ys; public float MinY, MaxY; }
+    // Flow per point: 0 at a river's head … 1 for a big river (drives the drawn width). A tributary ends on the
+    // river it joins; main rivers end one pixel into the sea or lake.
+    public sealed class RiverPath { public float[] Xs, Ys, Flow; public float MinY, MaxY; }
     public List<RiverPath> Rivers = new();
 
     // ---- per province ----

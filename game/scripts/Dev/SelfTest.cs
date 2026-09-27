@@ -14,8 +14,9 @@ namespace PaxPixelia.Dev;
 /// --selftest: drives the real game (world, map, UI, sim) through the player flows and prints one PASS/FAIL line per
 /// check, then quits with the number of failures as the exit code.
 ///   --selftest-shots=DIR   also save a screenshot at each checkpoint (DIR/NN_name.png)
-/// Flows: boot → map modes → zoom ×1/×3/×6/×8 + wrap seam → hover tooltip → panel variants → claim → build → survey →
-/// scouts (targeting, manual + auto, fog reveal) → pause / speed keys → observer → leaderboard → «Новый мир» (mid-action,
+/// Flows: boot → map labels (nothing overlaps at ×2–×6) → map modes → zoom ×½/×1/×3/×6/×8 + wrap seam + a jump during
+/// a zoom glide → hover tooltip → panel variants → claim → build → survey → scouts (targeting, manual + auto, fog reveal,
+/// stale provinces keep their last seen owner) → pause / speed keys → observer → leaderboard → «Новый мир» (mid-action,
 /// double click, then three more worlds checked for leaks) → 1280×720 window.
 /// </summary>
 public partial class SelfTest : Node
@@ -55,6 +56,7 @@ public partial class SelfTest : Node
             while (!G.IsReady) await Frames(1);
             await Seconds(.8);                         // loading fade + deferred capital selection
             await Boot();
+            await Labels();
             await Modes();
             await Zoom();
             await HoverTip();
@@ -92,6 +94,19 @@ public partial class SelfTest : Node
         await Shot("start");
     }
 
+    /// <summary>The label plan's own audit at every level with city or province names, plus the player's name at ×3.</summary>
+    async Task Labels()
+    {
+        var plan = MapView.Current.Labels;
+        foreach (int level in new[] { 2, 3, 4, 5, 6 })
+        {
+            int bad = plan.CountOverlaps(level);
+            Check($"labels ×{level}: nothing overlaps", bad == 0, $"{bad} overlaps");
+        }
+        Check("labels ×3: the player's nation is named", plan.Get(3).Nations[GameState.LocalPlayer].Show);
+        await Frames(1);
+    }
+
     async Task Modes()
     {
         foreach (var (m, tag) in new[] { (MapMode.Terrain, "ter"), (MapMode.Religion, "rel"), (MapMode.Trade, "trd"), (MapMode.Fertility, "fer"), (MapMode.Political, "pol") })
@@ -106,6 +121,9 @@ public partial class SelfTest : Node
     async Task Zoom()
     {
         var screen = GetViewport().GetVisibleRect().Size;
+        await ZoomTo(0);
+        Check("zoom ×½ atlas: the whole world height fits", G.ZoomLevel == 0 && G.CameraRect.Size.Y >= G.World.H, $"level={G.ZoomLevel} rect={G.CameraRect.Size}");
+        await Shot("zoom_atlas");
         await ZoomTo(1);
         Check("zoom ×1", G.ZoomLevel == 1 && (G.CameraRect.Size - screen).Length() < 1.5f, $"level={G.ZoomLevel} rect={G.CameraRect.Size}");
         await Shot("zoom1");
@@ -127,6 +145,16 @@ public partial class SelfTest : Node
         Check("wrap: view centred on the seam", Mathf.Abs(cx) < 2, $"rect={r}");
         await Shot("wrap_seam");
         G.SetFogEnabled(true);
+        G.JumpCamera(new Vector2(G.World.PCX[cap], G.World.PCY[cap]));
+        await Seconds(.6);
+        // a jump (minimap click) right after a wheel notch must still land on a whole zoom level
+        G.RequestZoom(+1);
+        await Frames(2);
+        G.JumpCamera(new Vector2(G.World.PCX[cap] + 200, G.World.PCY[cap]));
+        await Seconds(.6);
+        var v = MapView.Current.View;
+        Check("zoom glide + jump: lands on a level", v.AtRest && v.Level == G.ZoomLevel, $"view zoom {v.Zoom}, level ×{G.ZoomLevel}");
+        await ZoomTo(3);
         G.JumpCamera(new Vector2(G.World.PCX[cap], G.World.PCY[cap]));
         await Seconds(.6);
     }
@@ -318,7 +346,21 @@ public partial class SelfTest : Node
         Check("scouts: two «вернулись» notes", _notes.Skip(notes).Count(n => n.icon == "map-2") == 2);
         await ZoomTo(1);
         await Shot("scouts_done");
+        StaleMemory();
         await ZoomTo(3);
+    }
+
+    /// <summary>A stale province shows the owner last seen, whatever happened there since.</summary>
+    void StaleMemory()
+    {
+        var w = G.World; var s = G.State;
+        int p = First(q => w.PLand[q] == 1 && s.Fog[q] == 1 && s.CapitalOf[q] < 0);
+        if (p < 0) { Pass("stale memory (skipped: no stale land)"); return; }
+        short real = s.Owner[p];
+        int shown = s.VisibleOwner(p);
+        s.Owner[p] = (short)(shown == 1 ? 2 : 1);   // a bot takes it out of sight
+        Check("stale province keeps its last seen owner", s.VisibleOwner(p) == shown, $"{w.PName[p]}: shown {shown}, now owned by {s.Owner[p]}");
+        s.Owner[p] = real;
     }
 
     async Task TimeControl()

@@ -70,3 +70,82 @@ public partial class ModeStrip : PanelContainer
         _row.AddThemeConstantOverride("separation", Math.Max(2, (inner - content) / 6));
     }
 }
+
+/// <summary>
+/// Key of the tinted map modes, a small card docked 6px above the mode strip: the religions present on the known map,
+/// the 1–5 fertility ramp, or the trade-route line. Hidden in the terrain and political modes, which read without one.
+/// </summary>
+public partial class ModeLegend : PanelContainer
+{
+    readonly VBoxContainer _box = Ui.VBox(4);
+    MapMode _shown = (MapMode)(-1);
+    int _religions = -1;
+
+    public ModeLegend()
+    {
+        Visible = false;
+        MouseFilter = MouseFilterEnum.Stop;   // a card like the others: the wheel over it does not zoom the map
+        SizeFlagsHorizontal = SizeFlags.ShrinkBegin;
+        AddThemeStyleboxOverride("panel", St.Card().Pad(10, 7, 12, 9));
+        AddChild(_box);
+    }
+
+    /// <summary>On mode, fog and ownership changes (cheap: rebuilt only when what it shows changed).</summary>
+    public void Refresh()
+    {
+        var g = Game.I;
+        var mode = g.Mode;
+        Visible = g.IsReady && mode is MapMode.Religion or MapMode.Trade or MapMode.Fertility;
+        if (!Visible) { _shown = mode; return; }
+        int religions = mode == MapMode.Religion ? KnownReligions() : 0;
+        if (mode == _shown && religions == _religions) return;
+        _shown = mode; _religions = religions;
+        Ui.Clear(_box);
+        switch (mode)
+        {
+            case MapMode.Religion:
+                _box.AddChild(Ui.Cap("Религии"));
+                for (int r = 0; r < Data.Religions.Length; r++)
+                    if ((religions & (1 << r)) != 0) _box.AddChild(Ui.HBox(7, new Swatch(Pal.Religion(r)), Ui.Text(Data.Religions[r].Name).Sized(12)));
+                if (religions == 0) _box.AddChild(Ui.Text("На разведанных землях — никакой", "SmallMu"));
+                break;
+            case MapMode.Fertility:
+                _box.AddChild(Ui.Cap("Плодородие"));
+                var ramp = Ui.HBox(2);
+                for (int k = 1; k <= 5; k++)
+                {
+                    var n = Ui.Text(k.ToString(), "SmallMu");
+                    n.HorizontalAlignment = HorizontalAlignment.Center;
+                    ramp.AddChild(Ui.VBox(2, new Swatch(MiniMapView.FertilityColor((k - 1) / 4f)).MinSize(22, 10), n));
+                }
+                _box.AddChild(ramp);
+                break;
+            case MapMode.Trade:
+                _box.AddChild(Ui.HBox(8, new RouteSwatch(), Ui.Text("Торговый путь").Sized(12)));
+                break;
+        }
+    }
+
+    /// <summary>Bit r set: religion r is the faith of some land the player's map shows.</summary>
+    static int KnownReligions()
+    {
+        var w = Game.I.World; var s = Game.I.State;
+        int mask = 0;
+        for (int p = 0; p < w.P; p++)
+            if (w.PLand[p] == 1 && s.Religion[p] >= 0 && (!s.FogEnabled || s.Fog[p] > 0)) mask |= 1 << s.Religion[p];
+        return mask;
+    }
+
+    /// <summary>The trade mode's golden dashes on a dark casing, as on the map.</summary>
+    sealed partial class RouteSwatch : Control
+    {
+        static readonly Color Casing = new(22 / 255f, 26 / 255f, 31 / 255f, .6f), Dash = new(.941f, .784f, .376f);
+        public RouteSwatch() { CustomMinimumSize = new Vector2(26, 10); MouseFilter = MouseFilterEnum.Ignore; SizeFlagsVertical = SizeFlags.ShrinkCenter; }
+        public override void _Draw()
+        {
+            float y = Size.Y / 2;
+            DrawLine(new Vector2(0, y), new Vector2(Size.X, y), Casing, 5);
+            for (float x = 1; x < Size.X - 1; x += 7) DrawLine(new Vector2(x, y), new Vector2(Math.Min(x + 4, Size.X - 1), y), Dash, 2);
+        }
+    }
+}

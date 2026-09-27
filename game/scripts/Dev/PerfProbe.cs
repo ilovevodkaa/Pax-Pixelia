@@ -39,7 +39,7 @@ public partial class PerfProbe : Node
         {
             // own float centre: the camera snaps its origin to whole pixels at rest, so re-reading CameraRect
             // every frame would swallow sub-pixel steps at thousands of fps
-            _center.X += _panSpeed * (float)delta / Game.I.ZoomLevel;
+            _center.X += _panSpeed * (float)delta / Math.Max(.5f, Game.I.ZoomLevel);
             _main.Camera.CenterOn(_center, glide: false);
         }
     }

@@ -20,8 +20,12 @@ internal static class RiverMesh
             pts.Clear();
             for (int k = 0; k < r.Xs.Length; k++) pts.Add(new Vector2(r.Xs[k], r.Ys[k]));
             if (pts.Count < 2) continue;
-            // width grows with the distance travelled: short tributaries stay thin, long rivers swell towards the mouth
-            for (int c = -1; c <= 1; c++) strip.Add(pts, c * w.W, static (_, along) => .55f + .95f * MathF.Min(1, along / 320f));
+            var flow = r.Flow;
+            // width follows the water it carries: thin at the head, swelling below every confluence
+            Func<int, float, float> width = flow != null && flow.Length == pts.Count
+                ? (k, _) => .5f + 1.3f * flow[k]
+                : static (_, along) => .55f + .95f * MathF.Min(1, along / 320f);
+            for (int c = -1; c <= 1; c++) strip.Add(pts, c * w.W, width);
         }
         return strip.Build();
     }

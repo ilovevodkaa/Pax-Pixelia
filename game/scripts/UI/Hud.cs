@@ -17,6 +17,7 @@ public partial class Hud : CanvasLayer
     TopBar _top;
     Notifications _notes;
     ModeStrip _modes;
+    ModeLegend _legend;
     Minimap _mini;
     ProvincePanel _panel;
     Leaderboard _lead;
@@ -64,8 +65,9 @@ public partial class Hud : CanvasLayer
 
         _modes = new ModeStrip();
         _modes.FogToggled += ToggleFog;
+        _legend = new ModeLegend();
         _mini = new Minimap(RegenerateWorld);
-        var bottomLeft = Ui.VBox(6, _modes, _mini);
+        var bottomLeft = Ui.VBox(6, _legend, _modes, _mini);
         bottomLeft.AnchorTop = bottomLeft.AnchorBottom = 1;
         bottomLeft.OffsetLeft = 12; bottomLeft.OffsetBottom = -12; bottomLeft.OffsetTop = -12;
         bottomLeft.GrowVertical = Control.GrowDirection.Begin;
@@ -83,6 +85,8 @@ public partial class Hud : CanvasLayer
         _root.AddChild(_loading);
 
         Subscribe(true);
+        // below 1280×720 the top bar no longer fits (its controls would slide off-screen)
+        GetWindow().MinSize = new Vector2I(1280, 720);
         GetViewport().SizeChanged += OnResize;
         OnResize();
         _modes.Refresh();
@@ -130,6 +134,7 @@ public partial class Hud : CanvasLayer
         _mini.View.Resample();
         _mini.OnCameraMoved();
         _modes.Refresh();
+        _legend.Refresh();
         _panel.Close();
         _notes.Clear();
         _lead.Refresh();
@@ -149,6 +154,7 @@ public partial class Hud : CanvasLayer
     void OnModeChanged(MapMode m)
     {
         _modes.Refresh();
+        _legend.Refresh();
         _mini.View.Recolor();
     }
 
@@ -157,12 +163,14 @@ public partial class Hud : CanvasLayer
         _miniDirty = _leadDirty = _tipDirty = true;
         _top.RefreshResources();
         _panel.OnProvincesChanged(ps);
+        _legend.Refresh();
     }
 
     void OnFogChanged(IReadOnlyList<int> ps)
     {
         _miniDirty = _leadDirty = _tipDirty = true;
         _modes.Refresh();
+        _legend.Refresh();
         _panel.OnFogChanged();
     }
 

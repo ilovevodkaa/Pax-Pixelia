@@ -6,14 +6,24 @@ using PaxPixelia.Core;
 namespace PaxPixelia.Map;
 
 /// <summary>
-/// HOI4-style nation names: widely spaced Alegreya SC capitals in a brightened nation colour with a dark halo,
-/// laid along the territory's main axis (tilted at most ~28°, gently arched), sized by territory and fitted to its
-/// length. Only met nations (all in observer mode); territory = owned provinces the player knows. A label that
-/// would cover its capital slides along its axis, steps aside or, failing that, sits level above the capital.
-/// Territory geometry is recomputed only on data change.
+/// HOI4-style nation names: widely spaced Alegreya SC capitals in a brightened nation colour with a dark halo, laid
+/// along the territory's main axis (tilted at most ~28°, gently arched), sized by territory and fitted to its length.
+/// Only met nations (all in observer mode); territory = the provinces the player's map shows as theirs.
+/// Placement (per zoom level, by <see cref="LabelPlan"/>): the first of a list of candidates — centroid, slid along
+/// the axis, stepped aside, then level above / below the capital, then the same at smaller sizes — that hits no city
+/// sprite or name nor another nation's name, and lies mostly over the nation's own land. The selected province is a
+/// soft obstacle. A name that fits nowhere (or would need less than 13 px; 11 px at ×1 and ×½) is left out, as HOI4 does.
 /// </summary>
 internal sealed class NationLabels
 {
+    /// <summary>A placed name in level px (x in [0, W × zoom)); A/B are the half extents of its (arched) box.</summary>
+    public struct Place
+    {
+        public bool Show;
+        public float X, Y, Angle, Bend, Spacing, Tw, A, B;
+        public int Fs;
+    }
+
     sealed class Info
     {
         public bool Show;
@@ -22,14 +32,36 @@ internal sealed class NationLabels
         public SpacedText Text;
     }
 
+    const int MaxFs = 38, MinFs = 13, MinFsFar = 11;      // at ×1 and ×½ a smaller name still reads over the plain map
+    const int CoverSamples = 9;                      // per row: along the top and the bottom of the letters
+    const float CoverShare = .7f;                    // share of those points that must lie over the nation's own land
+    static readonly float[] SizeSteps = { 1, .82f, .68f };
+
+    // candidate offsets: along the axis (× label width) and across it (× font size), nearest the centroid first
+    static readonly (float along, float across)[] Offsets = BuildOffsets();
+
     readonly Info[] _n;
+    readonly int[] _order;
+    readonly List<(Vector2 c, Vector2 u, float a, float b)> _placed = new();
 
     public NationLabels()
     {
         _n = new Info[Data.Nations.Length];
-        for (int i = 0; i < _n.Length; i++) _n[i] = new Info { Text = new SpacedText(Data.Nations[i].Name.ToUpperInvariant()) };
+        _order = new int[_n.Length];
+        for (int i = 0; i < _n.Length; i++) { _n[i] = new Info { Text = new SpacedText(Data.Nations[i].Name.ToUpperInvariant()) }; _order[i] = i; }
     }
 
+    static (float, float)[] BuildOffsets()
+    {
+        var list = new List<(float, float)>();
+        foreach (float a in new[] { 0f, .16f, -.16f, .32f, -.32f })
+            foreach (float c in new[] { 0f, .6f, -.6f, 1.2f, -1.2f, 1.8f, -1.8f, 2.4f, -2.4f })
+                list.Add((a, c));
+        list.Sort((x, y) => (MathF.Abs(x.Item1) * 2 + MathF.Abs(x.Item2) * .5f).CompareTo(MathF.Abs(y.Item1) * 2 + MathF.Abs(y.Item2) * .5f));
+        return list.ToArray();
+    }
+
+    /// <summary>Territory geometry of every nation (on ownership / fog changes).</summary>
     public void Refresh()
     {
         var g = Game.I; var w = g.World; var s = g.State;
@@ -38,7 +70,7 @@ internal sealed class NationLabels
         bool fog = s.FogEnabled;
         for (int p = 0; p < w.P; p++)
         {
-            int o = s.Owner[p];
+            int o = s.VisibleOwner(p);
             if (o < 0 || o >= nN || (fog && s.Fog[p] == 0)) continue;
             double a = w.PCX[p] / (double)w.W * Math.Tau, m = w.PSize[p];
             sc[o] += Math.Cos(a) * m; ss[o] += Math.Sin(a) * m; sy[o] += w.PCY[p] * m; tot[o] += m;
@@ -48,15 +80,15 @@ internal sealed class NationLabels
         {
             var info = _n[n];
             info.Show = tot[n] > 0 && (!fog || g.NationMet(n));
+            info.Tot = (float)tot[n];
             if (tot[n] <= 0) continue;
             info.Cx = (float)(((Math.Atan2(ss[n], sc[n]) / Math.Tau * w.W) % w.W + w.W) % w.W);
             info.Cy = (float)(sy[n] / tot[n]);
-            info.Tot = (float)tot[n];
         }
         // second moments around the centroid (x unwrapped); each province also counts as a disc of its own area
         for (int p = 0; p < w.P; p++)
         {
-            int o = s.Owner[p];
+            int o = s.VisibleOwner(p);
             if (o < 0 || o >= nN || tot[o] <= 0 || (fog && s.Fog[p] == 0)) continue;
             double dx = w.PCX[p] - _n[o].Cx, dy = w.PCY[p] - _n[o].Cy, m = w.PSize[p];
             dx -= Math.Round(dx / w.W) * w.W;
@@ -77,87 +109,163 @@ internal sealed class NationLabels
             double along = a * ct * ct + 2 * c * ct * st + b * st * st;
             _n[n].Angle = (float)theta;
             _n[n].Extent = (float)Math.Sqrt(12 * along);           // length of a uniform bar with that variance
-            _n[n].Bend = (float)(.35 * k);                           // arch strength, scaled per frame by the label length
+            _n[n].Bend = (float)(.35 * k);                           // arch strength, scaled by the label length
         }
+        // big territories choose their spot first
+        Array.Sort(_order, (x, y) => _n[x].Tot != _n[y].Tot ? _n[y].Tot.CompareTo(_n[x].Tot) : x.CompareTo(y));
     }
 
-    /// <summary>Draw labels (zoom ≤ 4) and add their screen boxes to <paramref name="boxes"/> (sea names keep clear).</summary>
-    public void Draw(CanvasItem ci, in MapViewport v, List<Rect2> boxes)
+    // ------------------------------------------------------------------------------------------------ placement
+
+    /// <summary>Place every nation name for a level (see the class summary). Names are shown up to ×4.</summary>
+    public void Layout(LabelPlan.Tier t, List<Rect2> cities, Rect2? soft, Func<int, bool> visible)
     {
+        _placed.Clear();
+        for (int n = 0; n < t.Nations.Length; n++) t.Nations[n].Show = false;
+        if (t.Level > 4) return;
         var g = Game.I; var w = g.World; var s = g.State;
-        float z = v.Zoom;
-        int ps = PixelSprites.CityScale(v.Level);
+        float z = t.Z, wrap = w.W * z;
+        int minFs = t.Level <= 1 ? MinFsFar : MinFs;
         var font = MapFonts.Display700;
-        for (int n = 0; n < _n.Length; n++)
+        foreach (int n in _order)
         {
             var info = _n[n];
             if (!info.Show) continue;
-            float fsRule = Math.Clamp(MathF.Sqrt(info.Tot) * z * .16f, 13, 38);
-            // fit the spaced text into ~90% of the territory length
-            if (info.Width32 < 0) info.Width32 = new SpacedText(Data.Nations[n].Name.ToUpperInvariant()).Width(font, 32, 32 * .22f);
-            float fitFs = info.Extent * z * .9f / info.Width32 * 32;
-            int fs = (int)MathF.Round(Math.Clamp(Math.Min(fsRule, fitFs), 13, 38));
-            float spacing = fs * .22f;
-            float tw = info.Text.Width(font, fs, spacing);
-            float angle = info.Angle;
-            // arch: sag of ~6% of the label length at its ends
-            float bend = tw > 0 ? info.Bend * .24f / (tw * .5f) : 0;
-            if (fs <= 14) { angle *= .5f; bend = 0; }
-
-            // label centre relative to the territory centroid's screen position (same for every wrapped copy)
-            var off = Vector2.Zero;
+            if (info.Width32 < 0) info.Width32 = info.Text.Width(font, 32, 32 * .22f);
+            float fsRule = Math.Clamp(MathF.Sqrt(info.Tot) * z * .16f, minFs, MaxFs);
+            float fitFs = info.Extent * z * .9f / info.Width32 * 32;      // the spaced text over ~90% of the territory
+            if (fitFs < minFs * .8f) continue;                           // far too small a land for its name
+            int fs0 = (int)MathF.Round(Math.Clamp(Math.Min(fsRule, fitFs), minFs, MaxFs));
             int cap = s.NationCapital != null && n < s.NationCapital.Length ? s.NationCapital[n] : -1;
-            if (z >= 2 && cap >= 0 && (!s.FogEnabled || s.Fog[cap] > 0))
-                AvoidCapital(v, w, info, cap, fs, tw, ps, ref off, ref angle, ref bend);
-            float yy = v.ScreenY(info.Cy) + off.Y;
-            if (yy < -60 || yy > v.Screen.Y + 60) continue;
-            var col = MapPalette.LabelColor(n);
-            int halo = Math.Max(3, (int)MathF.Round(fs / 6f));
-            for (float sx = v.FirstX(info.Cx, tw) + off.X; sx < v.Screen.X + tw; sx += v.WZ)
+            bool capShown = cap >= 0 && t.Level >= 2 && visible(cap);
+
+            Place best = default; bool found = false, perfect = false;
+            int lastFs = 0;
+            foreach (float scale in SizeSteps)
             {
-                float hw = tw * .5f * MathF.Abs(MathF.Cos(angle)) + fs * .5f * MathF.Abs(MathF.Sin(angle));
-                float hh = tw * .5f * MathF.Abs(MathF.Sin(angle)) + fs * .6f;
-                boxes.Add(new Rect2(sx - hw, yy - hh, hw * 2, hh * 2));
-                info.Text.Draw(ci, font, fs, spacing, sx, yy, angle, bend, col, halo, MapPalette.Halo);
+                int fs = Math.Max(minFs, (int)MathF.Round(fs0 * scale));
+                if (perfect || fs == lastFs) continue;
+                lastFs = fs;
+                float spacing = fs * .22f, tw = info.Text.Width(font, fs, spacing);
+                float angle = info.Angle, bend = tw > 0 ? info.Bend * .24f / (tw * .5f) : 0;
+                if (fs <= 14) { angle *= .5f; bend = 0; }
+                var c0 = new Vector2(info.Cx * z, info.Cy * z);
+                var u = new Vector2(MathF.Cos(angle), MathF.Sin(angle));
+                var nn = new Vector2(-u.Y, u.X);
+                foreach (var (al, ac) in Offsets)
+                    if (Try(n, c0 + u * (al * tw) + nn * (ac * fs), angle, bend, fs, spacing, tw)) break;
+                if (perfect || !capShown) continue;
+                // level, just above or below the capital's sprite and name
+                var sr = LabelPlan.SpriteRect(w, cap, true, t.Level, z);
+                float top = sr.Position.Y, bottom = t.Level >= 3 ? sr.End.Y + 9 + LabelPlan.CapSize : sr.End.Y;
+                float cx = (w.PCX[cap] + .5f) * z;
+                if (!Try(n, new Vector2(cx, top - fs * .6f - 3), 0, 0, fs, spacing, tw))
+                    Try(n, new Vector2(cx, bottom + fs * .6f + 3), 0, 0, fs, spacing, tw);
+            }
+            if (!found) continue;
+            best.X = ((best.X % wrap) + wrap) % wrap;
+            t.Nations[n] = best;
+            _placed.Add((new Vector2(best.X, best.Y), new Vector2(MathF.Cos(best.Angle), MathF.Sin(best.Angle)), best.A, best.B));
+
+            // candidate check: hard obstacles and land cover must pass; the selection is only avoided when possible
+            bool Try(int nation, Vector2 c, float angle, float bend, int fs, float spacing, float tw)
+            {
+                float sag = MathF.Abs(bend) * tw * tw / 8;
+                float a = tw / 2 + 3, b = fs * .55f + sag / 2;
+                var u = new Vector2(MathF.Cos(angle), MathF.Sin(angle));
+                var nn = new Vector2(-u.Y, u.X);
+                foreach (var r in cities) if (Overlap(c, u, nn, a, b, r, wrap)) return false;
+                foreach (var (pc, pu, pa, pb) in _placed) if (Overlap(c, u, nn, a, b, Box(pc, pu, pa, pb), wrap)) return false;
+                if (!Covers(nation, c, u, nn, bend, tw, fs, z, w, s)) return false;
+                bool clean = soft is not Rect2 sel || !Overlap(c, u, nn, a, b, sel, wrap);
+                if (found && !clean) return false;
+                best = new Place { Show = true, X = c.X, Y = c.Y, Angle = angle, Bend = bend, Spacing = spacing, Tw = tw, A = a, B = b, Fs = fs };
+                found = true;
+                perfect = clean;
+                return clean;
             }
         }
     }
 
-    /// <summary>
-    /// Keep the label off the capital sprite and its name: slide it along its own axis, else sideways, else (as in
-    /// the mockup) lay it level just above the capital. Overlap is tested label-box vs capital-box (separating axes).
-    /// </summary>
-    static void AvoidCapital(in MapViewport v, World.WorldData w, Info info, int cap, int fs, float tw, int ps, ref Vector2 off, ref float angle, ref float bend)
+    /// <summary>Most of the label (the top and bottom of its letters along the arch) lies over land the map shows as
+    /// the nation's, so a name neither spills over its neighbours nor straddles its own border.</summary>
+    static bool Covers(int n, Vector2 c, Vector2 u, Vector2 nn, float bend, float tw, int fs, float z, World.WorldData w, Sim.GameState s)
     {
-        float z = v.Zoom;
-        float dxw = w.PCX[cap] + .5f - info.Cx; dxw -= MathF.Round(dxw / w.W) * w.W;
-        // capital block: sprite (8 sprite px tall) plus, from ×3, its name underneath
-        float nameHalf = v.Level >= 3 ? MapFonts.Display700.GetStringSize(w.PName[cap], HorizontalAlignment.Left, -1, 14).X / 2 + 4 : 0;
-        float top = -ps * 6 - 3, bottom = v.Level >= 3 ? ps * 6 + 9 + 10 : ps * 7;
-        var c = new Vector2(dxw * z, (w.PCY[cap] + .5f - info.Cy) * z + (top + bottom) / 2);
-        var hb = new Vector2(MathF.Max(ps * 7.5f, nameHalf), (bottom - top) / 2);
-        float a = tw / 2 + 4, b = fs * .55f + (bend * tw * tw / 8) / 2;
-
-        var u = new Vector2(MathF.Cos(angle), MathF.Sin(angle));
-        var nn = new Vector2(-u.Y, u.X);
-        var d = c - off;
-        if (!Overlap(d, u, nn, a, b, hb)) return;
-        float ru = hb.X * MathF.Abs(u.X) + hb.Y * MathF.Abs(u.Y) + a + 3;
-        float du = d.Dot(u), tu = du >= 0 ? du - ru : du + ru;             // slide along the axis, away from the capital
-        if (MathF.Abs(tu) <= tw * .3f) { off += u * tu; return; }
-        float rn = hb.X * MathF.Abs(nn.X) + hb.Y * MathF.Abs(nn.Y) + b + 3;
-        float dn = d.Dot(nn), tn = dn >= 0 ? dn - rn : dn + rn;            // or step sideways
-        if (MathF.Abs(tn) <= fs * 1.4f + ps * 4) { off += nn * tn; return; }
-        angle = 0; bend = 0;
-        off = new Vector2(0, c.Y - hb.Y - fs * .6f - 2);                    // level, right above the capital
+        int total = CoverSamples * 2, need = (int)MathF.Ceiling(total * CoverShare), hits = 0, seen = 0;
+        for (int row = -1; row <= 1; row += 2)
+            for (int i = 0; i < CoverSamples; i++, seen++)
+            {
+                float m = -tw / 2 + tw * i / (CoverSamples - 1);
+                var q = (c + u * m + nn * (bend * m * m * .5f + row * fs * .32f)) / z;
+                int y = (int)MathF.Floor(q.Y);
+                if (y >= 0 && y < w.H)
+                {
+                    int x = ((int)MathF.Floor(q.X) % w.W + w.W) % w.W, p = w.Prov[y * w.W + x];
+                    if (s.VisibleOwner(p) == n && (!s.FogEnabled || s.Fog[p] > 0)) hits++;
+                }
+                if (hits >= need) return true;
+                if (hits + (total - 1 - seen) < need) return false;
+            }
+        return hits >= need;
     }
 
-    static bool Overlap(Vector2 d, Vector2 u, Vector2 n, float a, float b, Vector2 hb)
+    /// <summary>Does a (province name) rect hit a placed nation name of this level?</summary>
+    public bool Hits(LabelPlan.Tier t, Rect2 r)
     {
+        float wrap = Game.I.World.W * t.Z;
+        foreach (var p in t.Nations)
+        {
+            if (!p.Show) continue;
+            var u = new Vector2(MathF.Cos(p.Angle), MathF.Sin(p.Angle));
+            if (Overlap(new Vector2(p.X, p.Y), u, new Vector2(-u.Y, u.X), p.A, p.B, r, wrap)) return true;
+        }
+        return false;
+    }
+
+    static Rect2 Box(Vector2 c, Vector2 u, float a, float b)
+    {
+        var h = new Vector2(a * MathF.Abs(u.X) + b * MathF.Abs(u.Y), a * MathF.Abs(u.Y) + b * MathF.Abs(u.X));
+        return new Rect2(c - h, h * 2);
+    }
+
+    /// <summary>Oriented box (centre c, axes u/n, half extents a/b) vs a rect, separating axes, x on the cylinder.</summary>
+    static bool Overlap(Vector2 c, Vector2 u, Vector2 n, float a, float b, Rect2 r, float wrap)
+    {
+        var hb = r.Size / 2;
+        var d = r.Position + hb - c;
+        if (wrap > 0) d.X -= MathF.Round(d.X / wrap) * wrap;
         if (MathF.Abs(d.X) > a * MathF.Abs(u.X) + b * MathF.Abs(n.X) + hb.X) return false;
         if (MathF.Abs(d.Y) > a * MathF.Abs(u.Y) + b * MathF.Abs(n.Y) + hb.Y) return false;
         if (MathF.Abs(d.Dot(u)) > a + hb.X * MathF.Abs(u.X) + hb.Y * MathF.Abs(u.Y)) return false;
         if (MathF.Abs(d.Dot(n)) > b + hb.X * MathF.Abs(n.X) + hb.Y * MathF.Abs(n.Y)) return false;
         return true;
+    }
+
+    // ------------------------------------------------------------------------------------------------ drawing
+
+    /// <summary>Draw a level's names at the current view zoom (scaled while a zoom glide heads for that level) and add
+    /// their screen boxes to <paramref name="boxes"/> (sea names keep clear).</summary>
+    public void Draw(CanvasItem ci, in MapViewport v, LabelPlan.Tier t, List<Rect2> boxes)
+    {
+        float k = v.Zoom / t.Z;
+        var font = MapFonts.Display700;
+        for (int n = 0; n < t.Nations.Length; n++)
+        {
+            var p = t.Nations[n];
+            if (!p.Show) continue;
+            int fs = Math.Max(1, (int)MathF.Round(p.Fs * k));
+            float yy = v.ScreenY(p.Y / t.Z);
+            if (yy < -80 || yy > v.Screen.Y + 80) continue;
+            float tw = p.Tw * k, spacing = p.Spacing * k, bend = k > 0 ? p.Bend / k : 0;
+            var col = MapPalette.LabelColor(n);
+            int halo = Math.Max(3, (int)MathF.Round(fs / 6f));
+            float hw = (p.A * MathF.Abs(MathF.Cos(p.Angle)) + p.B * MathF.Abs(MathF.Sin(p.Angle))) * k;
+            float hh = (p.A * MathF.Abs(MathF.Sin(p.Angle)) + p.B * MathF.Abs(MathF.Cos(p.Angle))) * k;
+            for (float sx = v.FirstX(p.X / t.Z, hw); sx < v.Screen.X + hw; sx += v.WZ)
+            {
+                boxes.Add(new Rect2(sx - hw, yy - hh, hw * 2, hh * 2));
+                _n[n].Text.Draw(ci, font, fs, spacing, sx, yy, p.Angle, bend, col, halo, MapPalette.Halo);
+            }
+        }
     }
 }

@@ -14,12 +14,15 @@ namespace WorldGenTests;
 
 /// <summary>
 /// Console checks for WorldGen + NationGen: timings, stats (same format as the mockup's node harness), invariants,
-/// determinism across runs and thread counts, per-array hashes comparable with the JS reference (jsdump.js), PNGs.
+/// determinism across runs and thread counts, per-array hashes, PNGs.
 ///
 ///   dotnet run -c Release [-p:GameDir=&lt;game copy&gt;/] -- [1337,42,777] [--size=2560x1440] [--threads=1,3] [--nodet]
-///       [--hashes=&lt;dir&gt;] [--compare=&lt;dir with js_SEED.txt&gt;] [--png=&lt;dir&gt;] [--bench=N]
-/// Seeds with a reference/js_SEED.txt (made by jsdump.js from docs/mockups/js) are compared with it by default.
-/// Exit code 0 = all invariants hold, results deterministic and identical to the JS reference where one exists.
+///       [--hashes=&lt;dir&gt;] [--compare=&lt;dir&gt;] [--png=&lt;dir&gt;] [--bench=N] [--bless]
+/// Two references per seed (in reference/, or --compare):
+///  • js_SEED.txt (jsdump.js on docs/mockups/js): relief, climate, colour and provinces must match the mockup bit for bit;
+///  • cs_SEED.txt: what the game deliberately does its own way — the drainage-network rivers (and river-dependent
+///    fertility) and the nations — pinned to the last blessed C# output; --bless rewrites it after an intended change.
+/// Exit code 0 = all invariants hold, results deterministic and identical to both references where they exist.
 /// </summary>
 static class Program
 {
@@ -52,8 +55,19 @@ static class Program
             var hashes = Hashes(w, s);
             string full = Fnv(string.Join("\n", hashes));
             if (opt.TryGetValue("hashes", out var hdir)) File.WriteAllLines(Path.Combine(hdir, $"cs_{seed}.txt"), hashes);
-            string refFile = Path.Combine(opt.GetValueOrDefault("compare") ?? Path.Combine(AppContext.BaseDirectory, "reference"), $"js_{seed}.txt");
-            if (File.Exists(refFile)) Compare(w, hashes, refFile);
+            string refDir = opt.GetValueOrDefault("compare") ?? Path.Combine(AppContext.BaseDirectory, "reference");
+            string jsRef = Path.Combine(refDir, $"js_{seed}.txt"), csRef = Path.Combine(refDir, $"cs_{seed}.txt");
+            if (File.Exists(jsRef)) CompareMockup(hashes, jsRef);
+            if (opt.ContainsKey("bless"))
+            {
+                // also next to the sources, so the blessed file is what the next build copies
+                foreach (var dir in new[] { refDir, SourceReferenceDir() }.Where(d => d != null).Distinct())
+                    if (Directory.Exists(dir)) File.WriteAllLines(Path.Combine(dir, $"cs_{seed}.txt"), hashes.Where(l => OwnKeys.Contains(l.Split(' ')[0])));
+                Console.WriteLine($"  blessed cs_{seed}.txt");
+            }
+            else if (File.Exists(csRef)) CompareOwn(hashes, csRef);
+            else Console.WriteLine($"  no cs_{seed}.txt — run with --bless to pin the rivers and nations");
+            CheckRivers(w);
 
             if (!opt.ContainsKey("nodet"))
             {
@@ -290,30 +304,75 @@ static class Program
         return names;
     }
 
-    static readonly string[] NationKeys = { "caps", "own", "pop", "rel", "bld", "ore", "cap", "town", "routes" };
+    /// <summary>reference/ beside WorldGenTests.csproj (found by walking up from the build output).</summary>
+    static string SourceReferenceDir()
+    {
+        for (var d = new DirectoryInfo(AppContext.BaseDirectory); d != null; d = d.Parent)
+            if (File.Exists(Path.Combine(d.FullName, "WorldGenTests.csproj"))) return Path.Combine(d.FullName, "reference");
+        return null;
+    }
 
-    /// <summary>Per-array comparison with the JS reference. Known deviation: NationGen moves the player off a land mass
-    /// smaller than 10% of all land (the mockup can start them on a tiny island); then only the world is compared.</summary>
-    static void Compare(WorldData w, List<string> mine, string refFile)
+    /// <summary>Arrays the game computes its own way; everything else must still equal the mockup.</summary>
+    static readonly string[] OwnKeys = { "river", "rivers", "pRiver", "pFert", "caps", "own", "pop", "rel", "mood", "slots", "bld", "ore", "cap", "town", "routes" };
+
+    /// <summary>Relief, climate, colour and provinces vs the JS mockup (jsdump.js).</summary>
+    static void CompareMockup(List<string> mine, string refFile)
     {
         var theirs = File.ReadAllLines(refFile).Where(l => l.Length > 0).ToList();
-        int jsPlayerCap = int.Parse(theirs.First(l => l.StartsWith("caps ")).Split(' ')[2].Split(',')[0]);
-        long allLand = Enumerable.Range(0, w.BodySize.Length).Where(c => w.BodyLand[c] != 0).Sum(c => (long)w.BodySize[c]);
-        bool moved = w.BodySize[w.PBody[jsPlayerCap]] < .1 * allLand;
         var diff = new List<string>();
-        for (int k = 0; k < Math.Max(mine.Count, theirs.Count); k++)
+        foreach (string b in theirs)
         {
-            string a = k < mine.Count ? mine[k] : "", b = k < theirs.Count ? theirs[k] : "", key = b.Split(' ')[0];
-            if (a != b && !(moved && NationKeys.Contains(key))) diff.Add(key);
+            string key = b.Split(' ')[0];
+            if (OwnKeys.Contains(key)) continue;
+            string a = mine.FirstOrDefault(l => l.Split(' ')[0] == key);
+            if (a != b) diff.Add(key);
         }
-        if (diff.Count > 0) Fail("differs from the JS reference in: " + string.Join(", ", diff));
-        else if (moved)
+        if (diff.Count > 0) Fail("differs from the JS mockup in: " + string.Join(", ", diff));
+        else Console.WriteLine($"  vs JS mockup: IDENTICAL ({theirs.Count(l => !OwnKeys.Contains(l.Split(' ')[0]))} arrays: relief, climate, colour, provinces)");
+    }
+
+    /// <summary>Rivers and nations vs the last blessed C# output.</summary>
+    static void CompareOwn(List<string> mine, string refFile)
+    {
+        var theirs = File.ReadAllLines(refFile).Where(l => l.Length > 0).ToList();
+        var diff = theirs.Where(b => !mine.Contains(b)).Select(b => b.Split(' ')[0]).ToList();
+        if (diff.Count > 0) Fail("rivers/nations changed vs the blessed C# reference in: " + string.Join(", ", diff) + " (intended? rerun with --bless)");
+        else Console.WriteLine($"  vs blessed C# reference: IDENTICAL ({theirs.Count} arrays: rivers, fertility, nations)");
+    }
+
+    /// <summary>The river network: trees that reach water, tributaries that end on another river, no ladders.</summary>
+    static void CheckRivers(WorldData w)
+    {
+        if (w.Rivers.Count == 0) { Fail("no rivers"); return; }
+        int mouths = 0, joins = 0, straight = 0;
+        foreach (var r in w.Rivers)
         {
-            string myCap = mine.First(l => l.StartsWith("caps ")).Split(' ')[2].Split(',')[0];
-            Console.WriteLine($"  vs JS reference: world IDENTICAL; nations differ as intended (the mockup's player capital {jsPlayerCap} " +
-                              $"is on a {w.BodySize[w.PBody[jsPlayerCap]]} px island, ours is {myCap})");
+            if (r.Flow == null || r.Flow.Length != r.Xs.Length || r.Flow.Any(f => f < 0 || f > 1)) { Fail("river flow missing or out of 0..1"); return; }
+            int x = ((int)MathF.Floor(r.Xs[^1]) % w.W + w.W) % w.W, y = Math.Clamp((int)MathF.Floor(r.Ys[^1]), 0, w.H - 1);
+            if (w.Land[y * w.W + x] == 0) mouths++;
+            else if (w.Rivers.Any(o => o != r && Near(o, r.Xs[^1], r.Ys[^1], w.W))) joins++;
+            // a ruler-straight stretch: 24 points (~48 px) all within 0.35 px of their chord
+            for (int k = 0; k + 24 < r.Xs.Length; k += 6)
+            {
+                float ax = r.Xs[k], ay = r.Ys[k], bx = r.Xs[k + 24], by = r.Ys[k + 24], len = MathF.Sqrt((bx - ax) * (bx - ax) + (by - ay) * (by - ay));
+                float dev = 0;
+                for (int q = k; q <= k + 24; q++) dev = MathF.Max(dev, MathF.Abs((r.Xs[q] - ax) * (by - ay) - (r.Ys[q] - ay) * (bx - ax)) / Math.Max(len, 1e-3f));
+                if (dev < .35f) { straight++; break; }
+            }
         }
-        else Console.WriteLine("  vs JS reference: IDENTICAL (all per-array hashes match)");
+        Console.WriteLine($"  rivers: {w.Rivers.Count} ({mouths} reach water, {joins} join another river, {straight} with a ruler-straight stretch)");
+        if (mouths + joins != w.Rivers.Count) Fail($"{w.Rivers.Count - mouths - joins} rivers end in the middle of the land");
+        if (straight > 0) Fail($"{straight} rivers have a ruler-straight stretch");
+    }
+
+    static bool Near(WorldData.RiverPath o, float x, float y, int W)
+    {
+        for (int k = 0; k < o.Xs.Length; k++)
+        {
+            float dx = MathF.Abs(o.Xs[k] - x) % W; dx = MathF.Min(dx, W - dx);
+            if (dx < 2.5f && MathF.Abs(o.Ys[k] - y) < 2.5f) return true;
+        }
+        return false;
     }
 
     // ---------------------------------------------------------------- PNG output

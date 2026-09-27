@@ -2,12 +2,14 @@ using Godot;
 
 namespace PaxPixelia.Map;
 
-/// <summary>Fonts used on the map canvas (design_final: Alegreya SC for nations/capitals/seas, Fira Sans Condensed for towns/provinces).</summary>
+/// <summary>Fonts used on the map canvas (design_final: Alegreya SC for nations/capitals/seas, Fira Sans Condensed for
+/// towns (500) and provinces (400, a step below the towns)).</summary>
 internal static class MapFonts
 {
     public static readonly Font Display500 = Load("AlegreyaSC-Medium.ttf");
     public static readonly Font Display700 = Load("AlegreyaSC-Bold.ttf");
     public static readonly Font Display800 = Load("AlegreyaSC-ExtraBold.ttf");
+    public static readonly Font Ui400 = Load("FiraSansCondensed-Regular.ttf");
     public static readonly Font Ui500 = Load("FiraSansCondensed-Medium.ttf");
     public static readonly Font Ui600 = Load("FiraSansCondensed-SemiBold.ttf");
 

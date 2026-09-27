@@ -1,5 +1,6 @@
 using System;
 using System.Runtime.CompilerServices;
+using System.Threading;
 
 namespace PaxPixelia.World;
 
@@ -15,10 +16,11 @@ public static class WorldGen
     public static int MaxThreads = -1;
 
     /// <param name="w">World width in pixels; must be a multiple of 64 (province seed grid).</param>
-    public static WorldData Generate(int seed, int w, int h, Action<string> progress = null)
+    /// <param name="cancel">Stops a superseded run between stages (throws OperationCanceledException).</param>
+    public static WorldData Generate(int seed, int w, int h, Action<string> progress = null, CancellationToken cancel = default)
     {
         if (w % 64 != 0 || w <= 0 || h <= 0) throw new ArgumentException($"world size {w}x{h}: width must be a positive multiple of 64");
-        return new WorldBuilder(seed, w, h, MaxThreads).Build(progress);
+        return new WorldBuilder(seed, w, h, MaxThreads, cancel).Build(progress);
     }
 
     /// <summary>Counting-sort index of pixels per province (PixOffset/PixList); each province's pixels stay in row-major order.</summary>

@@ -4,7 +4,8 @@ using PaxPixelia.Core;
 
 namespace PaxPixelia.Map;
 
-/// <summary>Pixel-art cities (capital with a flag in the nation colour from ×2, towns from ×3) and buildings around province centres (from ×5).</summary>
+/// <summary>Pixel-art cities (capital with a flag in the nation colour from ×2, towns from ×3 unless a capital's sprite or
+/// name needs their spot — see <see cref="LabelPlan"/>) and buildings around province centres (from ×5).</summary>
 internal partial class SpriteOverlay : ChunkedOverlay
 {
     public override void _Ready() => TextureFilter = TextureFilterEnum.Nearest;
@@ -21,15 +22,17 @@ internal partial class SpriteOverlay : ChunkedOverlay
         if (level < 2) return;
         var w = Game.I.World; var s = Game.I.State;
         float z = c.RecZoom;
-        int ps = PixelSprites.CityScale(level), bps = PixelSprites.BuildingScale(level);
+        var plan = Map.Labels.Get(level);
+        int bps = PixelSprites.BuildingScale(level);
         // shadows first, then sprites: the whole chunk batches into two draws from one atlas
         for (int pass = 0; pass < 2; pass++)
             foreach (int p in Members[c.Index])
             {
                 if (!KnownAt(p)) continue;
                 var at = Local(c, w.PCX[p], w.PCY[p]);
-                int owner = s.Owner[p] >= 0 ? s.Owner[p] : Math.Max((int)s.CapitalOf[p], 0);
-                bool cap = s.CapitalOf[p] >= 0, city = cap || (s.IsTown[p] && level >= 3);
+                int owner = s.VisibleOwner(p) >= 0 ? s.VisibleOwner(p) : Math.Max((int)s.CapitalOf[p], 0);
+                bool cap = s.CapitalOf[p] >= 0, city = plan.Sprite[p];
+                int ps = PixelSprites.CityScale(level, cap);
                 var list = s.Buildings[p];
                 if (level >= 5 && list != null && list.Count > 0)
                 {

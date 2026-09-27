@@ -118,10 +118,12 @@ internal sealed partial class WorldBuilder
     }
 
     /// <summary>Pixel-art base colour: biome palette, hill tint, per-pixel tone noise, dune ripples, hillshade
-    /// posterised to 0.06 steps; water in 4 depth bands with a light coast line. Rivers are drawn by the map, not baked.</summary>
+    /// posterised to 0.06 steps; water in 4 depth bands with a light coast line. Rivers are drawn by the map, not baked.
+    /// High mountains (the mockup painted every pixel above .82 white, so ridges read as white ribbons) get a ragged
+    /// snow line with a dithered edge, cool snow, and speckled rock flanks with lit crests.</summary>
     void Colour()
     {
-        int w = _w, h = _h, s = _s, toneK = _k.Tone, duneK = _k.Dune;
+        int w = _w, h = _h, s = _s, toneK = _k.Tone, duneK = _k.Dune, snowK = _k.Micro;
         var land = _d.Land; var hgt = _d.Height; var biome = _d.Biome; var col = _d.BaseColor;
         var palette = Data.BiomeColor;
         Parallel.For(0, h, _po, [MethodImpl(Hot)] (y) =>
@@ -139,6 +141,14 @@ internal sealed partial class WorldBuilder
                     if (hv > .34 && hv <= .6 && b > 3) { r = r * .72 + 114 * .28; g = g * .72 + 104 * .28; bl = bl * .72 + 82 * .28; }
                     double hn = Noise.H2(x, y, s + 999), tone = Fbm(x, y, toneK, 2, s + 60);
                     f = b == 5 || b == 8 || b == 12 ? (hn < .3 ? .78 : hn > .84 ? 1.13 : 1) : .965 + hn * .07; // forests: dark/light canopy speckle
+                    if (b is 2 or 3)
+                    {
+                        double line = .9 + .1 * (Fbm(x, y, snowK, 2, s + 81) * 2 - 1);
+                        bool snow = hv > line || (hv > line - .014 && ((x + y) & 1) == 0);   // two tones dithered along the edge
+                        bool crest = hv >= hgt[xl] && hv >= hgt[xr] || y > 0 && y < h - 1 && hv >= hgt[i - w] && hv >= hgt[i + w];
+                        if (snow) { r = 228; g = 233; bl = 238; f = crest ? 1.06 : 1; }
+                        else { r = palette[3][0]; g = palette[3][1]; bl = palette[3][2]; f = (hn < .16 ? .84 : hn > .9 ? 1.1 : 1) * (crest ? 1.14 : 1); }
+                    }
                     f *= .92 + tone * .16;
                     if (b == 14 || b == 11) f *= 1 + .04 * Math.Sin(x * .5 + y * .2 + Fbm(x, y, duneK, 1, s + 5) * 6);
                     double gx = (double)hgt[xr] - hgt[xl], gy = (y < h - 1 ? hgt[i + w] : hv) - (y > 0 ? hgt[i - w] : hv);

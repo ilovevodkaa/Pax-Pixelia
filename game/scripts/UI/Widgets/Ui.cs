@@ -186,7 +186,8 @@ public partial class TextButton : Button
         ClipContents = true;
     }
 
-    public string Caption { get => _label.Text; set { _label.Text = value; Fit(); } }
+    public string Caption { get => _label.Text; set { if (_label.Text == value) return; _label.Text = value; Fit(); } }
+    public Texture2D IconTexture { get => _icon.Texture; set { if (_icon.Texture == value) return; _icon.Texture = value; Fit(); } }
     public float MinHeight { get => _minHeight; set { _minHeight = value; Fit(); } }
     /// <summary>Let the container decide the width (the caption is clipped) — for grid cells like the build menu.</summary>
     public bool Elastic { get => _elastic; set { _elastic = value; Fit(); } }

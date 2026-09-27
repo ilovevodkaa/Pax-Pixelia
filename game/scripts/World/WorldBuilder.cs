@@ -1,13 +1,14 @@
 using System;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace PaxPixelia.World;
 
 /// <summary>
 /// One world generation run: holds the temporaries between stages. Stage order and data flow follow the mockup's wgRun:
-/// relief → sea level → heights + biomes → bodies → (province assignment ‖ colour ‖ rivers) → province merge + stats.
+/// relief → sea level → heights + biomes → bodies → (province assignment, colour, merge ‖ rivers) → province stats.
 /// Per-pixel passes are Parallel.For over rows where every row writes only its own outputs, so results don't depend
 /// on scheduling. Floating-point order of operations deliberately mirrors the JS (doubles, float32 at storage).
 /// </summary>
@@ -27,11 +28,14 @@ internal sealed partial class WorldBuilder
     double _min, _max, _sea;    // raw elevation range (double, before float32 storage) and sea level
     Components _bodies;         // land masses / water bodies after cleanup
 
-    public WorldBuilder(int seed, int w, int h, int maxThreads)
+    readonly CancellationToken _cancel;
+
+    public WorldBuilder(int seed, int w, int h, int maxThreads, CancellationToken cancel = default)
     {
         _s = seed; _w = w; _h = h; _n = w * h;
         _k = new GenScale(w);
-        _po = new ParallelOptions { MaxDegreeOfParallelism = maxThreads };
+        _cancel = cancel;
+        _po = new ParallelOptions { MaxDegreeOfParallelism = maxThreads, CancellationToken = cancel };
         _d = new WorldData
         {
             Seed = seed, W = w, H = h, N = _n,
@@ -54,18 +58,19 @@ internal sealed partial class WorldBuilder
         var rivers = Task.Run(() => { double t0 = _clock.Elapsed.TotalMilliseconds; Rivers(); return _clock.Elapsed.TotalMilliseconds - t0; });
         AssignProvinces(seeds); Lap("assign");
         Colour(); Lap("colour");
-        double riverMs = rivers.Result; Lap("rivers wait");
-        _d.GenTimings.Add(("(rivers, concurrent)", riverMs));
 
         progress?.Invoke("Провинции…");
         MergeProvinces(seeds.Count); Lap("merge");
         WorldGen.BuildPixelIndex(_d); Lap("index");
+        double riverMs = rivers.Result; Lap("rivers wait");      // only the province stats need the rivers
+        _d.GenTimings.Add(("(rivers, concurrent)", riverMs));
         ProvinceStats(); Lap("stats");
         return _d;
     }
 
     void Lap(string stage)
     {
+        _cancel.ThrowIfCancellationRequested();
         double t = _clock.Elapsed.TotalMilliseconds;
         _d.GenTimings.Add((stage, t - _lap));
         _lap = t;

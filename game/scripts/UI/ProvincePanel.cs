@@ -9,8 +9,10 @@ namespace PaxPixelia.UI;
 /// <summary>
 /// #panel — the full-height right column for the selected province. Variants: unexplored (fog), sea zone, unclaimed
 /// tribes (claim), foreign nation, and own province (stats, class bar, buildings + build menu, ore survey, capital-only
-/// scouts and construction queue). Sticky header with the owner-colour rule, scrolling body with a bottom fade.
-/// Rebuilt on selection / ownership / fog changes; per-year values update in place through <see cref="_live"/>.
+/// scouts and construction queue). Sticky header with the owner-colour rule, scrolling body with a bottom fade and a
+/// thin overlay scrollbar (the content keeps symmetric 16px margins whether it scrolls or not).
+/// Rebuilt on selection / ownership / fog changes — never while a mouse button is held, so a press on one of its
+/// buttons is not lost; per-year values, button states and the scout rows update in place (<see cref="_live"/>).
 /// </summary>
 public partial class ProvincePanel : PanelContainer
 {
@@ -29,10 +31,17 @@ public partial class ProvincePanel : PanelContainer
     readonly VBoxContainer _body = Ui.VBox(0);
     readonly MarginContainer _bodyMargin;
     readonly BottomFade _fade = new();
+    readonly ThinScrollBar _bar;
     readonly List<Action> _live = new();
 
-    VBoxContainer _scouts;
-    long _scoutSig = -1;
+    // capital-only scouts section: built once per Rebuild, updated in place (a rebuild under the cursor eats clicks)
+    VBoxContainer _scouts, _scoutRows;
+    Control _scoutRowsGap;
+    Label _scoutAside;
+    TextButton _scoutPick;
+    Button _scoutAuto;
+    readonly List<(Label text, Label meta)> _scoutRowLabels = new();
+    bool _rebuildPending;
     bool _buildOpen;
     int _fogAtBuild = -1;
     int _restoreScroll = -1;
@@ -51,7 +60,12 @@ public partial class ProvincePanel : PanelContainer
         var titleRow = Ui.HBox(8, _title, _titleIcon);
         _head = Ui.Panel(_headBox, Ui.HBox(10, Ui.VBox(4, titleRow, _sub).Grow(), close));
 
-        _scroll = new ScrollContainer { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, MouseFilter = MouseFilterEnum.Pass };
+        _scroll = new ScrollContainer
+        {
+            HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled,
+            VerticalScrollMode = ScrollContainer.ScrollMode.ShowNever,   // scrolls; the thin bar below is drawn over it
+            MouseFilter = MouseFilterEnum.Pass,
+        };
         _bodyMargin = Ui.Margin(_body, 16, 0, 16, 16);
         _bodyMargin.SizeFlagsHorizontal = SizeFlags.ExpandFill;
         _scroll.AddChild(_bodyMargin);
@@ -59,6 +73,8 @@ public partial class ProvincePanel : PanelContainer
         stack.AddChild(_scroll);
         _fade.SizeFlagsVertical = SizeFlags.ShrinkEnd;
         stack.AddChild(_fade);
+        _bar = new ThinScrollBar(_scroll) { SizeFlagsHorizontal = SizeFlags.ShrinkEnd };
+        stack.AddChild(_bar);
         AddChild(Ui.VBox(0, _head, stack));
     }
 
@@ -103,10 +119,10 @@ public partial class ProvincePanel : PanelContainer
     public void OnProvincesChanged(IReadOnlyList<int> changed)
     {
         if (!Visible || !Game.I.IsReady) return;
-        if (changed == null) { Rebuild(); return; }
+        if (changed == null) { RequestRebuild(); return; }
         var adj = Game.I.World.Adj[Province];
         foreach (int q in changed)
-            if (q == Province || Array.IndexOf(adj, q) >= 0) { Rebuild(); return; }
+            if (q == Province || Array.IndexOf(adj, q) >= 0) { RequestRebuild(); return; }
         foreach (var a in _live) a();
     }
     public void OnTargetingChanged() { if (Visible) RefreshScouts(); }
@@ -114,7 +130,14 @@ public partial class ProvincePanel : PanelContainer
     public void OnFogChanged()
     {
         if (!Visible || !Game.I.IsReady) return;
-        if (FogOf(Province) != _fogAtBuild) Rebuild(); else RefreshScouts();
+        if (FogOf(Province) != _fogAtBuild) RequestRebuild(); else RefreshScouts();
+    }
+
+    /// <summary>A rebuild frees the buttons: wait while a mouse button is held (the press would lose its release).</summary>
+    void RequestRebuild()
+    {
+        if (Input.IsMouseButtonPressed(MouseButton.Left) || Input.IsMouseButtonPressed(MouseButton.Right)) _rebuildPending = true;
+        else Rebuild();
     }
 
     static int FogOf(int p) { var s = Game.I.State; return !s.FogEnabled || s.Fog == null ? 2 : s.Fog[p]; }
@@ -123,6 +146,7 @@ public partial class ProvincePanel : PanelContainer
     public override void _Process(double delta)
     {
         if (!Visible) return;
+        if (_rebuildPending && !Input.IsMouseButtonPressed(MouseButton.Left) && !Input.IsMouseButtonPressed(MouseButton.Right)) Rebuild();
         float head = _head.GetCombinedMinimumSize().Y;
         float content = _bodyMargin.GetCombinedMinimumSize().Y;
         float h = Mathf.Max(40, Mathf.Min(content, _maxHeight - head - 2));
@@ -135,7 +159,7 @@ public partial class ProvincePanel : PanelContainer
         Position = new Vector2(GetParentAreaSize().X - Size.X - Gutter + Mathf.Round(_slide), Top);
         if (_restoreScroll >= 0 && content > 0) { _scroll.ScrollVertical = _restoreScroll; _restoreScroll = -1; }
         var bar = _scroll.GetVScrollBar();
-        _fade.Visible = bar.Visible && bar.Value + bar.Page < bar.MaxValue - 2;
+        _fade.Visible = bar.MaxValue > bar.Page + 1 && bar.Value + bar.Page < bar.MaxValue - 2;
     }
 
     // ---------------- content ----------------
@@ -144,17 +168,18 @@ public partial class ProvincePanel : PanelContainer
         int p = Province;
         if (p < 0 || !Game.I.IsReady) return;
         if (_restoreScroll < 0) _restoreScroll = (int)_scroll.ScrollVertical;
+        _rebuildPending = false;
         Ui.Clear(_body);
         _live.Clear();
         _scouts = null;
-        _scoutSig = -1;
+        _scoutRowLabels.Clear();
 
         var w = Game.I.World; var s = Game.I.State;
         int f = FogOf(p);
         _fogAtBuild = f;
         var flow = new Flow(_body, 14);
         bool land = w.PLand[p] == 1;
-        int owner = s.Owner[p];
+        int owner = s.VisibleOwner(p);
         string sub = $"{w.TerrainName(p)} · климат {Data.Climate(w.PBiome[p])}{(w.PRiver[p] != 0 ? " · река" : "")}{(w.PCoast[p] != 0 ? " · побережье" : "")}";
 
         if (f == 0) { Head("Неизведанные земли", "Туман войны", "cloud-fog", null); FogBody(flow, p, land); }
@@ -174,23 +199,19 @@ public partial class ProvincePanel : PanelContainer
         _head.QueueRedraw();
     }
 
-    string PopText(int p, bool stale) => stale ? "~?" : "~" + Fmt.Int(Game.I.State.Pop[p]);
-
+    /// <summary>Population estimate; for a stale province nobody knows it now.</summary>
     Label LivePop(int p, bool stale)
     {
-        var l = Kit.Value(PopText(p, stale));
-        if (!stale) _live.Add(() => l.Text = PopText(p, false));
+        if (stale) return Ui.Text("нет сведений", "Mu");
+        var l = Kit.Value("~" + Fmt.Int(Game.I.State.Pop[p]));
+        _live.Add(() => l.Text = "~" + Fmt.Int(Game.I.State.Pop[p]));
         return l;
     }
 
+    /// <summary>Unexplored: nothing about the place is told — not even whether it is land (the scouts will find out).</summary>
     void FogBody(Flow flow, int p, bool land)
     {
         flow.Add(Kit.Para("Здесь могут быть племена, ресурсы и чужие державы. Туман рассеивается там, где проходят ваши разведчики, границы и торговые пути."), 10);
-        if (!land)
-        {
-            flow.Add(Kit.Para("Похоже на море. Разведчики ходят только по суше — корабли появятся позже."), 10);
-            return;
-        }
         var send = Ui.Button("Отправить разведчиков сюда", "map-search", "Pri", () => Game.I.SendScout(p), 16, 32);
         flow.Add(Kit.Acts(send), 14);
         var fine = flow.Add(Kit.Para("", true, 12), 8);
@@ -280,12 +301,7 @@ public partial class ProvincePanel : PanelContainer
         _live.Add(SyncStats);
         flow.Add(Kit.Grid(("Население", pop), ("Довольство", mood), ("Плодородие", Kit.Fertility(w.PFert[p])), ("Налоги", Kit.ValueUnit(tax, "в год"))), 12);
 
-        if (capital)
-        {
-            _scouts = Ui.VBox(0);
-            flow.Add(_scouts, 20);
-            RefreshScouts();
-        }
+        if (capital) { flow.Add(BuildScouts(), 20); RefreshScouts(); }
 
         // population classes (ancient era): the mockup's deterministic split around 62/18/12/8
         var classes = Data.AncientClasses;
@@ -328,7 +344,9 @@ public partial class ProvincePanel : PanelContainer
                     var btn = Ui.Button(Data.BldName[(int)b], BuildingIcon(b), "Menu", () => { _buildOpen = false; Game.I.Build(p, bb); Rebuild(); }, 14, 28);
                     btn.Tip(t => t.Title(Data.BldName[(int)bb]).Kv("Стоимость", $"{cost} золота")
                         .Kv("В казне", Fmt.Int(Game.I.State.Gold), Game.I.State.Gold >= cost ? Pal.Ok : Pal.Bad));
-                    Ui.Enable(btn, s.Gold >= cost);
+                    void SyncBuild() => Ui.Enable(btn, Game.I.State.Gold >= cost);   // gold arrives every year
+                    SyncBuild();
+                    _live.Add(SyncBuild);
                     buttons.Add(btn);
                 }
                 if (buttons.Count > 0) flow.Add(Kit.Menu(buttons), 0, 6);
@@ -347,68 +365,93 @@ public partial class ProvincePanel : PanelContainer
             var survey = Ui.Button("Отправить геологов", "shovel", "Sm", () => { Game.I.Survey(p); Rebuild(); }, 14, 26);
             survey.Tip(t => t.Title("Геологическая разведка").Line("Геологи осмотрят холмы и найдут залежи, если они есть.")
                 .Kv("Стоимость", $"{Game.SurveyCost} золота").Kv("В казне", Fmt.Int(Game.I.State.Gold), Game.I.State.Gold >= Game.SurveyCost ? Pal.Ok : Pal.Bad));
+            void SyncSurvey() => Ui.Enable(survey, Game.I.State.Gold >= Game.SurveyCost);
+            SyncSurvey();
+            _live.Add(SyncSurvey);
             flow.Add(Kit.Row("help", "Не разведаны", null, survey, mutedText: true), 0, 5);
         }
 
         // construction queue of the capital
         if (capital)
         {
-            flow.Add(Kit.H4("Строится", $"{s.QueuePct}%", out var pct), 20, 10);
-            var name = Ui.Text(s.QueueName, "Strong");
+            flow.Add(Kit.H4("Строится", "", out var pct), 20, 10);
+            var name = Ui.Text("", "Strong");
             flow.Add(Kit.Row("hammer", null, textLabel: name), 0, 5);
-            var prog = flow.Add(new Progress { Value = s.QueuePct / 100f }, 7);
-            _live.Add(() => { pct.Text = s.QueuePct + "%"; name.Text = s.QueueName; prog.Value = s.QueuePct / 100f; });
+            var prog = flow.Add(new Progress(), 7);
+            void SyncQueue()
+            {
+                bool idle = s.ProjectIndex < 0;   // everything the capital can build is built
+                pct.Text = idle ? "" : s.QueuePct + "%";
+                name.Text = idle ? "Все работы в столице завершены" : s.QueueName;
+                prog.Visible = !idle;
+                prog.Value = s.QueuePct / 100f;
+            }
+            SyncQueue();
+            _live.Add(SyncQueue);
         }
     }
 
-    /// <summary>Capital-only «Разведчики» section; refreshed on its own (every tick, targeting, fog).</summary>
+    /// <summary>Capital-only «Разведчики» section: header, one row per party, and the two buttons, which stay the same
+    /// controls for as long as the panel shows the capital (see <see cref="RefreshScouts"/>).</summary>
+    Control BuildScouts()
+    {
+        _scoutRows = Ui.VBox(5);
+        _scoutRowsGap = Ui.Gap(0, 8);
+        _scoutPick = (TextButton)Ui.Button("Отправить разведчиков", "map-search", null, () =>
+        {
+            if (Game.I.IsTargeting) Game.I.CancelScoutTargeting(); else Game.I.BeginScoutTargeting();
+        });
+        _scoutPick.Tip(t =>
+        {
+            if (Game.I.IsTargeting) t.Title("Отменить выбор цели").Mu("Esc");
+            else t.Title("Отправить разведчиков").Line("Щёлкните по неизведанной провинции на карте.").Mu("Разведчики ходят только по суше");
+        });
+        _scoutAuto = Ui.Button("Авто", "compass", null, () => Game.I.SendScoutAuto());
+        _scoutAuto.Tip("Автоматическая разведка", "Разведчики сами пойдут к ближайшим неизведанным землям.");
+        var acts = Kit.Acts(_scoutPick, _scoutAuto);
+        _scoutPick.SizeFlagsStretchRatio = 1.6f;
+        _scouts = Ui.VBox(0, Kit.H4("Разведчики", "", out _scoutAside), Ui.Gap(0, 10), _scoutRows, _scoutRowsGap, acts);
+        return _scouts;
+    }
+
+    /// <summary>Scouts section in place: the aside, the party rows (recreated only when a party leaves or returns —
+    /// otherwise their texts change) and the buttons' captions and states. Nothing under the cursor is freed.</summary>
     void RefreshScouts()
     {
         if (_scouts == null || !IsInstanceValid(_scouts) || !Game.I.IsReady) return;
         var w = Game.I.World; var s = Game.I.State;
-        int n = s.Scouts.Count, free = Game.I.FreeScouts, max = n + free;
-        long sig = ScoutSignature();
-        if (sig == _scoutSig && _scouts.GetChildCount() > 0) return;
-        _scoutSig = sig;
-        Ui.Clear(_scouts);
-        var flow = new Flow(_scouts);
-        flow.Add(Kit.H4("Разведчики", $"в пути {n} / {max}"), 0, 10);
-        foreach (var sc in s.Scouts)
+        int n = s.Scouts.Count, free = Game.I.FreeScouts;
+        _scoutAside.Text = $"в пути {n} / {n + free}";
+
+        if (_scoutRowLabels.Count != n)
         {
+            Ui.Clear(_scoutRows);
+            _scoutRowLabels.Clear();
+            for (int i = 0; i < n; i++)
+            {
+                var text = Ui.Text("", "Strong"); var meta = Ui.Text("", "SmallMu");
+                _scoutRows.AddChild(Kit.Row("walk", null, textLabel: text, metaLabel: meta));
+                _scoutRowLabels.Add((text, meta));
+            }
+        }
+        _scoutRowsGap.Visible = n > 0;
+        for (int i = 0; i < n; i++)
+        {
+            var sc = s.Scouts[i];
             if (sc.Path == null || sc.Path.Length == 0) continue;
             int target = sc.Path[^1], left = Math.Max(0, sc.Path.Length - 1 - sc.Step);
-            bool known = FogOf(target) > 0;
-            string text = sc.Auto ? "Свободный поиск" : "→ " + (known ? w.PName[target] : "неизведанные земли");
-            string meta = sc.Auto ? $"разведано {Game.I.ScoutFound(sc)}" : $"ещё {left} {Fmt.Plural(left, "провинция", "провинции", "провинций")}";
-            flow.Add(Kit.Row("walk", text, meta), 0, 5);
+            var (text, meta) = _scoutRowLabels[i];
+            text.Text = sc.Auto ? "Свободный поиск" : "→ " + (FogOf(target) > 0 ? w.PName[target] : "неизведанные земли");
+            meta.Text = sc.Auto ? $"разведано {Game.I.ScoutFound(sc)}" : $"ещё {left} {Fmt.Plural(left, "провинция", "провинции", "провинций")}";
         }
-        bool targeting = Game.I.IsTargeting;
-        var pick = Ui.Button(targeting ? "Выберите цель на карте" : "Отправить разведчиков", targeting ? "crosshair" : "map-search", targeting ? "On" : null, () =>
-        {
-            if (Game.I.IsTargeting) Game.I.CancelScoutTargeting(); else Game.I.BeginScoutTargeting();
-        });
-        if (targeting) pick.Tip("Отменить выбор цели", null, "Esc");
-        else pick.Tip("Отправить разведчиков", "Щёлкните по неизведанной провинции на карте.", "Разведчики ходят только по суше");
-        var auto = Ui.Button("Авто", "compass", null, () => Game.I.SendScoutAuto());
-        auto.Tip("Автоматическая разведка", "Разведчики сами пойдут к ближайшим неизведанным землям.");
-        Ui.Enable(pick, targeting || free > 0);
-        Ui.Enable(auto, free > 0);
-        var acts = Kit.Acts(pick, auto);
-        pick.SizeFlagsStretchRatio = 1.6f;
-        flow.Add(acts, 8);
-    }
 
-    /// <summary>Everything the scouts section shows, folded into one number (skip rebuilding when unchanged).</summary>
-    static long ScoutSignature()
-    {
-        var s = Game.I.State;
-        long h = s.Scouts.Count * 31 + Game.I.FreeScouts * 7 + (Game.I.IsTargeting ? 1 : 0);
-        foreach (var sc in s.Scouts)
-        {
-            int target = sc.Path is { Length: > 0 } ? sc.Path[^1] : -1;
-            h = h * 1_000_003 + sc.Step * 8191 + target * 3 + (sc.Auto ? 1 : 0) + (target >= 0 ? FogOf(target) : 0) * 131071 + Game.I.ScoutFound(sc) * 524287;
-        }
-        return h;
+        bool targeting = Game.I.IsTargeting;
+        _scoutPick.Caption = targeting ? "Выберите цель на карте" : "Отправить разведчиков";
+        _scoutPick.IconTexture = Icons.Get(targeting ? "crosshair" : "map-search", 16);
+        var skin = targeting ? "On" : "";
+        if (_scoutPick.ThemeTypeVariation != skin) _scoutPick.ThemeTypeVariation = skin;
+        Ui.Enable(_scoutPick, targeting || free > 0);
+        Ui.Enable(_scoutAuto, free > 0);
     }
 
     public static string BuildingIcon(Data.Bld b) => b switch
@@ -436,5 +479,79 @@ public partial class BottomFade : Control
         _pts[0] = new Vector2(0, 0); _pts[1] = new Vector2(Size.X - 10, 0);
         _pts[2] = new Vector2(Size.X - 10, Size.Y); _pts[3] = new Vector2(0, Size.Y);
         DrawPolygon(_pts, Cols);
+    }
+}
+
+/// <summary>
+/// Thin overlay scrollbar of the panel (design_final: thin scrollbar, transparent track): a 4px thumb in the right
+/// padding, faint until hovered or dragged. It takes no layout width, so the content stays centred.
+/// </summary>
+public partial class ThinScrollBar : Control
+{
+    const float Thumb = 4, Right = 4, MinThumb = 24;
+    readonly ScrollContainer _scroll;
+    bool _hover, _drag;
+    float _grab;
+
+    public ThinScrollBar(ScrollContainer scroll)
+    {
+        _scroll = scroll;
+        CustomMinimumSize = new Vector2(Thumb + Right + 4, 0);
+        MouseFilter = MouseFilterEnum.Pass;
+        MouseEntered += () => { _hover = true; QueueRedraw(); };
+        MouseExited += () => { _hover = false; QueueRedraw(); };
+        _scroll.GetVScrollBar().ValueChanged += _ => QueueRedraw();
+        _scroll.GetVScrollBar().Changed += QueueRedraw;
+    }
+
+    bool Overflows(out float top, out float len)
+    {
+        var bar = _scroll.GetVScrollBar();
+        float h = Size.Y - 8, max = (float)bar.MaxValue, page = (float)bar.Page;
+        top = len = 0;
+        if (max <= page + 1 || h <= 0) return false;
+        len = Mathf.Max(MinThumb, h * page / max);
+        top = 4 + (h - len) * (float)(bar.Value / (max - page));
+        return true;
+    }
+
+    public override void _Draw()
+    {
+        if (!Overflows(out float top, out float len)) return;
+        var c = Pal.Ln3; c.A = _drag ? .95f : _hover ? .8f : .45f;
+        float x = Size.X - Right - Thumb;
+        DrawRect(new Rect2(x, top + Thumb / 2, Thumb, len - Thumb), c);
+        DrawCircle(new Vector2(x + Thumb / 2, top + Thumb / 2), Thumb / 2, c);
+        DrawCircle(new Vector2(x + Thumb / 2, top + len - Thumb / 2), Thumb / 2, c);
+    }
+
+    public override void _GuiInput(InputEvent e)
+    {
+        if (!Overflows(out float top, out float len)) return;
+        switch (e)
+        {
+            case InputEventMouseButton { ButtonIndex: MouseButton.Left } mb:
+                _drag = mb.Pressed;
+                if (_drag)
+                {
+                    // grab the thumb where it was pressed; a press on the track first moves the thumb there
+                    if (mb.Position.Y < top || mb.Position.Y > top + len) { top = mb.Position.Y - len / 2; ScrollTo(top, len); }
+                    _grab = mb.Position.Y - top;
+                }
+                AcceptEvent();
+                QueueRedraw();
+                break;
+            case InputEventMouseMotion mm when _drag:
+                ScrollTo(mm.Position.Y - _grab, len);
+                AcceptEvent();
+                break;
+        }
+    }
+
+    void ScrollTo(float thumbTop, float len)
+    {
+        var bar = _scroll.GetVScrollBar();
+        double t = Mathf.Clamp((thumbTop - 4) / Mathf.Max(1, Size.Y - 8 - len), 0, 1);
+        bar.Value = t * (bar.MaxValue - bar.Page);
     }
 }

@@ -17,7 +17,7 @@ namespace PaxPixelia.Map;
 /// </summary>
 internal sealed class FogField
 {
-    public const int Far = 24;          // chamfer units; must match FOG_FAR in map_common.gdshaderinc
+    public const int Far = 33;          // chamfer units; must match FOG_FAR in map_common.gdshaderinc
     const int Margin = Far / 3 + 1;     // px of context a local recompute needs
 
     public byte[] Dist = Array.Empty<byte>();

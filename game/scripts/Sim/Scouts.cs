@@ -18,17 +18,14 @@ public readonly record struct ScoutTick(int Steps, int Finished)
 /// from the capital, revealing ScoutRange around the province they stand in; they vanish on arrival («вернулись с картами»).
 /// Auto parties keep re-targeting the nearest unexplored land, away from the other party, for AutoSteps provinces
 /// after reaching the first frontier (the march there is free, so auto scouting stays useful once the frontier is far).
-/// Movement is counted in integer sub-steps so a run is reproducible from the sequence of Advance calls (lockstep-friendly);
-/// the Godot side converts real time to sub-steps with SubStepSeconds(speed).
+/// Movement is counted in integer sub-steps, SubStepsPerYear of game time, so scouting costs the same game time at every
+/// speed, and a run depends only on the number of sub-steps, never on how they were batched (lockstep-friendly).
 /// </summary>
 public static class Scouts
 {
     public const int Max = 2, AutoSteps = 36, SubSteps = 40;
-    /// <summary>Real seconds per province at speed 2 (the mockup's 600 ms); other speeds scale by SpeedFactor.</summary>
-    public const double SecondsPerProvince = 0.6;
-    static readonly double[] SpeedFactor = { 0, .5, 1, 1.7, 2.6, 4 };
-
-    public static double SubStepSeconds(int speed) => SecondsPerProvince / SpeedFactor[Math.Clamp(speed, 1, 5)] / SubSteps;
+    /// <summary>Sub-steps per game year: SubSteps / 64 ≈ 0.6 years per province, the mockup's 600 ms at speed 2.</summary>
+    public const int SubStepsPerYear = 64;
 
     public static int Capital(GameState s) => s.NationCapital != null && s.NationCapital.Length > GameState.LocalPlayer ? s.NationCapital[GameState.LocalPlayer] : -1;
 
@@ -73,43 +70,42 @@ public static class Scouts
         return ScoutError.None;
     }
 
-    /// <summary>Move every party by n sub-steps. Fog changes of the whole batch are raised as one FogChanged.</summary>
+    /// <summary>
+    /// Move every party by n sub-steps, in time order: each sub-step moves all parties before the next one starts, so the
+    /// result is the same whether n arrives in one call or n calls. Fog changes of the batch are raised as one FogChanged.
+    /// </summary>
     public static ScoutTick Advance(WorldData w, GameState s, int n, ISimSink sink)
     {
         if (n <= 0 || s.Scouts.Count == 0) return default;
         var batch = new FogBatch(w, s);
         int steps = 0, finished = 0;
-        for (int i = 0; i < s.Scouts.Count; i++)
-        {
-            var sc = s.Scouts[i];
-            sc.Sub += n;
-            bool done = false;
-            while (sc.Sub >= SubSteps && sc.Step < sc.Path.Length - 1)
+        for (int k = 0; k < n && s.Scouts.Count > 0; k++)
+            for (int i = 0; i < s.Scouts.Count; i++)
             {
-                sc.Sub -= SubSteps; sc.Step++; sc.Steps++; steps++;
-                sc.Found += batch.Add(FogOfWar.Recompute(w, s), sink);
-                if (sc.Auto)
+                var sc = s.Scouts[i];
+                bool done = sc.Step >= sc.Path.Length - 1;          // a degenerate path: the party goes home at once
+                if (!done && ++sc.Sub >= SubSteps)
                 {
-                    if (sc.Steps >= sc.MaxSteps) { done = true; break; }
-                    if (sc.Step >= sc.Path.Length - 1 || s.Explored[Target(sc)])
+                    sc.Sub = 0; sc.Step++; sc.Steps++; steps++;
+                    sc.Found += batch.Add(FogOfWar.Recompute(w, s), sink);
+                    if (sc.Auto)
                     {
-                        var np = AutoPath(w, s, Current(sc), sc);
-                        if (np == null || np.Length < 2) { done = true; break; }
-                        sc.Path = np; sc.Step = 0;
+                        if (sc.Steps >= sc.MaxSteps) done = true;
+                        else if (sc.Step >= sc.Path.Length - 1 || s.Explored[Target(sc)])
+                        {
+                            var np = AutoPath(w, s, Current(sc), sc);
+                            if (np == null || np.Length < 2) done = true;
+                            else { sc.Path = np; sc.Step = 0; }
+                        }
                     }
+                    else done = sc.Step >= sc.Path.Length - 1;      // arrived
                 }
-                else if (sc.Step >= sc.Path.Length - 1) { done = true; break; }
-            }
-            done |= sc.Step >= sc.Path.Length - 1;   // arrived (or a degenerate path): the party goes home
-            if (done)
-            {
+                if (!done) continue;
                 s.Scouts.RemoveAt(i--); finished++;
                 batch.Add(FogOfWar.Recompute(w, s), sink);   // its vision leaves with it
                 sink?.Notify("map-2", ReturnText(w, sc));
-                continue;
             }
-            sc.Progress = sc.Sub / (float)SubSteps;
-        }
+        foreach (var sc in s.Scouts) sc.Progress = sc.Sub / (float)SubSteps;
         batch.Flush(sink);
         return new ScoutTick(steps, finished);
     }

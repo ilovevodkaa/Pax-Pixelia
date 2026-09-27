@@ -7,8 +7,9 @@ using PaxPixelia.Sim;
 namespace PaxPixelia.Map;
 
 /// <summary>
-/// Scouts: a small pixel figure with a flickering torch, the rest of its route as a marching dotted line and a
-/// target flag (manual orders). Everything is hidden over unexplored land and the frayed cloud edge.
+/// Scouts: a small pixel figure with a flickering torch and a dark rim (it stands in front of map names), the rest of
+/// its route as a marching dotted line and a flag where the route ends. Everything is hidden over unexplored land and
+/// the frayed cloud edge.
 /// </summary>
 internal partial class ScoutOverlay : MapOverlay
 {
@@ -16,6 +17,7 @@ internal partial class ScoutOverlay : MapOverlay
     readonly List<Vector2> _samples = new();   // route resampled every 2 world px; NaN marks a hidden gap
     Vector2[] _dash = new Vector2[256];
     int _dashN;
+    static readonly Color Rim = new(22 / 255f, 26 / 255f, 31 / 255f, .85f);
 
     public override void _Ready() => TextureFilter = TextureFilterEnum.Nearest;
 
@@ -59,10 +61,13 @@ internal partial class ScoutOverlay : MapOverlay
                         DrawMultiline(span, Colors.White, lw);
                     }
                     var end = _pts[^1];
-                    if (!sc.Auto && (!FogOn || Map.Fog.IsClear(end.X, end.Y, 18)))
+                    if (!FogOn || Map.Fog.IsClear(end.X, end.Y, 18))
                         DrawSprite(Spr.Flag, GameState.LocalPlayer, end.X * z + off.X + pz * 2, end.Y * z + off.Y - pz * 3, pz);
                 }
-                if (visible) DrawSprite(frame == 0 ? Spr.Scout0 : Spr.Scout1, GameState.LocalPlayer, sx0, sy0 - pz * 3, pz);
+                if (!visible) continue;
+                var figure = frame == 0 ? Spr.Scout0 : Spr.Scout1;
+                PixelSprites.DrawHalo(this, figure, sx0, sy0 - pz * 3, pz, Rim);
+                DrawSprite(figure, GameState.LocalPlayer, sx0, sy0 - pz * 3, pz);
             }
         }
     }

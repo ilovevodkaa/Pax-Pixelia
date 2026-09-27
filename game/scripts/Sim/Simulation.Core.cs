@@ -17,7 +17,8 @@ public static partial class Simulation
 
     public sealed record Project(string Name, string DoneText, Bld? Building);
 
-    /// <summary>The capital builds these in turn; building projects already standing in the capital are skipped.</summary>
+    /// <summary>The capital builds these in turn, each once: building projects already standing in the capital are skipped,
+    /// the others (walls, road) are one-off. When everything is done the queue stands idle (ProjectIndex = -1).</summary>
     public static readonly Project[] Projects =
     {
         new("Амбар", "В столице построен амбар", Bld.Granary),
@@ -32,8 +33,9 @@ public static partial class Simulation
     {
         FogOfWar.Init(w, s);
         int cap = Scouts.Capital(s);
+        s.ProjectsDone = 0;
         s.ProjectIndex = NextProject(s, Projects.Length - 1, cap);   // skip what the capital already has
-        s.QueueName = Projects[s.ProjectIndex].Name;
+        s.QueueName = s.ProjectIndex >= 0 ? Projects[s.ProjectIndex].Name : null;
     }
 
     public static void Year(WorldData w, GameState s, ISimSink sink)
@@ -117,30 +119,54 @@ public static partial class Simulation
 
     static void Queue(GameState s, ISimSink sink, ref List<int> changed)
     {
+        SyncQueue(s);
+        if (s.ProjectIndex < 0) return;
         s.QueuePct += QueuePctPerYear;
         if (s.QueuePct < 100) return;
-        var pr = Projects[Math.Clamp(s.ProjectIndex, 0, Projects.Length - 1)];
+        var pr = Projects[s.ProjectIndex];
         int cap = Scouts.Capital(s);
-        if (cap >= 0 && pr.Building is Bld b && !s.Buildings[cap].Contains(b))
+        if (pr.Building is Bld b)
         {
-            if (s.Buildings[cap].Count >= s.Slots[cap]) s.Slots[cap]++;   // the project brings its own plot
-            s.Buildings[cap].Add(b);
-            (changed ??= new List<int>()).Add(cap);
+            if (cap >= 0)
+            {
+                if (s.Buildings[cap].Count >= s.Slots[cap]) s.Slots[cap]++;   // the project brings its own plot
+                s.Buildings[cap].Add(b);
+                (changed ??= new List<int>()).Add(cap);
+            }
         }
+        else s.ProjectsDone |= 1 << s.ProjectIndex;
         sink?.Notify("hammer", pr.DoneText);
-        s.ProjectIndex = NextProject(s, s.ProjectIndex, cap);
-        s.QueueName = Projects[s.ProjectIndex].Name;
         s.QueuePct = 0;
+        Advance(s, cap);
     }
 
+    /// <summary>
+    /// If the current project's building already stands in the capital (the player built it by hand), move on to the
+    /// next project quietly, keeping the progress made so far.
+    /// </summary>
+    public static void SyncQueue(GameState s)
+    {
+        int cap = Scouts.Capital(s);
+        if (s.ProjectIndex >= 0 && cap >= 0 && Projects[s.ProjectIndex].Building is Bld b && s.Buildings[cap].Contains(b)) Advance(s, cap);
+    }
+
+    static void Advance(GameState s, int cap)
+    {
+        s.ProjectIndex = NextProject(s, s.ProjectIndex, cap);
+        s.QueueName = s.ProjectIndex >= 0 ? Projects[s.ProjectIndex].Name : null;
+        if (s.ProjectIndex < 0) s.QueuePct = 0;
+    }
+
+    /// <summary>The next project after `from` that is still to do, or -1 when the capital has everything.</summary>
     static int NextProject(GameState s, int from, int cap)
     {
         for (int k = 1; k <= Projects.Length; k++)
         {
-            int i = (from + k) % Projects.Length;
-            if (cap < 0 || Projects[i].Building is not Bld b || !s.Buildings[cap].Contains(b)) return i;
+            int i = ((from < 0 ? Projects.Length - 1 : from) + k) % Projects.Length;
+            bool done = Projects[i].Building is Bld b ? cap >= 0 && s.Buildings[cap].Contains(b) : (s.ProjectsDone & (1 << i)) != 0;
+            if (!done) return i;
         }
-        return (from + 1) % Projects.Length;
+        return -1;
     }
 
     /// <summary>World-wrapped distance between province anchors in pixels.</summary>

@@ -98,13 +98,14 @@ public static class Kit
     }
 
     /// <summary>.bl — white row: icon tile · text · right meta or inline button.</summary>
-    public static PanelContainer Row(string icon, string text, string meta = null, Button action = null, bool mutedText = false, Label textLabel = null)
+    public static PanelContainer Row(string icon, string text, string meta = null, Button action = null, bool mutedText = false, Label textLabel = null, Label metaLabel = null)
     {
         var label = textLabel ?? Ui.Text(text, mutedText ? "Mu" : "Strong");
         label.ClipText = true;
         label.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
         var h = Ui.HBox(10, Tile(icon, false), label);
-        if (meta != null) h.AddChild(Ui.Text(meta, "SmallMu"));
+        if (metaLabel != null) h.AddChild(metaLabel);
+        else if (meta != null) h.AddChild(Ui.Text(meta, "SmallMu"));
         if (action != null) { Ui.SetHeight(action, 26); action.SizeFlagsVertical = Control.SizeFlags.ShrinkCenter; h.AddChild(action); }
         var row = Ui.Panel(St.Row(), h, Control.MouseFilterEnum.Pass);
         row.CustomMinimumSize = new Vector2(0, 36);

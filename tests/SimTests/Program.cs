@@ -137,6 +137,21 @@ public static class Program
         FogInvariants(w, s);
         MetInvariant(w, s);
 
+        // ------------------------------------------------------------ batching
+        Section("scouts: batching");
+        var runs = new List<string>();
+        foreach (int batch in new[] { 1, 7, 26 })
+        {
+            var t = NationGen.CreateInitialState(w);
+            Simulation.Begin(w, t);
+            Scouts.Send(w, t, -1, null, out _);
+            Scouts.Advance(w, t, 39, null);                  // the second party starts 39 sub-steps later
+            Scouts.Send(w, t, -1, null, out _);
+            for (int k = 0; k < 4000 && t.Scouts.Count > 0; k++) Scouts.Advance(w, t, batch, null);
+            runs.Add($"{Explored(t)}/{string.Join(",", t.Fog.Select(f => (int)f).Sum())}");
+        }
+        Check(runs.Distinct().Count() == 1, $"the same walk whatever the frame batching (explored/fog: {string.Join(" | ", runs)})");
+
         // ------------------------------------------------------------ auto exploration until done
         Section("scouts: auto until the continent is mapped");
         int rounds = 0, last = Explored(s);
@@ -247,6 +262,10 @@ public static class Program
         Check(rec.Notes.Any(n => n.icon == "hammer" && n.text.Contains("столиц", StringComparison.OrdinalIgnoreCase)), "capital projects complete");
         FogInvariants(w, s);
         MetInvariant(w, s);
+        int hidden = Enumerable.Range(0, w.P).Count(p => s.Fog[p] == 1 && s.KnownOwner[p] != s.Owner[p]);
+        Info($"stale provinces whose owner changed out of sight (the map still shows the old one): {hidden}");
+        int projects = rec.Notes.Count(n => n.icon == "hammer" && Simulation.Projects.Any(pr => pr.DoneText == n.text));
+        Check(projects <= Simulation.Projects.Length, $"each capital project is finished at most once ({projects} in {ticks} years)");
         if (verbose)
         {
             foreach (var n in yearNotes.Where(n => n.icon is not ("hammer" or "flag")).Take(12)) Info($"  [{n.icon}] {n.text}");
@@ -270,10 +289,13 @@ public static class Program
     static void MetInvariant(WorldData w, GameState s)
     {
         var expect = new bool[s.Met.Length];
-        for (int p = 0; p < w.P; p++) if (s.Explored[p] && s.Owner[p] >= 0) expect[s.Owner[p]] = true;
+        for (int p = 0; p < w.P; p++) if (s.Explored[p] && s.KnownOwner[p] >= 0) expect[s.KnownOwner[p]] = true;
         // Met is monotonic, so a nation may stay met after losing its explored provinces
-        Check(Enumerable.Range(0, expect.Length).All(n => !expect[n] || s.Met[n]), $"met ⊇ owners of explored land ({s.Met.Count(m => m)} met)");
+        Check(Enumerable.Range(0, expect.Length).All(n => !expect[n] || s.Met[n]), $"met ⊇ known owners of explored land ({s.Met.Count(m => m)} met)");
         Check(s.Met[GameState.LocalPlayer], "the player has met itself");
+        // the map's memory: visible land shows its real owner; nothing unexplored has a remembered one
+        Check(Enumerable.Range(0, w.P).All(p => s.Fog[p] != 2 || s.KnownOwner[p] == s.Owner[p]), "visible provinces show their real owner");
+        Check(Enumerable.Range(0, w.P).All(p => s.Explored[p] || s.KnownOwner[p] < 0), "unexplored provinces have no remembered owner");
     }
 
     static bool Monotonic(bool[] before, bool[] now)

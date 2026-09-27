@@ -32,12 +32,13 @@ public partial class Game : ISimSink
 
     void OnSimWorldReady()
     {
-        CancelScoutTargeting();                    // also replaces the long «выберите цель» toast
+        if (IsTargeting) EndTargeting();           // quietly: the UI drops the long «выберите цель» toast with it
         _driver.Reset();
         ScoutsChanged?.Invoke();
     }
 
     internal void RaiseScoutsChanged() => ScoutsChanged?.Invoke();
+
 
     // ------------------------------------------------------------------ claim
 
@@ -88,6 +89,7 @@ public partial class Game : ISimSink
             return;
         }
         Rules.Build(State, p, b);
+        Simulation.SyncQueue(State);   // building the capital's current project by hand moves its queue on
         Notify("hammer", $"{World.PName[p]}: заложена постройка «{Data.BldName[(int)b]}» (−{Rules.BuildCost(b)} золота)");
         RaiseProvincesChanged(new[] { p });
     }
@@ -116,10 +118,12 @@ public partial class Game : ISimSink
     }
 
     /// <summary>Could geologists find anything in p (hills or mountains)? Says nothing about what is really there.</summary>
-    public bool MayHaveOre(int p) => IsReady && Rules.MayHaveOre(World, State, p);
+    public bool MayHaveOre(int p) => IsReady && Valid(p) && Rules.MayHaveOre(World, State, p);
 
     /// <summary>Taxes of p per year (same formula as the treasury income).</summary>
-    public double ProvinceTax(int p) => IsReady ? Rules.ProvinceTax(State, p) : 0;
+    public double ProvinceTax(int p) => IsReady && Valid(p) ? Rules.ProvinceTax(State, p) : 0;
+
+    bool Valid(int p) => (uint)p < (uint)World.P;
 
     // ------------------------------------------------------------------ scouts
 
@@ -162,9 +166,12 @@ public partial class Game : ISimSink
         var err = Scouts.Send(World, State, target, this, out _);
         if (err != ScoutError.None)
         {
-            if (picking && err != ScoutError.Max) { ShowToast(ScoutText(err), PickToastSeconds, ToastKind.Error); return false; }
+            // under the clouds the refusal must not reveal whether it is sea or another continent
+            string why = err is ScoutError.Sea or ScoutError.Far && State.FogEnabled && State.Fog[target] == 0
+                ? "Разведчики не нашли туда пути по суше" : ScoutText(err);
+            if (picking && err != ScoutError.Max) { ShowToast(why, PickToastSeconds, ToastKind.Error); return false; }
             if (picking) EndTargeting();
-            ShowRefusal(ScoutText(err));
+            ShowRefusal(why);
             return false;
         }
         if (picking) EndTargeting();
@@ -199,7 +206,7 @@ public partial class Game : ISimSink
 
     // ------------------------------------------------------------------ fog, nations, world
 
-    public bool NationMet(int n) => IsReady && Rules.Met(State, n);
+    public bool NationMet(int n) => IsReady && (uint)n < (uint)State.NationCapital.Length && Rules.Met(State, n);
     public int UnmetNations => IsReady ? Rules.UnmetCount(State) : 0;
 
     /// <summary>Met nations only (all in observer mode), sorted by score.</summary>
@@ -217,7 +224,7 @@ public partial class Game : ISimSink
 
     public void RegenerateWorld(int seed)
     {
-        CancelScoutTargeting();
+        if (IsTargeting) EndTargeting();           // no «отменена» toast carried into the new world
         _ = NewWorld(seed);
     }
 }

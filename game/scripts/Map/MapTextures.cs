@@ -14,8 +14,10 @@ namespace PaxPixelia.Map;
 internal sealed class MapTextures
 {
     public const int PDataW = 256;
+    /// <summary>Explored-but-unseen land: faded like an old map, not darkened into mud (same numbers in stale_grade).</summary>
+    public const float StaleDesat = .45f, StaleDim = .78f;
 
-    public ImageTexture Base, Prov, Tint, Info, Own, FogDist, Cloud;
+    public ImageTexture Base, BaseHalf, Prov, Tint, Info, Own, FogDist, Cloud;
     Image _tintImg, _infoImg, _ownImg, _fogImg;
     byte[] _tint = Array.Empty<byte>(), _info = Array.Empty<byte>(), _own = Array.Empty<byte>();
     int _pw, _ph;
@@ -23,6 +25,7 @@ internal sealed class MapTextures
     public void Build(WorldData w, FogField fog)
     {
         Base = ImageTexture.CreateFromImage(Image.CreateFromData(w.W, w.H, false, Image.Format.Rgba8, w.BaseColor));
+        BaseHalf = ImageTexture.CreateFromImage(Image.CreateFromData(w.W / 2, (w.H + 1) / 2, false, Image.Format.Rgba8, HalfSize(w)));
         var ids = new byte[w.N * 2];
         for (int i = 0; i < w.N; i++) { int p = w.Prov[i]; ids[i * 2] = (byte)(p & 255); ids[i * 2 + 1] = (byte)(p >> 8); }
         Prov = ImageTexture.CreateFromImage(Image.CreateFromData(w.W, w.H, false, Image.Format.Rg8, ids));
@@ -39,6 +42,21 @@ internal sealed class MapTextures
         Cloud = ImageTexture.CreateFromImage(Image.CreateFromData(fog.CloudW, fog.CloudH, false, Image.Format.Rg8, fog.Cloud));
     }
 
+    /// <summary>Terrain colour averaged over 2×2 blocks, for the ×½ atlas (nearest sampling of the full texture would shimmer).</summary>
+    static byte[] HalfSize(WorldData w)
+    {
+        int hw = w.W / 2, hh = (w.H + 1) / 2;
+        var src = w.BaseColor; var dst = new byte[hw * hh * 4];
+        System.Threading.Tasks.Parallel.For(0, hh, y =>
+        {
+            int r0 = 2 * y * w.W * 4, r1 = Math.Min(2 * y + 1, w.H - 1) * w.W * 4;
+            for (int x = 0; x < hw; x++)
+                for (int c = 0, a = x * 8, o = (y * hw + x) * 4; c < 4; c++)
+                    dst[o + c] = (byte)((src[r0 + a + c] + src[r0 + a + 4 + c] + src[r1 + a + c] + src[r1 + a + 4 + c] + 2) >> 2);
+        });
+        return dst;
+    }
+
     public void UploadFog(WorldData w, FogField fog)
     {
         _fogImg.SetData(w.W, w.H, false, Image.Format.R8, fog.Dist);
@@ -52,11 +70,11 @@ internal sealed class MapTextures
         var nations = Data.Nations;
         for (int p = 0; p < w.P; p++)
         {
-            int k = p * 4, o = s.Owner[p];
+            int k = p * 4, o = s.VisibleOwner(p);
             bool land = w.PLand[p] == 1;
             MapPalette.ModeTint(mode, w, s, p, out var tint, out float tintA, out float desat, out float dim);
             byte fog = s.Fog[p];
-            if (fogOn && fog == 1) { desat = MathF.Max(desat, land ? .6f : .3f); dim *= land ? .6f : .8f; }
+            if (fogOn && fog == 1) { desat = MathF.Max(desat, land ? StaleDesat : .3f); dim *= land ? StaleDim : .85f; }
             _tint[k] = tint.R; _tint[k + 1] = tint.G; _tint[k + 2] = tint.B; _tint[k + 3] = ToByte(tintA);
             _info[k] = ToByte(desat); _info[k + 1] = ToByte(dim); _info[k + 2] = (byte)(fog == 0 ? 0 : fog == 1 ? 128 : 255); _info[k + 3] = land ? (byte)255 : (byte)0;
             if (o >= 0 && o < nations.Length)

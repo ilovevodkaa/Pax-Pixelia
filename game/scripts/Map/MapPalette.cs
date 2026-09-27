@@ -33,14 +33,15 @@ internal static class MapPalette
     public static readonly Color TownText = new(236 / 255f, 238 / 255f, 240 / 255f);
     public static readonly Color ProvinceText = new(236 / 255f, 238 / 255f, 241 / 255f, .84f);
     public static readonly Color SeaText = new(188 / 255f, 204 / 255f, 217 / 255f, .66f);
-    public static readonly Color RiverWater = new(0x4d / 255f, 0x7f / 255f, 0xa6 / 255f);
-    public static readonly Color RiverWaterMuted = new(0x56 / 255f, 0x78 / 255f, 0x9a / 255f);
+    // light enough to read on dark forest and jungle
+    public static readonly Color RiverWater = new(0x6a / 255f, 0x9c / 255f, 0xc6 / 255f);
+    public static readonly Color RiverWaterMuted = new(0x62 / 255f, 0x86 / 255f, 0xa8 / 255f);
 
     /// <summary>Per-province map-mode parameters: tint colour + strength, desaturation, brightness.</summary>
     public static void ModeTint(MapMode mode, WorldData w, GameState s, int p, out Rgb tint, out float a, out float desat, out float dim)
     {
         bool land = w.PLand[p] == 1;
-        int o = s.Owner[p];
+        int o = s.VisibleOwner(p);
         tint = default; a = 0; desat = 0; dim = 1;
         switch (mode)
         {

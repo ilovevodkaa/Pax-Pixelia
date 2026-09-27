@@ -19,6 +19,7 @@ public readonly struct FogDelta
 /// <summary>
 /// Fog of war (pure C#, port of the logic half of docs/mockups/js/fog.js).
 /// GameState.Fog: 0 unexplored, 1 explored but not seen now (stale), 2 visible. GameState.Explored never reverts.
+/// GameState.KnownOwner remembers who owned a province when it was last seen; nations are met through it.
 /// Vision sources: own provinces (range 2, capital 3), the capital's trade routes (range 1 + neighbours), scouts (range 2).
 /// Entering a sea zone costs 2 range, so coasts do not reveal whole oceans.
 /// The real fog state is kept even in observer mode (FogEnabled = false) so switching back is instant.
@@ -36,6 +37,8 @@ public static class FogOfWar
         int P = w.P, nN = Math.Max(s.NationCapital?.Length ?? 0, Data.Nations.Length);
         if (s.Fog == null || s.Fog.Length != P) s.Fog = new byte[P]; else Array.Clear(s.Fog);
         if (s.Explored == null || s.Explored.Length != P) s.Explored = new bool[P]; else Array.Clear(s.Explored);
+        if (s.KnownOwner == null || s.KnownOwner.Length != P) s.KnownOwner = new short[P];
+        Array.Fill(s.KnownOwner, (short)-1);
         s.Met = new bool[nN];
         s.Scouts.Clear();
 
@@ -44,7 +47,7 @@ public static class FogOfWar
         var seeds = sc.Sources; seeds.Clear();
         for (int p = 0; p < P; p++) if (s.Owner[p] == GameState.LocalPlayer) seeds.Add((p, InitialRange));
         Reach(w, sc, seeds);
-        for (int p = 0; p < P; p++) if (sc.Rem[p] >= 0) s.Explored[p] = true;
+        for (int p = 0; p < P; p++) if (sc.Rem[p] >= 0) { s.Explored[p] = true; s.KnownOwner[p] = s.Owner[p]; }
 
         Recompute(w, s);   // initial vision + met nations; nothing is announced for what is known at the start
     }
@@ -70,10 +73,14 @@ public static class FogOfWar
             (changed ??= new List<int>()).Add(p);
         }
 
+        // what the player sees now refreshes the map's memory of owners; stale provinces keep the old one
+        var known = s.KnownOwner;
+        for (int p = 0; p < P; p++) if (rem[p] >= 0) known[p] = s.Owner[p];
+
         List<int> met = null;
         for (int p = 0; p < P; p++)
         {
-            int o = s.Owner[p];
+            int o = known[p];
             if (o < 0 || o >= s.Met.Length || s.Met[o] || !s.Explored[p]) continue;
             s.Met[o] = true;
             if (o != GameState.LocalPlayer) (met ??= new List<int>()).Add(o);
@@ -181,7 +188,7 @@ public static class FogOfWar
                     if (!ex[n] && sc.Mark[n] != stamp) { sc.Mark[n] = stamp; stack[sp++] = n; }
             }
             if (!small) continue;
-            for (int k = 0; k < size; k++) ex[comp[k]] = true;
+            for (int k = 0; k < size; k++) { ex[comp[k]] = true; s.KnownOwner[comp[k]] = s.Owner[comp[k]]; }
         }
     }
 }

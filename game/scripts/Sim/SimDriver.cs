@@ -6,7 +6,8 @@ using PaxPixelia.Core;
 namespace PaxPixelia.Sim;
 
 /// <summary>
-/// Child of the Game autoload: turns real time into scout sub-steps (frozen while paused, scaled by speed)
+/// Child of the Game autoload: turns real time into scout sub-steps at the pace of the game clock
+/// (Scouts.SubStepsPerYear per game year, so the speed changes only the wall-clock pace; frozen while paused)
 /// and applies the simulation's command-line switches once the first world is ready:
 ///   --autoscout[=N]    send N (default 1) auto parties        --scout-to=P | x,y   send a party to province P / world pixel
 ///   --speed=N          game speed 1..5                         --pause              start paused
@@ -16,7 +17,6 @@ namespace PaxPixelia.Sim;
 /// </summary>
 public partial class SimDriver : Node
 {
-    const double MaxFrame = 0.1;   // a long hitch must not teleport scouts across the map
     double _acc;
     bool _cliDone;
 
@@ -43,11 +43,10 @@ public partial class SimDriver : Node
     {
         var g = Game.I;
         if (g == null || !g.IsReady || g.State.Paused || g.State.Scouts.Count == 0) { _acc = 0; return; }
-        _acc += Math.Min(delta, MaxFrame);
-        double dt = Scouts.SubStepSeconds(g.State.Speed);
-        int n = (int)(_acc / dt);
+        _acc += Math.Min(delta, Game.MaxCatchUp) / Game.TickSeconds[g.State.Speed] * Scouts.SubStepsPerYear;
+        int n = (int)_acc;
         if (n == 0) return;
-        _acc -= n * dt;
+        _acc -= n;
         var t = Scouts.Advance(g.World, g.State, n, g);
         if (t.Any) g.RaiseScoutsChanged();
     }
