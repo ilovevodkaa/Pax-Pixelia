@@ -231,7 +231,7 @@ public static class SaveTests
                 "Owner", "Controller", "Pop", "Religion", "Mood", "Slots", "Buildings", "Ore", "OreFound", "CapitalOf", "IsTown", "City", "Growth", "SphereNoted", "Routes",
                 "FogEnabled", "Scouts", "ScoutSeq", "Events" }, new[] { "Scratch" }),
             (typeof(NationState), new[] { "Control", "Treasury", "LastTaxes", "LastUpkeep", "Progress", "ScienceRate", "Era", "ProjectIndex",
-                "QueuePct", "ProjectsDone", "EventCount", "Fog" }, Array.Empty<string>()),
+                "QueuePct", "ProjectsDone", "EventCount", "Materials", "LastMaterials", "Fog" }, Array.Empty<string>()),
             (typeof(NationFog), new[] { "Fog", "Explored", "KnownOwner", "Met" }, Array.Empty<string>()),
             (typeof(GameState.Scout), new[] { "Id", "Nation", "Path", "Step", "Sub", "Auto", "Steps", "MaxSteps", "Found" }, new[] { "Progress" }),
             (typeof(EventMemory), new[] { "Nation", "Bot", "NextDue", "NextChoice", "ReadyAt", "FiredCount", "Flags", "ThreadEra", "GuaranteedThreads",

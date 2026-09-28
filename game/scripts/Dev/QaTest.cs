@@ -177,7 +177,7 @@ public partial class QaTest : Node
         t0 = _toasts.Count; G.Claim(cap); Check("claim own capital refused", ErrorSince(t0, "хозяин"), ToastsSince(t0));
 
         // ---- build
-        s.Gold = 100000;
+        s.Gold = 100000; s.Materials = 10000;
         int bp = p;   // just claimed
         var opts = G.BuildOptions(bp).ToList();
         Info("build target", $"{w.PName[bp]} slots={s.Slots[bp]} built={s.Buildings[bp].Count} options={string.Join(",", opts)}");
@@ -210,7 +210,10 @@ public partial class QaTest : Node
             s.Gold = 10; t0 = _toasts.Count;
             G.Build(inland, Bld.Shrine);
             Check("build poor refused", !s.Buildings[inland].Contains(Bld.Shrine) || ErrorSince(t0, "золота"), ToastsSince(t0));
-            s.Gold = 100000;
+            s.Gold = 100000; s.Materials = 0; t0 = _toasts.Count;
+            G.Build(inland, Bld.Shrine);
+            Check("build without materials refused", !s.Buildings[inland].Contains(Bld.Shrine) && ErrorSince(t0, "материалов"), ToastsSince(t0));
+            s.Materials = 10000;
         }
         t0 = _toasts.Count; G.Build(foreign, Bld.Shrine);
         Check("build abroad refused", ErrorSince(t0, "своих"), ToastsSince(t0));
@@ -222,7 +225,7 @@ public partial class QaTest : Node
             s.Gold = 1;
             G.Select(bp2); await Frames(2);
             Hud.Panel.DebugOpenBuild(); await Frames(3);
-            s.Gold = 100000; await RealYear(); await Frames(3);
+            s.Gold = 100000; s.Materials = 10000; await RealYear(); await Frames(3);
             var menuBtns = AllButtons(Hud.Panel).Where(b => b.ThemeTypeVariation == "Menu").ToList();
             int disabled = menuBtns.Count(b => b.Disabled);
             Check("build menu: buttons re-enable when gold arrives", menuBtns.Count > 0 && disabled == 0, $"{disabled}/{menuBtns.Count} still disabled with gold {s.Gold:F0}");
@@ -248,7 +251,7 @@ public partial class QaTest : Node
             Check("survey poor refused", !s.OreFound[sv2] && ErrorSince(t0, "золота"), ToastsSince(t0));
         }
         t0 = _toasts.Count; G.Survey(foreign); Check("survey abroad refused", ErrorSince(t0, "свои"), ToastsSince(t0));
-        s.Gold = 100000;
+        s.Gold = 100000; s.Materials = 10000;
 
         // ---- capital queue vs. a building the player already built by hand
         {
@@ -651,7 +654,7 @@ public partial class QaTest : Node
         G.JumpCamera(new Vector2(w.PCX[cap], w.PCY[cap])); await Seconds(.5);
 
         // the free-slot ClickPanel and build menu buttons rebuild the panel under the cursor
-        s.Gold = 100000;
+        s.Gold = 100000; s.Materials = 10000;
         int own = First(q => s.Owner[q] == 0 && s.Buildings[q].Count < s.Slots[q] && G.BuildOptions(q).Count > 0);
         if (own >= 0)
         {

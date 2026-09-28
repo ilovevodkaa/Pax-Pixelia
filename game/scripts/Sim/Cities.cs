@@ -5,7 +5,7 @@ using Bld = PaxPixelia.Core.Data.Bld;
 
 namespace PaxPixelia.Sim;
 
-public enum FoundError { None, NotLand, NotYours, IsCity, TooClose, NoGold, NoSettlers, Unexplored }
+public enum FoundError { None, NotLand, NotYours, IsCity, TooClose, NoGold, NoSettlers, Unexplored, NoMaterials }
 
 /// <summary>
 /// Cities and their spheres (pure C#, integers, deterministic). Every owned land province belongs to a city — the capital
@@ -17,6 +17,7 @@ public enum FoundError { None, NotLand, NotYours, IsCity, TooClose, NoGold, NoSe
 public static class Cities
 {
     public const int FoundCost = 150;            // gold
+    public const int FoundMaterials = 30;        // wood and stone for the first houses
     public const int MinCityDistance = 3;        // land steps between cities
     public const int SettlersMin = 1500, SettlersPermille = 200, SettlersKeep = 2000;
     /// <summary>Influence a city needs for one province at «Обычная» pace (scaled by GameSetup.PacePermille).</summary>
@@ -275,6 +276,7 @@ public static class Cities
         }
         if (CityNear(w, s, p)) return FoundError.TooClose;
         if (s.Nat[n].Treasury < FoundCost * Rules.Cents) return FoundError.NoGold;
+        if (s.Nat[n].Materials < FoundMaterials) return FoundError.NoMaterials;
         if (SettlerSource(w, s, p, n) < 0) return FoundError.NoSettlers;
         return FoundError.None;
     }
@@ -285,6 +287,7 @@ public static class Cities
         int src = SettlerSource(w, s, p, n);
         int people = Settlers(s, src);
         s.Nat[n].Treasury -= FoundCost * Rules.Cents;
+        s.Nat[n].Materials -= FoundMaterials;
         s.Pop[src] -= people;
         if (s.Owner[p] < 0)
         {

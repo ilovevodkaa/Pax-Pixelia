@@ -43,6 +43,7 @@ public static class Program
         SaveTests.Run(w);
         RosterTests.Run(w);
         CityTests.Run(w);
+        MaterialTests.Run(w);
         PacingTests.Run(w, full: pacing);
 
         return Report();

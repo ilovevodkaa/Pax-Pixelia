@@ -69,7 +69,7 @@ public partial class Game : ISimSink
 
     // ------------------------------------------------------------------ cities
 
-    public const int FoundCityCost = Cities.FoundCost;
+    public const int FoundCityCost = Cities.FoundCost, FoundCityMaterials = Cities.FoundMaterials;
 
     /// <summary>City sphere of the city p belongs to (p may be the city itself): city, provinces, cap, cycles to the next
     /// province (-1 = stalled). city = -1 when p has no city.</summary>
@@ -98,6 +98,7 @@ public partial class Game : ISimSink
         FoundError.NoGold => $"Не хватает золота: нужно {Cities.FoundCost}",
         FoundError.NoSettlers => $"Ни один город не может дать поселенцев: нужно больше {Cities.SettlersKeep + Cities.SettlersMin} жителей",
         FoundError.Unexplored => "Сначала разведайте эти земли",
+        FoundError.NoMaterials => $"Не хватает материалов: нужно {Cities.FoundMaterials}. Их дают лесопилки и каменоломни",
         _ => "Здесь нельзя основать город",
     };
 
@@ -123,6 +124,23 @@ public partial class Game : ISimSink
 
     public IReadOnlyList<Data.Bld> BuildOptions(int p) => IsReady ? Rules.BuildOptions(World, State, p, Viewer) : Array.Empty<Data.Bld>();
     public int BuildCost(Data.Bld b) => Rules.BuildCost(b);
+    public int BuildMaterials(Data.Bld b) => Rules.BuildMaterials(b);
+
+    /// <summary>Where the local nation's materials come from: lumber mills, quarries, mines on metal veins, the capital.</summary>
+    public (int lumber, int quarry, int mines, int capital) MaterialSources()
+    {
+        int l = 0, q = 0, m = 0, c = 0;
+        if (!IsReady) return (0, 0, 0, 0);
+        var s = State;
+        for (int p = 0; p < s.Owner.Length; p++)
+        {
+            if (s.Owner[p] != Viewer) continue;
+            foreach (var b in s.Buildings[p]) { if (b == Data.Bld.Lumber) l++; else if (b == Data.Bld.Quarry) q++; }
+            if (Rules.IsMine(s, p)) m++;
+            if (s.CapitalOf[p] >= 0) c++;
+        }
+        return (l, q, m, c);
+    }
 
     static string BuildText(BuildError e, Data.Bld b) => e switch
     {
@@ -131,6 +149,7 @@ public partial class Game : ISimSink
         BuildError.AlreadyBuilt => "Такая постройка здесь уже есть",
         BuildError.NotAllowed => "Местность не подходит для этой постройки",
         BuildError.NoGold => $"Не хватает золота: нужно {Rules.BuildCost(b)}",
+        BuildError.NoMaterials => $"Не хватает материалов: нужно {Rules.BuildMaterials(b)}. Постройте лесопилку или каменоломню",
         _ => "Строительство невозможно",
     };
 
@@ -141,7 +160,8 @@ public partial class Game : ISimSink
         if (err != BuildError.None) { ShowRefusal(BuildText(err, b)); return; }
         int r = Issue(Cmd.Build(Viewer, p, b));
         if (r != 0) { ShowRefusal(BuildText((BuildError)r, b)); return; }
-        Notify("hammer", $"{World.PName[p]}: заложена постройка «{Data.BldName[(int)b]}» (−{Rules.BuildCost(b)} золота)");
+        int mat = Rules.BuildMaterials(b);
+        Notify("hammer", $"{World.PName[p]}: заложена постройка «{Data.BldName[(int)b]}» (−{Rules.BuildCost(b)} золота{(mat > 0 ? $", −{mat} материалов" : "")})");
     }
 
     static string SurveyText(SurveyError e) => e switch

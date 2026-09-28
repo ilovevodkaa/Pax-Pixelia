@@ -318,6 +318,34 @@ public partial class ProvincePanel : PanelContainer
         _live.Add(Sync);
     }
 
+    /// <summary>What a building gives (the rules: Simulation.Capacity, Moods, Rules.ProvinceTax/ProvinceMaterials, Cities.Influence).
+    /// Short: a few words beside the building's name in the list; full: the build menu's tooltip.</summary>
+    static string BuildingEffect(GameState s, int p, Data.Bld b, bool full = false)
+    {
+        bool city = Cities.IsCity(s, p), mine = Rules.KnownOre(s, p) is Rules.OreCopper or Rules.OreTin or Rules.OreIron;
+        return b switch
+        {
+            Data.Bld.Farm => full ? "Предел населения провинции +19%" : "население +19%",
+            Data.Bld.Lumber => full ? $"+{Rules.LumberMaterials} материала за цикл. Строится без материалов" : $"+{Rules.LumberMaterials} материала",
+            Data.Bld.Quarry => mine
+                ? full ? $"+{Rules.QuarryMaterials + Rules.MineMaterials} материала за цикл: под ней жила, это рудник" : $"+{Rules.QuarryMaterials + Rules.MineMaterials} материала · рудник"
+                : full ? $"+{Rules.QuarryMaterials} материала за цикл, на разведанной жиле меди, олова или железа ещё +{Rules.MineMaterials}. Строится без материалов" : $"+{Rules.QuarryMaterials} материала",
+            Data.Bld.Fishery => full ? "Предел населения провинции +9%" : "население +9%",
+            Data.Bld.Pasture => full ? "Предел населения провинции +6%" : "население +6%",
+            Data.Bld.Shrine => full ? "Наука, довольство +8" + (city ? ", город растёт быстрее" : "") : "наука · довольство +8",
+            Data.Bld.Market => full ? "Налоги +0,5 за цикл, довольство +3" + (city ? ", город растёт быстрее" : "") : "налоги · довольство +3",
+            Data.Bld.Granary => full ? "Предел населения провинции +13%, довольство +4" : "население +13%",
+            _ => "",
+        };
+    }
+
+    static string OreEffect(GameState s, int p, int ore) => ore switch
+    {
+        Rules.OreGold => "+1 золото за цикл",
+        Rules.OreSalt => $"довольство +{Rules.SaltMood}",
+        _ => Rules.IsMine(s, p) ? $"рудник: +{Rules.MineMaterials} материала" : $"каменоломня даст ещё +{Rules.MineMaterials}",
+    };
+
     void FoundButton(Flow flow, int p)
     {
         var w = Game.I.World;
@@ -327,8 +355,9 @@ public partial class ProvincePanel : PanelContainer
             t.Title("Основать город").Line("Новый город получит свою сферу и сам будет присоединять земли вокруг.");
             var (src, people) = Game.I.FoundCityPlan(p);
             if (src >= 0) t.Kv("Поселенцы", $"{Fmt.Int(people)} из {w.PName[src]}");
-            t.Kv("Стоимость", $"{Game.FoundCityCost} золота")
-             .Kv("В казне", Fmt.Int(Game.I.State.Gold), Game.I.State.Gold >= Game.FoundCityCost ? Pal.Ok : Pal.Bad);
+            t.Kv("Стоимость", $"{Game.FoundCityCost} золота · {Game.FoundCityMaterials} материалов")
+             .Kv("В казне", Fmt.Int(Game.I.State.Gold), Game.I.State.Gold >= Game.FoundCityCost ? Pal.Ok : Pal.Bad)
+             .Kv("На складе", Fmt.Int(Game.I.State.Materials), Game.I.State.Materials >= Game.FoundCityMaterials ? Pal.Ok : Pal.Bad);
         });
         flow.Add(found, 10);
         var note = flow.Add(Kit.Para("", true, UiFonts.Small), 8);
@@ -401,10 +430,7 @@ public partial class ProvincePanel : PanelContainer
         var blds = s.Buildings[p];
         flow.Add(Kit.H4("Постройки", $"{blds.Count} / {s.Slots[p]}"), 20, 10);
         foreach (var b in blds)
-        {
-            int workers = 80 + (int)(Core.Noise.H2(p, (int)b + 7, w.Seed) * 140);
-            flow.Add(Kit.Row(BuildingIcon(b), Data.BldName[(int)b], $"ур. 1 · работников {workers}"), 0, 5);
-        }
+            flow.Add(Kit.Row(BuildingIcon(b), Data.BldName[(int)b], BuildingEffect(s, p, b)), 0, 5);
         if (blds.Count < s.Slots[p])
         {
             flow.Add(Kit.Slot("Свободный участок — построить", () => { _buildOpen = !_buildOpen; Rebuild(); }), 0, 5);
@@ -415,11 +441,16 @@ public partial class ProvincePanel : PanelContainer
                 {
                     if (blds.Contains(b)) continue;
                     var bb = b;
-                    int cost = Game.I.BuildCost(b);
+                    int cost = Game.I.BuildCost(b), mat = Game.I.BuildMaterials(b);
                     var btn = Ui.Button(Data.BldName[(int)b], BuildingIcon(b), "Menu", () => { _buildOpen = false; Game.I.Build(p, bb); Rebuild(); }, 1, 28);
-                    btn.Tip(t => t.Title(Data.BldName[(int)bb]).Kv("Стоимость", $"{cost} золота")
-                        .Kv("В казне", Fmt.Int(Game.I.State.Gold), Game.I.State.Gold >= cost ? Pal.Ok : Pal.Bad));
-                    void SyncBuild() => Ui.Enable(btn, Game.I.State.Gold >= cost);   // gold arrives every year
+                    btn.Tip(t =>
+                    {
+                        var st = Game.I.State;
+                        t.Title(Data.BldName[(int)bb]).Line(BuildingEffect(st, p, bb, full: true)).Kv("Стоимость", mat > 0 ? $"{cost} золота · {mat} материалов" : $"{cost} золота")
+                         .Kv("В казне", Fmt.Int(st.Gold), st.Gold >= cost ? Pal.Ok : Pal.Bad);
+                        if (mat > 0) t.Kv("На складе", Fmt.Int(st.Materials), st.Materials >= mat ? Pal.Ok : Pal.Bad);
+                    });
+                    void SyncBuild() => Ui.Enable(btn, Game.I.State.Gold >= cost && Game.I.State.Materials >= mat);   // gold and materials arrive every cycle
                     SyncBuild();
                     _live.Add(SyncBuild);
                     buttons.Add(btn);
@@ -432,7 +463,7 @@ public partial class ProvincePanel : PanelContainer
         // ore
         flow.Add(Kit.H4("Недра"), 20, 10);
         int ore = s.Ore[p];
-        if (s.OreFound[p] && ore >= 0) flow.Add(Kit.Row("diamond", Data.Ores[ore], "разведано"), 0, 5);
+        if (s.OreFound[p] && ore >= 0) flow.Add(Kit.Row("diamond", Data.Ores[ore], OreEffect(s, p, ore)), 0, 5);
         else if (s.OreFound[p]) flow.Add(Kit.Para("Геологи обошли провинцию: залежей не найдено"), 0);
         else if (!Game.I.MayHaveOre(p)) flow.Add(Kit.Para("Холмов и гор нет — залежей не ожидается"), 0);
         else

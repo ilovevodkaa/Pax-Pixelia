@@ -28,6 +28,10 @@ public sealed partial class GameState
     public double LastUpkeep => Me.LastUpkeep / 100.0; // pax-allow
     public double LastIncome => (Me.LastTaxes - Me.LastUpkeep) / 100.0; // pax-allow
 
+    // ---- materials (wood and stone) of the local player ----
+    public long Materials { get => Me.Materials; set => Me.Materials = value; }
+    public int LastMaterials => Me.LastMaterials;
+
     // ---- capital construction queue of the local player ----
     public int ProjectIndex { get => Me.ProjectIndex; set => Me.ProjectIndex = value; }
     public int ProjectsDone { get => Me.ProjectsDone; set => Me.ProjectsDone = value; }

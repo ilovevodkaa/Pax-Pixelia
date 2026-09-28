@@ -7,7 +7,7 @@ using Bld = PaxPixelia.Core.Data.Bld;
 namespace PaxPixelia.Sim;
 
 public enum ClaimError { None, NotLand, Owned, NotAdjacent, NoGold, Unexplored, CityFull }
-public enum BuildError { None, NotOwned, NoSlot, NotAllowed, AlreadyBuilt, NoGold }
+public enum BuildError { None, NotOwned, NoSlot, NotAllowed, AlreadyBuilt, NoGold, NoMaterials }
 public enum SurveyError { None, NotOwned, AlreadyDone, NoGold }
 
 /// <summary>
@@ -27,6 +27,38 @@ public static class Rules
 
     static readonly int[] Cost = { 60, 50, 70, 60, 40, 80, 90, 50 }; // by Bld
     public static int BuildCost(Bld b) => Cost[(int)b];
+
+    /// <summary>Materials (wood and stone) a building takes, by Bld: the lumber mill and the quarry cost none, so a
+    /// nation that ran out can always dig itself out.</summary>
+    static readonly int[] MaterialCost = { 10, 0, 0, 10, 5, 30, 25, 20 };
+    public static int BuildMaterials(Bld b) => MaterialCost[(int)b];
+
+    // ---------------------------------------------------------------- materials and ore
+
+    /// <summary>Materials every nation starts with, and what sources yield per rules cycle (whole units).</summary>
+    public const int StartMaterials = 40, CapitalMaterials = 1, LumberMaterials = 2, QuarryMaterials = 2, MineMaterials = 2;
+
+    /// <summary>Data.Ores indices: copper, tin and iron are dug by a quarry (a mine); gold fills the treasury; salt cheers people.</summary>
+    public const int OreCopper = 0, OreTin = 1, OreIron = 2, OreGold = 3, OreSalt = 4;
+    /// <summary>A gold vein adds this to the province's taxes per cycle (hundredths); salt raises the mood target.</summary>
+    public const long GoldVeinTax = 100;
+    public const int SaltMood = 4;
+
+    /// <summary>Surveyed ore of p (Data.Ores index), or -1 when unknown or none: undiscovered ore gives nothing.</summary>
+    public static int KnownOre(GameState s, int p) => s.OreFound[p] ? s.Ore[p] : -1;
+
+    /// <summary>Does p's quarry dig a surveyed metal vein (copper, tin, iron)?</summary>
+    public static bool IsMine(GameState s, int p) => KnownOre(s, p) is OreCopper or OreTin or OreIron && s.Buildings[p].Contains(Bld.Quarry);
+
+    /// <summary>Materials p yields per cycle: lumber mill, quarry, a mine on a metal vein, and the capital's workshops.</summary>
+    public static int ProvinceMaterials(GameState s, int p)
+    {
+        int m = s.CapitalOf[p] >= 0 ? CapitalMaterials : 0;
+        foreach (var b in s.Buildings[p])
+            m += b switch { Bld.Lumber => LumberMaterials, Bld.Quarry => QuarryMaterials, _ => 0 };
+        if (IsMine(s, p)) m += MineMaterials;
+        return m;
+    }
 
     // ---------------------------------------------------------------- claim
 
@@ -88,12 +120,14 @@ public static class Rules
         if (s.Buildings[p].Contains(b)) return BuildError.AlreadyBuilt;
         if (!WorldFacts.Of(w).Allows(p, b)) return BuildError.NotAllowed;
         if (s.Nat[n].Treasury < BuildCost(b) * Cents) return BuildError.NoGold;
+        if (s.Nat[n].Materials < BuildMaterials(b)) return BuildError.NoMaterials;
         return BuildError.None;
     }
 
     public static void Build(GameState s, int p, Bld b, int n)
     {
         s.Nat[n].Treasury -= BuildCost(b) * Cents;
+        s.Nat[n].Materials -= BuildMaterials(b);
         s.Buildings[p].Add(b);
     }
 
@@ -125,6 +159,7 @@ public static class Rules
         long t = (long)s.Pop[p] * (650 + 5 * s.Mood[p]) / 70_000;
         foreach (var b in s.Buildings[p]) if (b == Bld.Market) t += 50;
         if (s.CapitalOf[p] >= 0) t += 200;
+        if (KnownOre(s, p) == OreGold) t += GoldVeinTax;
         return t;
     }
 

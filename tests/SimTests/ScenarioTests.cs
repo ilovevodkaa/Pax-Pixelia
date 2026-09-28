@@ -167,11 +167,13 @@ public static class ScenarioTests
         Check(opts.All(b => TerrainAllows(w, bp, b)), "options follow the terrain rules");
         Check(Enumerable.Range(0, w.P).Where(p => w.PLand[p] == 1).All(p => SameTerrainAsMockup(w, p)), "integer terrain facts match the float terrain rules everywhere");
         s.Nat[Me].Treasury = 10_000 * Rules.Cents;
+        s.Nat[Me].Materials = 1000;
         while (Rules.BuildOptions(w, s, bp, Me) is { Count: > 0 } o)
         {
-            long g0 = s.Nat[Me].Treasury;
-            Check(Commands.Apply(w, s, Cmd.Build(Me, bp, o[0]), rec) == 0, $"can build {Data.BldName[(int)o[0]]}", quietPass: true);
+            long g0 = s.Nat[Me].Treasury, m0 = s.Nat[Me].Materials;
+            if (!Check(Commands.Apply(w, s, Cmd.Build(Me, bp, o[0]), rec) == 0, $"can build {Data.BldName[(int)o[0]]}", quietPass: true)) break;
             Check(s.Nat[Me].Treasury == g0 - Rules.BuildCost(o[0]) * Rules.Cents, "building costs gold", quietPass: true);
+            Check(s.Nat[Me].Materials == m0 - Rules.BuildMaterials(o[0]), "building costs materials", quietPass: true);
         }
         Check(s.Buildings[bp].Count == s.Slots[bp] || opts.Count < s.Slots[bp], "plots filled");
         var any = Enum.GetValues<Data.Bld>().First(b => TerrainAllows(w, bp, b));

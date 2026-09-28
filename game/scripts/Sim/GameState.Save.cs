@@ -22,7 +22,7 @@ namespace PaxPixelia.Sim;
 public sealed partial class GameState
 {
     /// <summary>Layout version of the snapshot (the save file carries it; older layouts are read field by field).</summary>
-    public const int SnapshotVersion = 1;
+    public const int SnapshotVersion = 2;   // 2: materials
 
     const int MaxNations = 255;
 
@@ -49,6 +49,7 @@ public sealed partial class GameState
             w.Write(x.Treasury); w.Write(x.LastTaxes); w.Write(x.LastUpkeep);
             w.Write(x.Progress); w.Write(x.ScienceRate); w.Write(x.Era);
             w.Write(x.ProjectIndex); w.Write(x.QueuePct); w.Write(x.ProjectsDone); w.Write(x.EventCount);
+            w.Write(x.Materials); w.Write(x.LastMaterials);
             w.Write(x.Fog != null);
             if (x.Fog == null) continue;
             WriteBytes(w, x.Fog.Fog);
@@ -128,6 +129,8 @@ public sealed partial class GameState
             x.Treasury = r.ReadInt64(); x.LastTaxes = r.ReadInt64(); x.LastUpkeep = r.ReadInt64();
             x.Progress = r.ReadInt64(); x.ScienceRate = r.ReadInt32(); x.Era = r.ReadByte();
             x.ProjectIndex = r.ReadInt32(); x.QueuePct = r.ReadInt32(); x.ProjectsDone = r.ReadInt32(); x.EventCount = r.ReadInt32();
+            if (version >= 2) { x.Materials = r.ReadInt64(); x.LastMaterials = r.ReadInt32(); }
+            else x.Materials = Rules.StartMaterials;   // a v1 save predates materials: start the stock over
             Require(x.Era <= Eras.Last && x.ProjectIndex >= -1 && x.ProjectIndex < Simulation.Projects.Length, "nation");
             if (!r.ReadBoolean()) continue;
             x.Fog = new NationFog

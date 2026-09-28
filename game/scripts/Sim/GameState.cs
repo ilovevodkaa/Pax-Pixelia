@@ -32,6 +32,8 @@ public sealed class NationState
     public int QueuePct;
     public int ProjectsDone;            // bit i: the one-off project i (no building attached) is finished
     public int EventCount;              // chronicle cards dealt to this nation so far
+    public long Materials;              // wood and stone for buildings and new cities (whole units)
+    public int LastMaterials;           // materials gained in the last cycle
     public NationFog Fog;
 
     public bool Human => Control == NationControl.Human;

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Godot;
 using PaxPixelia.Core;
 using PaxPixelia.Sim;
@@ -48,7 +49,7 @@ public partial class TopBar : PanelContainer
         AddChild(row);
         row.AddChild(BuildNation());
         _res[0] = new Res("coins", "Казна"); _res[1] = new Res("flask", "Наука"); _res[2] = new Res("users", "Население");
-        _res[3] = new Res("scale", "Стабильность"); _res[4] = new Res("feather", "Влияние");
+        _res[3] = new Res("scale", "Стабильность"); _res[4] = new Res("building-warehouse", "Материалы");
         foreach (var r in _res) row.AddChild(r.Root);
         row.AddChild(Ui.Expand());
         row.AddChild(BuildScreens());
@@ -169,7 +170,19 @@ public partial class TopBar : PanelContainer
         });
         _res[2].Root.Tip("Население", "Во всех провинциях державы");
         _res[3].Root.Tip("Стабильность", "Довольство попов · законы · вера", "Среднее довольство провинций державы");
-        _res[4].Root.Tip("Влияние", "Тратится на законы и дипломатию");
+        _res[4].Root.Tip(t =>
+        {
+            t.Title("Материалы");
+            if (!Game.I.IsReady) return;
+            var (l, q, m, c) = Game.I.MaterialSources();
+            var parts = new List<string>();
+            if (l > 0) parts.Add($"Лесопилки +{l * Rules.LumberMaterials}");
+            if (q > 0) parts.Add($"Каменоломни +{q * Rules.QuarryMaterials}");
+            if (m > 0) parts.Add($"Рудники +{m * Rules.MineMaterials}");
+            if (c > 0) parts.Add($"Столица +{c * Rules.CapitalMaterials}");
+            t.Line(string.Join(" · ", parts)).Kv("За цикл", "+" + Game.I.State.LastMaterials, Pal.Ok)
+             .Mu("Дерево и камень: нужны для построек и новых городов. Лесопилки и каменоломни строятся без них");
+        });
         _clock.Tip(t =>
         {
             t.Title(Game.I.DateText).Line($"Эпоха: {Game.I.EraName}");
@@ -214,7 +227,7 @@ public partial class TopBar : PanelContainer
         _res[1].Set($"{Game.I.EraProgressPermille / 10}%", "+" + Game.I.ScienceRate, Pal.Ok);
         _res[2].Set(Fmt.Pop(pop), null, default);
         _res[3].Set(pop > 0 ? $"{Math.Round(mood / pop)}%" : "—", null, default);
-        _res[4].Set("14", null, default);
+        _res[4].Set(Fmt.Int(s.Materials), _incomeKnown ? "+" + s.LastMaterials : null, Pal.Ok);
     }
 
     public void RefreshClock()
@@ -270,7 +283,7 @@ public partial class TopBar : PanelContainer
 
     internal Control DebugTarget(string name) => name switch
     {
-        "gold" => _res[0].Root, "sci" => _res[1].Root, "pop" => _res[2].Root, "stab" => _res[3].Root, "infl" => _res[4].Root,
+        "gold" => _res[0].Root, "sci" => _res[1].Root, "pop" => _res[2].Root, "stab" => _res[3].Root, "infl" or "mat" => _res[4].Root,
         "clock" => _clock, "pause" => _pause, "pips" => _pips, "session" => _session, "nation" => _nation, "screen" => _screenBtns[0], "trophy" => Trophy,
         _ => null,
     };

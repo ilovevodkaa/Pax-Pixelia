@@ -58,7 +58,7 @@ public static partial class Simulation
             nat.ProjectIndex = NextProject(s, n, Projects.Length - 1);   // skip what the capital already has
         }
         var sc = Tally(w, s);
-        for (int n = 0; n < s.Nat.Length; n++) { s.Nat[n].LastTaxes = sc.Taxes[n]; s.Nat[n].LastUpkeep = sc.Upkeep[n]; }
+        for (int n = 0; n < s.Nat.Length; n++) { s.Nat[n].LastTaxes = sc.Taxes[n]; s.Nat[n].LastUpkeep = sc.Upkeep[n]; s.Nat[n].LastMaterials = sc.Materials[n]; }
         Rates(s, sc);
         PlanDate(s);
     }
@@ -83,6 +83,8 @@ public static partial class Simulation
             var nat = s.Nat[n];
             nat.LastTaxes = sc.Taxes[n]; nat.LastUpkeep = sc.Upkeep[n];
             nat.Treasury += sc.Taxes[n] - sc.Upkeep[n];
+            nat.LastMaterials = sc.Materials[n];
+            nat.Materials += sc.Materials[n];
         }
         Grow(w, s, cycle);
         Moods(w, s, cycle);
@@ -105,7 +107,7 @@ public static partial class Simulation
     static SimScratch Tally(WorldData w, GameState s)
     {
         var sc = SimScratch.For(w, s);
-        Array.Clear(sc.Provinces); Array.Clear(sc.Shrines); Array.Clear(sc.Taxes); Array.Clear(sc.Upkeep);
+        Array.Clear(sc.Provinces); Array.Clear(sc.Shrines); Array.Clear(sc.Taxes); Array.Clear(sc.Upkeep); Array.Clear(sc.Materials);
         for (int p = 0; p < w.P; p++)
         {
             int o = s.Owner[p];
@@ -113,6 +115,7 @@ public static partial class Simulation
             sc.Provinces[o]++;
             sc.Taxes[o] += Rules.ProvinceTax(s, p);
             sc.Upkeep[o] += Rules.ProvinceUpkeep(s, p);
+            sc.Materials[o] += Rules.ProvinceMaterials(s, p);
             foreach (var b in s.Buildings[p]) if (b == Bld.Shrine) sc.Shrines[o]++;
         }
         return sc;
@@ -159,7 +162,7 @@ public static partial class Simulation
         }
     }
 
-    /// <summary>Mood drifts one point a cycle towards what the province has: shrines, markets, granaries, the right faith.</summary>
+    /// <summary>Mood drifts one point a cycle towards what the province has: shrines, markets, granaries, salt, the right faith.</summary>
     static void Moods(WorldData w, GameState s, int cycle)
     {
         for (int p = 0; p < w.P; p++)
@@ -171,6 +174,7 @@ public static partial class Simulation
                 foreach (var b in s.Buildings[p])
                     target += b switch { Bld.Shrine => 8, Bld.Market => 3, Bld.Granary => 4, _ => 0 };
                 if (s.CapitalOf[p] >= 0) target += 5;
+                if (Rules.KnownOre(s, p) == Rules.OreSalt) target += Rules.SaltMood;
                 if (s.Religion[p] >= 0 && s.Religion[p] != s.Nations[o].Religion) target -= 10;
             }
             target = IntMath.Clamp(target, 5, 95);

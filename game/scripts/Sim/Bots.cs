@@ -42,7 +42,7 @@ public static class Bots
     /// used up (about 6 provinces per city) and rarely (≈ once in 30 s at speed 3 at most).</summary>
     static void TryFoundCity(WorldData w, GameState s, int n, ISimSink sink, ref List<int> changed)
     {
-        if (s.Nat[n].Treasury < (Cities.FoundCost + Rules.ClaimCost) * Rules.Cents) return;
+        if (s.Nat[n].Treasury < (Cities.FoundCost + Rules.ClaimCost) * Rules.Cents || s.Nat[n].Materials < Cities.FoundMaterials) return;
         int cities = 0, provinces = 0;
         for (int q = 0; q < w.P; q++) if (s.Owner[q] == n) { provinces++; if (Cities.IsCity(s, q)) cities++; }
         if (provinces < cities * 6) return;

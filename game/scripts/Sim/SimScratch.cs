@@ -19,7 +19,7 @@ internal sealed class SimScratch
     public readonly int[] Seen;           // generation-stamped marks for de-duplicating change lists
     public readonly int[] Stack;
     // per-nation tallies of the rules cycle (sized on demand: the roster may hold 2..16 nations)
-    public int[] Provinces = System.Array.Empty<int>(), Shrines = System.Array.Empty<int>();
+    public int[] Provinces = System.Array.Empty<int>(), Shrines = System.Array.Empty<int>(), Materials = System.Array.Empty<int>();
     public long[] Taxes = System.Array.Empty<long>(), Upkeep = System.Array.Empty<long>();
     // bots: terrain travel cost from each nation's capital (Bots.Reach), cached per capital — capitals do not move
     public int[][] Reach = System.Array.Empty<int[]>();
@@ -61,7 +61,7 @@ internal sealed class SimScratch
         if (s.Scratch == null || s.Scratch.P != w.P) s.Scratch = new SimScratch(w.P);
         var sc = s.Scratch;
         int nN = s.Nat?.Length ?? 0;
-        if (sc.Provinces.Length != nN) { sc.Provinces = new int[nN]; sc.Shrines = new int[nN]; sc.Taxes = new long[nN]; sc.Upkeep = new long[nN]; }
+        if (sc.Provinces.Length != nN) { sc.Provinces = new int[nN]; sc.Shrines = new int[nN]; sc.Materials = new int[nN]; sc.Taxes = new long[nN]; sc.Upkeep = new long[nN]; }
         return sc;
     }
 
