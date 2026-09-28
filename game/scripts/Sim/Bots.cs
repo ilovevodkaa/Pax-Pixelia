@@ -61,13 +61,15 @@ public static class Bots
         long bs = long.MinValue;
         if (cap < 0) return -1;
         var fert = WorldFacts.Of(w).FertPm;
+        var mark = SimScratch.For(w, s).Mark;
+        int ok = Cities.MarkAbsorbable(w, s, n);
         for (int p = 0; p < w.P; p++)
         {
             if (s.Owner[p] != n) continue;
             foreach (int q in w.Adj[p])
             {
                 if (s.Owner[q] >= 0 || w.PLand[q] != 1) continue;
-                if (s.City != null && Cities.Absorber(w, s, q, n) < 0) continue;   // every city nearby is full
+                if (s.City != null && mark[q] != ok) continue;   // every city nearby is full
                 int nb = 0;
                 foreach (int r in w.Adj[q]) if (s.Owner[r] == n) nb++;
                 long sc = fert[q] * 6L + SimRng.Permille(w.Seed, 22, q, n) * 2L + nb * 3500L

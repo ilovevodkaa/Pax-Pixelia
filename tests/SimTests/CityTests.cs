@@ -45,6 +45,20 @@ public static class CityTests
         foreach (int c in Enumerable.Range(0, w.P).Where(c => Cities.IsCity(s, c) && s.Owner[c] >= 0 && init[c] > 0 && cnt[c] > System.Math.Max(Cities.Cap(s, c), init[c])).Take(5))
             System.Console.WriteLine($"      over: city {c} owner {s.Owner[c]} cap {Cities.Cap(s, c)} init {init[c]} now {cnt[c]} era {s.Nat[s.Owner[c]].Era} capital {s.CapitalOf[c] >= 0}");
 
+        Section("cities: the bots' one-pass frontier equals the per-province rule");
+        int agree = 0, differ = 0;
+        for (int n = 0; n < s.Nat.Length; n++)
+        {
+            int stamp = Cities.MarkAbsorbable(w, s, n);
+            var mark = SimScratch.For(w, s).Mark.ToArray();
+            for (int q = 0; q < w.P; q++)
+            {
+                if (s.Owner[q] >= 0 || w.PLand[q] != 1 || !w.Adj[q].Any(r => s.Owner[r] == n)) continue;
+                if ((mark[q] == stamp) == (Cities.Absorber(w, s, q, n) >= 0)) agree++; else differ++;
+            }
+        }
+        Check(differ == 0 && agree > 0, $"MarkAbsorbable = Absorber on {agree} frontier provinces of all nations ({differ} differ)");
+
         Section("cities: gold cannot beat the limit");
         s.Nat[Me].Treasury += 100_000 * Rules.Cents;
         int full = FullCityFrontier(w, s);

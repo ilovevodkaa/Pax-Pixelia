@@ -135,6 +135,29 @@ public static class Cities
         return best;
     }
 
+    /// <summary>Stamps (scratch Mark == the returned stamp) every free land province nation n's cities could absorb: the same
+    /// answer as <see cref="Absorber"/>(q, n) ≥ 0 for all q at once — one sphere pass per city under its cap instead of
+    /// one per frontier province (bots scan the whole frontier every time they claim).</summary>
+    internal static int MarkAbsorbable(WorldData w, GameState s, int n)
+    {
+        var sc = SimScratch.For(w, s);
+        int stamp = sc.NextStamp();
+        if (s.City == null) return stamp;
+        var cnt = Counts(w, s);
+        for (int c = 0; c < w.P; c++)
+        {
+            if (s.Owner[c] != n || !IsCity(s, c) || cnt[c] >= Cap(s, c)) continue;
+            Sphere(w, s, c);
+            for (int k = 0; k < sc.TouchedCount; k++)
+            {
+                int q = sc.Touched[k];
+                if (s.Owner[q] >= 0 || w.PLand[q] != 1 || sc.Mark[q] == stamp) continue;
+                foreach (int r in w.Adj[q]) if (s.Owner[r] == n && s.City[r] == c) { sc.Mark[q] = stamp; break; }
+            }
+        }
+        return stamp;
+    }
+
     /// <summary>The free land city c wants next, or -1 when its sphere is exhausted.</summary>
     public static int Target(WorldData w, GameState s, int c)
     {
