@@ -68,10 +68,11 @@ internal sealed class MapMemory
         return (IReadOnlyList<Data.Bld>)_s.Buildings[p] ?? NoBuildings;
     }
 
-    /// <summary>Nation whose colours a city or building in p wears: the owner the map shows, else the capital's.</summary>
+    /// <summary>Nation whose colours a city or building in p wears: the owner the map shows (the old one while a capture
+    /// fill runs), else the capital's.</summary>
     public int Colours(int p)
     {
-        int o = _s.VisibleOwner(p);
+        int o = Game.I.ShownOwner(p);
         return o >= 0 ? o : Math.Max(CapitalOf(p), 0);
     }
 

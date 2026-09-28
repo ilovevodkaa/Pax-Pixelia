@@ -51,6 +51,7 @@ public static class Ui
         if (icon != null && !composite) b.Icon = Icons.Get(icon, iconScale);
         if (onPress != null) b.Pressed += Deferred(onPress);
         if (skin == "Pri") PixelKit.AddPressMotion(b);   // the kit's springy hover/press on the main actions only
+        else Core.Audio.UiSounds.Attach(b);               // the others still sound: hover + click
         return b;
     }
 

@@ -21,6 +21,10 @@ internal sealed class MapTextures
     Image _tintImg, _infoImg, _ownImg, _fogImg;
     byte[] _tint = Array.Empty<byte>(), _info = Array.Empty<byte>(), _own = Array.Empty<byte>();
     int _pw, _ph;
+    /// <summary>Last uploaded per-province bytes (read-only for ProvinceTransitions: the look a capture starts from).</summary>
+    internal byte[] TintData => _tint;
+    internal byte[] InfoData => _info;
+    internal byte[] OwnData => _own;
 
     public void Build(WorldData w, FogField fog)
     {

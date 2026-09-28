@@ -234,7 +234,12 @@ public partial class SelfTest : Node
         Check("claim: chronicle entry", _notes.Skip(notes).Any(n => n.icon == "flag"));
         Check("claim: ProvincesChanged raised", _provChanges.Skip(changes).Any(ps => ps != null && ps.Contains(p)));
         Check("claim: panel shows own province", Hud.Panel.Visible && Hud.Panel.Province == p && Hud.Panel.TitleText == w.PName[p]);
+        // capture fill (GDD): the colour spreads over ~0.9 s real time; names, city colours and the minimap switch at its end
+        bool snap = Settings.I?.ReducedMotion == true, filling = G.CaptureFillsRunning, held = G.ShownOwner(p) != GameState.LocalPlayer;
         await Shot("claimed");
+        await Seconds(ProvinceTransitions.Duration + .25);
+        Check("claim: capture fill runs, then shows the new owner", (snap || (filling && held)) && G.ShownOwner(p) == GameState.LocalPlayer,
+            $"running {filling}, old owner held {held}{(snap ? ", «меньше анимации»: snaps" : "")}");
 
         int far = First(q => w.PLand[q] == 1 && s.Owner[q] < 0 && s.Explored[q] && !Rules.Borders(w, s, q, GameState.LocalPlayer));
         int toasts = _toasts.Count;

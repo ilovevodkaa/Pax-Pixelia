@@ -32,7 +32,7 @@ public partial class Hud : CanvasLayer
     bool _tipDirty;
     // heavy refreshes are coalesced: fog/ownership events may arrive every tick at speed 5
     bool _miniDirty, _leadDirty, _liveDirty;
-    double _miniCooldown, _leadCooldown, _liveCooldown;
+    double _miniCooldown, _leadCooldown, _liveCooldown, _miniHeld;
 
     /// <summary>Debug hooks (UiDebug): a fixed mouse position for screenshots and the control whose tip is forced.</summary>
     internal Vector2? FakeMouse;
@@ -314,7 +314,9 @@ public partial class Hud : CanvasLayer
         _liveCooldown -= delta;
         if (_liveDirty && _liveCooldown <= 0) { _liveDirty = false; _liveCooldown = .2; _top.RefreshResources(); _panel.RefreshLive(); }
         _miniCooldown -= delta;
-        if (_miniDirty && _miniCooldown <= 0) { _miniDirty = false; _miniCooldown = .25; _mini.View.Recolor(); }
+        // while a capture fill runs on the map the minimap keeps its old colours and snaps when it ends (at most 1.2 s late)
+        if (_miniDirty && Game.I.CaptureFillsRunning && _miniHeld < 1.2) _miniHeld += delta;
+        else if (_miniDirty && _miniCooldown <= 0) { _miniDirty = false; _miniHeld = 0; _miniCooldown = .25; _mini.View.Recolor(); }
         if (_lead.Visible)
         {
             _leadCooldown -= delta;

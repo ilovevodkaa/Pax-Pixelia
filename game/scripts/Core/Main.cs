@@ -34,6 +34,7 @@ public partial class Main : Node
         if (Cli.Has("perf")) AddChild(new PerfProbe(this));
         if (Cli.Has("qa")) AddChild(new QaTest(this));
         if (Cli.Has("pacing")) AddChild(new PacingReport());
+        if (Cli.Has("sfxprobe")) AddChild(new SfxProbe(this));
         if (Cli.Has("noinput")) AddChild(new InputShield { Name = "InputShield" });   // added last: sees input first
 
         var mode = Cli.Str("mode");

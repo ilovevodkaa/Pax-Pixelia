@@ -22,6 +22,7 @@ public partial class MapView : Node2D
     internal readonly LabelPlan Labels = new();
     internal readonly MapMemory Memory = new();
     internal readonly BuildingPlots Plots = new();
+    internal readonly ProvinceTransitions Trans = new();
     internal bool HasWorld { get; private set; }
 
     Node2D _world;
@@ -45,7 +46,7 @@ public partial class MapView : Node2D
     int _stampGen;
     readonly List<int> _expanded = new(), _merged = new();
 
-    public override void _EnterTree() => Current = this;
+    public override void _EnterTree() { Current = this; if (Game.I != null) Game.I.CaptureFills = Trans; }
 
     public override void _Ready()
     {
@@ -97,6 +98,7 @@ public partial class MapView : Node2D
             g.TimeControlChanged -= OnTimeControl;
         }
         if (Current == this) Current = null;
+        if (g != null && g.CaptureFills == Trans) g.CaptureFills = null;
     }
 
     ShaderMaterial NewMat(string path)
@@ -130,6 +132,7 @@ public partial class MapView : Node2D
         _mapMat.SetShaderParameter("ptint_tex", Tex.Tint);
         _mapMat.SetShaderParameter("pown_tex", Tex.Own);
         Tex.UpdateProvinces(w, s, g.Mode);
+        Trans.Reset(w, Tex, _mapMat);
         SetFogUniform(s.FogEnabled);
         _surface.WorldSize = new Vector2(w.W, w.H);
 
@@ -176,8 +179,10 @@ public partial class MapView : Node2D
         if (!HasWorld) return;
         _animT = (_animT + delta * (Game.I.State.Paused ? .25 : 1)) % 3600;
         _mapMat.SetShaderParameter(UAnim, (float)_animT);
+        Trans.Tick(delta);
         var w = Game.I.World; var s = Game.I.State;
         bool fog = _fogChanges.Any, prov = _provChanges.Any, sel = _selDirty && Labels.SetSelected(Game.I.Selected);
+        bool fin = Trans.Finished.Count > 0;   // capture fills that ended: names and city colours switch now
         _selDirty = false;
         int era = MapEra.Key(Game.I.Nations.Length);
         if (era != _eraKey)
@@ -190,16 +195,23 @@ public partial class MapView : Node2D
         }
         if (prov) Memory.Capture(_provChanges.All ? null : _provChanges.List);
         if (fog) Memory.Capture(_fogChanges.All ? null : _fogChanges.List);
-        if (!fog && !prov && !_modeDirty && !sel) return;
+        if (!fog && !prov && !_modeDirty && !sel && !fin) return;
         if (fog)
         {
             SetFogUniform(s.FogEnabled);
             if (Fog.Update(s, _fogChanges.All ? null : _fogChanges.List)) Tex.UploadFog(w, Fog);
             _scouts.QueueRedraw();
         }
+        if (fog || prov || _modeDirty)
+        {
+            // before the label plan: provinces whose capture fill starts now keep their old owner on it until the end
+            Tex.UpdateProvinces(w, s, Game.I.Mode);
+            Trans.OnUploaded(w, s, Tex, prov && !_provChanges.All ? _provChanges.List : null, _modeDirty);
+            fin = Trans.Finished.Count > 0;
+        }
         if (prov && RouteMesh.Key(s) != _routesKey) RebuildRoutes();
-        if (fog || prov) Labels.Invalidate();
-        if (fog || prov || sel)
+        if (fog || prov || fin) Labels.Invalidate();
+        if (fog || prov || sel || fin)
         {
             // the label plan may show or hide names and sprites anywhere (a nation name moved, a town gave way)
             var planned = Labels.Update(View.Level);
@@ -208,21 +220,20 @@ public partial class MapView : Node2D
             else
             {
                 // cities/names near the cloud edge depend on the distance field: include neighbours
-                var ps = Merge(fog ? Expand(_fogChanges.List) : null, prov ? _provChanges.List : null, planned);
+                var ps = Merge(fog ? Expand(_fogChanges.List) : null, prov ? _provChanges.List : null, planned, fin ? Trans.Finished : null);
                 if (ps.Count > 0) { _sprites.Refresh(ps); _names.Refresh(ps); }
             }
             _labels.QueueRedraw();
         }
-        if (fog || prov || _modeDirty) Tex.UpdateProvinces(w, s, Game.I.Mode);
-        _fogChanges.Clear(); _provChanges.Clear(); _modeDirty = false;
+        _fogChanges.Clear(); _provChanges.Clear(); _modeDirty = false; Trans.ClearFinished();
     }
 
     /// <summary>Union of province lists without duplicates (reused buffer).</summary>
-    List<int> Merge(List<int> a, List<int> b, List<int> c)
+    List<int> Merge(List<int> a, List<int> b, List<int> c, List<int> d = null)
     {
         if (++_stampGen == int.MaxValue) { System.Array.Clear(_stamp); _stampGen = 1; }
         _merged.Clear();
-        Add(a); Add(b); Add(c);
+        Add(a); Add(b); Add(c); Add(d);
         return _merged;
 
         void Add(List<int> list)

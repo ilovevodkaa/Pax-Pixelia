@@ -7,6 +7,7 @@ shader_type canvas_item;
 render_mode blend_disabled, unshaded;
 
 #include "res://shaders/map_common.gdshaderinc"
+#include "res://shaders/map_capture.gdshaderinc"
 
 uniform sampler2D base_tex : filter_nearest, repeat_disable;  // RGBA8 per pixel: shaded terrain colour
 uniform sampler2D base_half_tex : filter_nearest, repeat_disable; // base_tex averaged over 2×2 blocks (atlas zoom)
@@ -80,6 +81,8 @@ void fragment() {
 			bool landP = info.a > 0.5;
 			if (!landP && !atlas) base = water_anim(base, t);
 			vec3 c = mode_color(base, p, info);
+			int cs = cap_slot(p);   // a capture fill running in this province (map_capture.gdshaderinc)
+			if (cs >= 0) c = cap_fill(c, base, cs, cap_rel(cs, t), t);
 			// hovering a stale province peeks at the old map: its dimming is lifted
 			if (hov && stale) c = min(c / max(info.g, 0.2), vec3(1.0));
 			// explored but unseen land: a faint old-map hatch (reads as «old information», not as darkness)
@@ -96,7 +99,7 @@ void fragment() {
 			bool eD = !atlas && zoom > 1.5 && floor(w.y + s) != floor(w.y);
 			bool white = false;
 			if (eL || eU || eR || eD) {
-				vec4 ownP = texelFetch(pown_tex, pcoord(p), 0);
+				vec4 ownP = cap_own(texelFetch(pown_tex, pcoord(p), 0), cs);
 				int op = owner_of(ownP);
 				int kind = 0;
 				vec3 ncol = vec3(0.0);
@@ -110,7 +113,7 @@ void fragment() {
 					vec4 qi = pinfo(q);
 					if (!explored_info(qi)) continue;
 					bool landQ = qi.a > 0.5;
-					vec4 ownQ = texelFetch(pown_tex, pcoord(q), 0);
+					vec4 ownQ = cap_own(texelFetch(pown_tex, pcoord(q), 0), cap_slot(q));
 					int oq = owner_of(ownQ);
 					if (op != oq && (op >= 0 || oq >= 0) && landP && landQ) {
 						kind = 3;

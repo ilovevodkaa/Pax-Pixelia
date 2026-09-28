@@ -80,7 +80,7 @@ internal sealed class NationLabels
         bool fog = s.FogEnabled;
         for (int p = 0; p < w.P; p++)
         {
-            int o = s.VisibleOwner(p);
+            int o = g.ShownOwner(p);   // a province still filling with its new owner's colour counts for the old one
             if (o < 0 || o >= nN || (fog && s.Fog[p] == 0)) continue;
             double a = w.PCX[p] / (double)w.W * Math.Tau, m = w.PSize[p];
             sc[o] += Math.Cos(a) * m; ss[o] += Math.Sin(a) * m; sy[o] += w.PCY[p] * m; tot[o] += m;
@@ -98,7 +98,7 @@ internal sealed class NationLabels
         // second moments around the centroid (x unwrapped); each province also counts as a disc of its own area
         for (int p = 0; p < w.P; p++)
         {
-            int o = s.VisibleOwner(p);
+            int o = g.ShownOwner(p);
             if (o < 0 || o >= nN || tot[o] <= 0 || (fog && s.Fog[p] == 0)) continue;
             double dx = w.PCX[p] - _n[o].Cx, dy = w.PCY[p] - _n[o].Cy, m = w.PSize[p];
             dx -= Math.Round(dx / w.W) * w.W;
@@ -210,7 +210,7 @@ internal sealed class NationLabels
                 if (y >= 0 && y < w.H)
                 {
                     int x = ((int)MathF.Floor(q.X) % w.W + w.W) % w.W, p = w.Prov[y * w.W + x];
-                    if (s.VisibleOwner(p) == n && (!s.FogEnabled || s.Fog[p] > 0)) hits++;
+                    if (Game.I.ShownOwner(p) == n && (!s.FogEnabled || s.Fog[p] > 0)) hits++;
                 }
                 if (hits >= need) return true;
                 if (hits + (total - 1 - seen) < need) return false;

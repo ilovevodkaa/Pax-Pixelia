@@ -136,9 +136,18 @@ public partial class CreditsScreen : FrontScreen
         return lines;
     }
 
+    /// <summary>The «ЗВУКИ» lines: res://assets/audio/CREDITS_audio.txt (AUDIO.md §5.7), else one line per sfx/LICENSE_*.txt.</summary>
     static List<string> SoundLines()
     {
         var lines = new List<string>();
+        const string credits = "res://assets/audio/CREDITS_audio.txt";
+        if (FileAccess.FileExists(credits))
+            foreach (var raw in FileAccess.GetFileAsString(credits).Split('\n'))
+            {
+                var line = raw.Trim();
+                if (line.Length > 0 && !line.StartsWith('#')) lines.Add(line);
+            }
+        if (lines.Count > 0) return lines;
         foreach (var (file, name) in LicenseFiles("res://assets/audio/sfx", "LICENSE_"))
         {
             var text = FileAccess.GetFileAsString(file);

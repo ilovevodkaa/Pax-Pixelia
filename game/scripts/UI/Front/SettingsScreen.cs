@@ -150,7 +150,7 @@ public partial class SettingsScreen : FrontScreen
     {
         Slider("Общая громкость", "master", "Громкость всей игры.");
         Slider("Музыка", "music", "Музыки в этой версии ещё нет — ползунок пригодится с первой темой.");
-        Slider("Эффекты", "sfx", "Щелчки кнопок, шторки, звуки летописи.");
+        Slider("Эффекты", "sfx", "Щелчки кнопок, фишки и стройка на карте, летопись и сигналы событий.");
         Row("Звук в фоне", OnOff, S.Get<bool>(Settings.Audio, "background") ? 1 : 0,
             "Играть ли звуки, когда окно игры не в фокусе.", i => S.Set(Settings.Audio, "background", i == 1));
     }

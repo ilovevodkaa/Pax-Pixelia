@@ -1,0 +1,533 @@
+[
+ {
+  "file": "ui/ui_tab_1.ogg",
+  "from": [
+   "UI Audio: switch10.ogg"
+  ],
+  "sec": 0.15,
+  "rms": -22.8,
+  "peak": -1.3
+ },
+ {
+  "file": "ui/ui_tab_2.ogg",
+  "from": [
+   "UI Audio: switch11.ogg"
+  ],
+  "sec": 0.16,
+  "rms": -23.0,
+  "peak": -1.0
+ },
+ {
+  "file": "ui/ui_toggle_on_1.ogg",
+  "from": [
+   "UI Audio: switch23.ogg"
+  ],
+  "sec": 0.33,
+  "rms": -23.0,
+  "peak": -3.1
+ },
+ {
+  "file": "ui/ui_toggle_off_1.ogg",
+  "from": [
+   "UI Audio: switch22.ogg"
+  ],
+  "sec": 0.35,
+  "rms": -23.0,
+  "peak": -2.7
+ },
+ {
+  "file": "ui/ui_speed_1.ogg",
+  "from": [
+   "UI Audio: switch28.ogg"
+  ],
+  "sec": 0.2,
+  "rms": -25.0,
+  "peak": -5.7
+ },
+ {
+  "file": "ui/ui_speed_2.ogg",
+  "from": [
+   "UI Audio: switch26.ogg"
+  ],
+  "sec": 0.17,
+  "rms": -24.0,
+  "peak": -3.9
+ },
+ {
+  "file": "ui/ui_speed_3.ogg",
+  "from": [
+   "UI Audio: switch19.ogg"
+  ],
+  "sec": 0.38,
+  "rms": -25.5,
+  "peak": -1.0
+ },
+ {
+  "file": "ui/ui_speed_4.ogg",
+  "from": [
+   "UI Audio: switch18.ogg"
+  ],
+  "sec": 0.25,
+  "rms": -22.0,
+  "peak": -2.5
+ },
+ {
+  "file": "ui/ui_speed_5.ogg",
+  "from": [
+   "UI Audio: switch16.ogg"
+  ],
+  "sec": 0.32,
+  "rms": -21.0,
+  "peak": -2.0
+ },
+ {
+  "file": "ui/ui_pause_1.ogg",
+  "from": [
+   "RPG Audio: metalLatch.ogg"
+  ],
+  "sec": 0.22,
+  "rms": -22.0,
+  "peak": -2.3
+ },
+ {
+  "file": "ui/ui_book_open_1.ogg",
+  "from": [
+   "RPG Audio: bookOpen.ogg",
+   "RPG Audio: bookFlip3.ogg"
+  ],
+  "sec": 0.28,
+  "rms": -22.2,
+  "peak": -1.0
+ },
+ {
+  "file": "ui/ui_book_close_1.ogg",
+  "from": [
+   "RPG Audio: bookClose.ogg"
+  ],
+  "sec": 0.23,
+  "rms": -22.0,
+  "peak": -3.5
+ },
+ {
+  "file": "ui/ui_page_1.ogg",
+  "from": [
+   "RPG Audio: bookFlip2.ogg"
+  ],
+  "sec": 0.41,
+  "rms": -25.4,
+  "peak": -1.0
+ },
+ {
+  "file": "ui/ui_page_2.ogg",
+  "from": [
+   "RPG Audio: bookFlip3.ogg"
+  ],
+  "sec": 0.23,
+  "rms": -25.4,
+  "peak": -1.0
+ },
+ {
+  "file": "ui/ui_coins_1.ogg",
+  "from": [
+   "RPG Audio: handleCoins.ogg"
+  ],
+  "sec": 0.73,
+  "rms": -25.3,
+  "peak": -1.0
+ },
+ {
+  "file": "ui/ui_coins_2.ogg",
+  "from": [
+   "RPG Audio: handleCoins2.ogg"
+  ],
+  "sec": 0.34,
+  "rms": -24.0,
+  "peak": -2.5
+ },
+ {
+  "file": "ui/ui_toast_1.ogg",
+  "from": [
+   "Interface Sounds: glass_002.ogg"
+  ],
+  "sec": 0.13,
+  "rms": -26.0,
+  "peak": -9.5
+ },
+ {
+  "file": "ui/ui_toast_2.ogg",
+  "from": [
+   "Interface Sounds: glass_006.ogg"
+  ],
+  "sec": 0.09,
+  "rms": -26.0,
+  "peak": -11.1
+ },
+ {
+  "file": "ui/ui_toast_important_1.ogg",
+  "from": [
+   "Interface Sounds: bong_001.ogg"
+  ],
+  "sec": 0.12,
+  "rms": -22.0,
+  "peak": -7.2
+ },
+ {
+  "file": "ui/ui_note_1.ogg",
+  "from": [
+   "Interface Sounds: pluck_001.ogg"
+  ],
+  "sec": 0.1,
+  "rms": -27.0,
+  "peak": -7.5
+ },
+ {
+  "file": "ui/ui_note_2.ogg",
+  "from": [
+   "Interface Sounds: pluck_002.ogg"
+  ],
+  "sec": 0.14,
+  "rms": -27.0,
+  "peak": -7.9
+ },
+ {
+  "file": "ui/ui_question_1.ogg",
+  "from": [
+   "Interface Sounds: question_002.ogg"
+  ],
+  "sec": 0.33,
+  "rms": -23.0,
+  "peak": -14.1
+ },
+ {
+  "file": "ui/ui_click_2.ogg",
+  "from": [
+   "UI Audio: click1.ogg"
+  ],
+  "sec": 0.08,
+  "rms": -22.0,
+  "peak": -3.6
+ },
+ {
+  "file": "ui/ui_click_3.ogg",
+  "from": [
+   "UI Audio: click4.ogg"
+  ],
+  "sec": 0.04,
+  "rms": -22.0,
+  "peak": -4.0
+ },
+ {
+  "file": "ui/ui_open_2.ogg",
+  "from": [
+   "Interface Sounds: maximize_006.ogg"
+  ],
+  "sec": 0.38,
+  "rms": -21.6,
+  "peak": -8.5
+ },
+ {
+  "file": "ui/ui_close_2.ogg",
+  "from": [
+   "Interface Sounds: minimize_006.ogg"
+  ],
+  "sec": 0.37,
+  "rms": -22.9,
+  "peak": -9.8
+ },
+ {
+  "file": "ui/ui_confirm_2.ogg",
+  "from": [
+   "Interface Sounds: confirmation_002.ogg"
+  ],
+  "sec": 0.54,
+  "rms": -20.0,
+  "peak": -6.3
+ },
+ {
+  "file": "ui/ui_error_2.ogg",
+  "from": [
+   "Interface Sounds: error_004.ogg"
+  ],
+  "sec": 0.1,
+  "rms": -21.0,
+  "peak": -6.6
+ },
+ {
+  "file": "world/world_piece_1.ogg",
+  "from": [
+   "Impact Sounds: impactWood_light_000.ogg"
+  ],
+  "sec": 0.13,
+  "rms": -20.0,
+  "peak": -4.0
+ },
+ {
+  "file": "world/world_piece_2.ogg",
+  "from": [
+   "Impact Sounds: impactWood_light_002.ogg"
+  ],
+  "sec": 0.13,
+  "rms": -20.0,
+  "peak": -4.2
+ },
+ {
+  "file": "world/world_piece_3.ogg",
+  "from": [
+   "Impact Sounds: impactWood_light_004.ogg"
+  ],
+  "sec": 0.14,
+  "rms": -20.0,
+  "peak": -2.2
+ },
+ {
+  "file": "world/world_piece_4.ogg",
+  "from": [
+   "Impact Sounds: impactWood_light_001.ogg"
+  ],
+  "sec": 0.14,
+  "rms": -20.0,
+  "peak": -2.1
+ },
+ {
+  "file": "world/world_build_1.ogg",
+  "from": [
+   "Impact Sounds: impactWood_medium_000.ogg",
+   "Impact Sounds: impactWood_medium_003.ogg",
+   "Impact Sounds: impactWood_heavy_001.ogg",
+   "Impact Sounds: impactMetal_light_001.ogg",
+   "Impact Sounds: impactMetal_light_004.ogg",
+   "Impact Sounds: impactMetal_light_000.ogg"
+  ],
+  "sec": 0.69,
+  "rms": -21.6,
+  "peak": -1.0
+ },
+ {
+  "file": "world/world_build_2.ogg",
+  "from": [
+   "Impact Sounds: impactWood_medium_001.ogg",
+   "Impact Sounds: impactWood_medium_004.ogg",
+   "Impact Sounds: impactWood_heavy_004.ogg",
+   "Impact Sounds: impactMetal_light_004.ogg",
+   "Impact Sounds: impactMetal_light_001.ogg",
+   "Impact Sounds: impactMetal_light_002.ogg"
+  ],
+  "sec": 0.69,
+  "rms": -21.3,
+  "peak": -1.0
+ },
+ {
+  "file": "world/world_survey_1.ogg",
+  "from": [
+   "Impact Sounds: impactMining_000.ogg",
+   "Impact Sounds: impactMining_003.ogg"
+  ],
+  "sec": 0.93,
+  "rms": -21.0,
+  "peak": -3.1
+ },
+ {
+  "file": "world/world_ore_1.ogg",
+  "from": [
+   "Impact Sounds: impactMining_001.ogg",
+   "Impact Sounds: impactMining_004.ogg",
+   "Impact Sounds: impactMetal_medium_003.ogg",
+   "Impact Sounds: impactGlass_light_002.ogg"
+  ],
+  "sec": 0.86,
+  "rms": -20.0,
+  "peak": -3.1
+ },
+ {
+  "file": "world/world_scouts_out_1.ogg",
+  "from": [
+   "Impact Sounds: footstep_grass_000.ogg",
+   "Impact Sounds: footstep_grass_003.ogg",
+   "Impact Sounds: footstep_grass_004.ogg",
+   "RPG Audio: cloth4.ogg"
+  ],
+  "sec": 0.56,
+  "rms": -23.1,
+  "peak": -1.0
+ },
+ {
+  "file": "world/world_scouts_back_1.ogg",
+  "from": [
+   "Impact Sounds: footstep_grass_004.ogg",
+   "Impact Sounds: footstep_grass_000.ogg",
+   "RPG Audio: bookFlip3.ogg"
+  ],
+  "sec": 0.63,
+  "rms": -23.6,
+  "peak": -1.0
+ },
+ {
+  "file": "world/world_built_1.ogg",
+  "from": [
+   "Impact Sounds: impactWood_heavy_000.ogg",
+   "Impact Sounds: impactMetal_light_002.ogg",
+   "Music Jingles: jingles_PIZZI08.ogg"
+  ],
+  "sec": 0.72,
+  "rms": -21.0,
+  "peak": -2.7
+ },
+ {
+  "file": "world/world_scouts_out_2.ogg",
+  "from": [
+   "Impact Sounds: footstep_grass_001.ogg",
+   "Impact Sounds: footstep_grass_002.ogg",
+   "Impact Sounds: footstep_grass_003.ogg",
+   "RPG Audio: cloth3.ogg"
+  ],
+  "sec": 0.57,
+  "rms": -22.3,
+  "peak": -1.0
+ },
+ {
+  "file": "world/world_scouts_back_2.ogg",
+  "from": [
+   "Impact Sounds: footstep_grass_002.ogg",
+   "Impact Sounds: footstep_grass_001.ogg",
+   "RPG Audio: bookFlip2.ogg"
+  ],
+  "sec": 0.81,
+  "rms": -23.2,
+  "peak": -1.0
+ },
+ {
+  "file": "world/world_survey_2.ogg",
+  "from": [
+   "Impact Sounds: impactMining_002.ogg",
+   "Impact Sounds: impactMining_004.ogg"
+  ],
+  "sec": 0.86,
+  "rms": -21.0,
+  "peak": -2.8
+ },
+ {
+  "file": "stingers/stinger_claim_1.ogg",
+  "from": [
+   "RPG Audio: cloth2.ogg",
+   "Impact Sounds: impactWood_heavy_001.ogg",
+   "Music Jingles: jingles_PIZZI16.ogg"
+  ],
+  "sec": 0.86,
+  "rms": -20.0,
+  "peak": -4.5
+ },
+ {
+  "file": "stingers/stinger_claim_2.ogg",
+  "from": [
+   "RPG Audio: cloth4.ogg",
+   "Impact Sounds: impactWood_heavy_003.ogg",
+   "Music Jingles: jingles_PIZZI16.ogg"
+  ],
+  "sec": 0.86,
+  "rms": -20.0,
+  "peak": -4.0
+ },
+ {
+  "file": "stingers/stinger_eureka.ogg",
+  "from": [
+   "Music Jingles: jingles_PIZZI10.ogg"
+  ],
+  "sec": 0.8,
+  "rms": -18.0,
+  "peak": -7.4
+ },
+ {
+  "file": "stingers/stinger_meet.ogg",
+  "from": [
+   "Music Jingles: jingles_PIZZI13.ogg"
+  ],
+  "sec": 0.87,
+  "rms": -18.0,
+  "peak": -7.5
+ },
+ {
+  "file": "stingers/stinger_disaster.ogg",
+  "from": [
+   "Music Jingles: jingles_PIZZI07.ogg"
+  ],
+  "sec": 1.32,
+  "rms": -17.2,
+  "peak": -5.7
+ },
+ {
+  "file": "stingers/stinger_religion.ogg",
+  "from": [
+   "Impact Sounds: impactBell_heavy_001.ogg",
+   "Impact Sounds: impactBell_heavy_000.ogg"
+  ],
+  "sec": 1.77,
+  "rms": -18.3,
+  "peak": -1.0
+ },
+ {
+  "file": "stingers/stinger_egg_1.ogg",
+  "from": [
+   "Music Jingles: jingles_NES05.ogg"
+  ],
+  "sec": 0.81,
+  "rms": -19.0,
+  "peak": -9.8
+ },
+ {
+  "file": "stingers/stinger_egg_2.ogg",
+  "from": [
+   "Music Jingles: jingles_NES08.ogg"
+  ],
+  "sec": 0.58,
+  "rms": -19.0,
+  "peak": -10.1
+ },
+ {
+  "file": "stingers/stinger_egg_3.ogg",
+  "from": [
+   "Music Jingles: jingles_NES16.ogg"
+  ],
+  "sec": 0.47,
+  "rms": -19.0,
+  "peak": -9.3
+ },
+ {
+  "file": "stingers/stinger_era_2.ogg",
+  "from": [
+   "Music Jingles: jingles_HIT15.ogg"
+  ],
+  "sec": 1.16,
+  "rms": -16.0,
+  "peak": -1.9
+ },
+ {
+  "file": "stingers/stinger_era_3.ogg",
+  "from": [
+   "Music Jingles: jingles_HIT15.ogg",
+   "Impact Sounds: impactBell_heavy_002.ogg"
+  ],
+  "sec": 1.2,
+  "rms": -16.0,
+  "peak": -1.4
+ },
+ {
+  "file": "stingers/stinger_era_4.ogg",
+  "from": [
+   "Music Jingles: jingles_HIT15.ogg",
+   "Music Jingles: jingles_PIZZI02.ogg"
+  ],
+  "sec": 1.23,
+  "rms": -16.0,
+  "peak": -3.0
+ },
+ {
+  "file": "stingers/stinger_era_5.ogg",
+  "from": [
+   "Music Jingles: jingles_HIT15.ogg",
+   "Music Jingles: jingles_NES12.ogg"
+  ],
+  "sec": 1.16,
+  "rms": -16.0,
+  "peak": -3.6
+ }
+]

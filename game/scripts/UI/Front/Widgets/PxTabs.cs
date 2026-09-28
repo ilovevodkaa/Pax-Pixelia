@@ -47,7 +47,7 @@ public partial class PxTabs : HBoxContainer
         Current = index;
         for (int i = 0; i < _tabs.Count; i++) Style(_tabs[i], i == index);
         if (!notify) return;
-        PixelKit.Sfx?.Invoke("tick", 1.1f);
+        PixelKit.Sfx?.Invoke("tab", 1f);
         TabChanged?.Invoke(index);
     }
 
