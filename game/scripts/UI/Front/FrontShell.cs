@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Godot;
 using PaxPixelia.Core;
+using PaxPixelia.Core.Save;
 using PaxPixelia.World;
 
 namespace PaxPixelia.UI.Front;
@@ -50,14 +51,14 @@ public partial class FrontShell : Control
     public bool IsBusy => _busy;
     public bool IntroPlaying => _introTween != null && _introTween.IsValid() && _introTween.IsRunning();
 
-    /// <summary>§2.7: skip the menu when a user argument other than --front*/--no-motion is given, unless a --front* flag keeps us here.</summary>
+    /// <summary>§2.7: skip the menu when a user argument other than --front*/--no-motion/--savedir is given, unless a --front* flag keeps us here.</summary>
     public static bool ShouldBypass(IEnumerable<string> args)
     {
         bool front = false, other = false;
         foreach (var a in args)
         {
             if (a.StartsWith("--front")) front = true;
-            else if (a != "--no-motion") other = true;
+            else if (a != "--no-motion" && !a.StartsWith("--savedir")) other = true;
         }
         return other && !front;
     }
@@ -107,7 +108,8 @@ public partial class FrontShell : Control
         Session.ReturnedFromGame = false;
         if (direct) OpenDirect(front);
         else if (intro) PlayIntro(returning);
-        else { _ = _wipe.Open(); _title.NewGameButton.GrabFocus(); }
+        else { _ = _wipe.Open(); _title.DefaultButton.GrabFocus(); }
+        if (Session.Notice is { } notice) { Session.Notice = null; _ = ShowNotice(notice); }
 
         if (Cli.Has("front-selftest") && !FrontSelfTest.Running) AddChild(new FrontSelfTest(this) { Name = "FrontSelfTest" });
         if (Cli.Str("shot") is { } shot) TakeShot(shot);
@@ -162,7 +164,7 @@ public partial class FrontShell : Control
         bool nav = e.IsActionPressed("ui_down") || e.IsActionPressed("ui_up") || e.IsActionPressed("ui_focus_next");
         if (nav && GetViewport().GuiGetFocusOwner() == null && !_busy)
         {
-            var target = _stack.Count > 0 ? CurrentScreen.DefaultFocus ?? Nav.FirstFocusable(_stack[^1].Panel) : _title.NewGameButton;
+            var target = _stack.Count > 0 ? CurrentScreen.DefaultFocus ?? Nav.FirstFocusable(_stack[^1].Panel) : _title.DefaultButton;
             target?.GrabFocus();
             GetViewport().SetInputAsHandled();
         }
@@ -170,11 +172,12 @@ public partial class FrontShell : Control
 
     // ---- screens ----------------------------------------------------------------------------------------
 
-    /// <summary>Screen by id: newgame, nation, settings, credits, licenses, mpstub.</summary>
+    /// <summary>Screen by id: newgame, nation, load, settings, credits, licenses, mpstub.</summary>
     public static FrontScreen CreateScreen(string id) => id switch
     {
         "newgame" => new NewGameScreen(),
         "nation" => new NationScreen(),
+        "load" => new LoadScreen(),
         "settings" => new SettingsScreen(),
         "credits" => new CreditsScreen(),
         "licenses" => new LicensesScreen(),
@@ -220,7 +223,7 @@ public partial class FrontShell : Control
         await CloseOverlay();
         _busy = false;
         ShowHints(TitleHints);
-        Refocus(top.Opener, _title.NewGameButton);
+        Refocus(top.Opener, _title.DefaultButton);
     }
 
     /// <summary>Swap the top screen for another one (e.g. the multiplayer stub → «Новая игра»).</summary>
@@ -252,7 +255,7 @@ public partial class FrontShell : Control
         await CloseOverlay();
         _busy = false;
         ShowHints(TitleHints);
-        Refocus(bottomOpener, _title.NewGameButton);
+        Refocus(bottomOpener, _title.DefaultButton);
     }
 
     /// <summary>
@@ -269,6 +272,33 @@ public partial class FrontShell : Control
         NextWorld.Release();   // the game owns the world now; the menu will make a fresh one next time
         await _wipe.Close(1);
         GetTree().ChangeSceneToFile(MainScene);
+    }
+
+    /// <summary>
+    /// «ПРОДОЛЖИТЬ» / «ЗАГРУЗИТЬ»: hand a save over to Main.tscn (Session.Pending with LoadPath), curtain, scene change.
+    /// The menu's pre-generated world is reused when the save's seed matches it. A save that fails to load there
+    /// brings the player back here with the reason (Session.Notice).
+    /// </summary>
+    public async void LoadSave(SaveEntry save)
+    {
+        if (_leaving || save is not { Ok: true }) return;
+        _leaving = _busy = true;
+        PixelKit.Sfx?.Invoke("confirm", 1f);
+        var setup = save.Header.ToSetup();
+        var world = NextWorld.IsReady && NextWorld.Seed == setup.Seed ? NextWorld.World : null;
+        Session.Pending = new PendingGame(setup, world) { LoadPath = save.Path };
+        NextWorld.Release();
+        await _wipe.Close(1);
+        GetTree().ChangeSceneToFile(MainScene);
+    }
+
+    /// <summary>A message left for the title (a save that could not be loaded), once the curtain is open.</summary>
+    async Task ShowNotice(string text)
+    {
+        await ToSignal(GetTree().CreateTimer(.6), SceneTreeTimer.SignalName.Timeout);
+        if (!IsInsideTree() || _leaving) return;
+        await Confirm("Не удалось загрузить", text, new[] { "Понятно" }, focus: 0, danger: -1);
+        if (_stack.Count == 0 && IsInsideTree()) _title.DefaultButton.GrabFocus();
     }
 
     public async void Quit()
@@ -372,7 +402,7 @@ public partial class FrontShell : Control
     void EndIntro()
     {
         _introTween = null;
-        if (_stack.Count == 0 && GetViewport().GuiGetFocusOwner() == null) _title.NewGameButton.GrabFocus();
+        if (_stack.Count == 0 && GetViewport().GuiGetFocusOwner() == null) _title.DefaultButton.GrabFocus();
     }
 
     void OpenDirect(string front)
@@ -381,9 +411,9 @@ public partial class FrontShell : Control
         var parts = front.Split(':', 2);
         switch (parts[0])
         {
-            case "title": _title.NewGameButton.GrabFocus(); break;
+            case "title": _title.DefaultButton.GrabFocus(); break;
             case "confirm":
-                _ = Confirm("Выйти в главное меню?", "Сохранений пока нет — партия будет потеряна.", new[] { "Выйти", "Отмена" });
+                _ = Confirm("Выйти в главное меню?", PauseMenu.LeaveText, new[] { "Выйти", "Отмена" });
                 break;
             default: OpenScreen(parts[0], parts.Length > 1 ? parts[1] : null); break;
         }
@@ -423,6 +453,7 @@ public partial class FrontShell : Control
         }
         overlay.QueueFree();
         _title.SetInteractive(true);
+        _title.RefreshSaves();   // a save deleted in «Загрузить» (or written by the game) shows on the title at once
     }
 
     PanelContainer BuildPanel(FrontScreen screen, IEnumerable<FrontScreen> path)

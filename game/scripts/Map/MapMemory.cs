@@ -77,4 +77,55 @@ internal sealed class MapMemory
     }
 
     public int Era(int p) => Live(p) ? MapEra.Of(Colours(p)) : _era[p];
+
+    // ---- saves (F-4): what stale provinces showed when last seen goes into the save's VIEW chunk ----
+    const int BlobVersion = 1;
+
+    /// <summary>The memory as a blob: towns, capitals, eras and buildings last seen, per province.</summary>
+    public byte[] Save()
+    {
+        using var ms = new System.IO.MemoryStream(_cap.Length * 6 + 16);
+        using (var w = new System.IO.BinaryWriter(ms))
+        {
+            w.Write(BlobVersion);
+            w.Write(_cap.Length);
+            for (int p = 0; p < _cap.Length; p++)
+            {
+                w.Write(_town[p]); w.Write(_cap[p]); w.Write(_era[p]);
+                var b = _bld[p];
+                w.Write((byte)b.Length);
+                foreach (var x in b) w.Write((byte)x);
+            }
+        }
+        return ms.ToArray();
+    }
+
+    /// <summary>Restore a blob from <see cref="Save"/> after <see cref="Reset"/>; false (memory as reset) when it does not fit.</summary>
+    public bool Load(byte[] blob)
+    {
+        int n = _cap.Length;
+        var town = new bool[n]; var cap = new short[n]; var era = new byte[n]; var bld = new Data.Bld[n][];
+        try
+        {
+            using var r = new System.IO.BinaryReader(new System.IO.MemoryStream(blob));
+            if (r.ReadInt32() != BlobVersion || r.ReadInt32() != n) return false;
+            int kinds = Enum.GetValues<Data.Bld>().Length;
+            for (int p = 0; p < n; p++)
+            {
+                town[p] = r.ReadBoolean(); cap[p] = r.ReadInt16(); era[p] = r.ReadByte();
+                int k = r.ReadByte();
+                var list = k == 0 ? NoBuildings : new Data.Bld[k];
+                for (int i = 0; i < k; i++)
+                {
+                    byte x = r.ReadByte();
+                    if (x >= kinds) return false;
+                    list[i] = (Data.Bld)x;
+                }
+                bld[p] = list;
+            }
+        }
+        catch (System.IO.EndOfStreamException) { return false; }
+        _town = town; _cap = cap; _era = era; _bld = bld;
+        return true;
+    }
 }

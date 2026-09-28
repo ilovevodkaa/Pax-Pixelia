@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using Godot;
 using PaxPixelia.Core;
@@ -15,6 +16,8 @@ namespace PaxPixelia.UI.Front;
 /// «(hook)» checks need Main to take Session.Pending (time-foundation).
 /// <c>--front-selftest=loop</c> plays the whole round twice — title → «Новая игра» → «Народ» → НАЧАТЬ → chapter card →
 /// map → Esc → pause menu → «В главное меню» → title — and checks that the second round leaves nothing behind.
+/// <c>--front-selftest=continue</c> (needs saves, e.g. after =loop): ПРОДОЛЖИТЬ → chapter card → the saved game exactly;
+/// then pause menu → «Загрузить» → another save → the running game goes to an autosave → the chosen one runs.
 /// </summary>
 public partial class FrontSelfTest : Node
 {
@@ -35,6 +38,7 @@ public partial class FrontSelfTest : Node
             string mode = Cli.Str("front-selftest");
             if (mode == "full") await Full();
             if (mode == "loop") await Loop();
+            if (mode == "continue") await Continue();
         }
         catch (Exception e) { Fail("exception: " + e.Message); }
         GD.Print($"[front-selftest] {(_fail == 0 ? "PASS" : "FAIL")} — {_pass} passed, {_fail} failed");
@@ -47,28 +51,36 @@ public partial class FrontSelfTest : Node
         Check("bypass: no args → menu", !FrontShell.ShouldBypass(Array.Empty<string>()));
         Check("bypass: --front flags keep the menu", !FrontShell.ShouldBypass(new[] { "--front=title", "--shot=a.png", "--quit" }));
         Check("bypass: --no-motion keeps the menu", !FrontShell.ShouldBypass(new[] { "--no-motion" }));
+        Check("bypass: --savedir keeps the menu, --load starts the game", !FrontShell.ShouldBypass(new[] { "--savedir=D:/s" }) && FrontShell.ShouldBypass(new[] { "--load=latest" }));
 
         await Frames(3);
         if (_shell.IntroPlaying) { Press(Key.Shift); await Frames(2); }
         Check("intro finished", !_shell.IntroPlaying);
         var title = _shell.Title;
         await Idle();
-        Check("title: default focus on НОВАЯ ИГРА", Focus() == title.NewGameButton);
+        // with a save «ПРОДОЛЖИТЬ» leads the column and takes the focus (F-4); «ЗАГРУЗИТЬ» without saves is out of the ring
+        var authors = title.Find("АВТОРЫ");
+        var network = title.Find("СЕТЕВАЯ ИГРА");
+        var ring = title.FocusRing;
+        Check($"title: default focus on {(title.ContinueButton.Visible ? "ПРОДОЛЖИТЬ" : "НОВАЯ ИГРА")}", Focus() == title.DefaultButton && ring[0] == title.DefaultButton);
+        Check("title: ПРОДОЛЖИТЬ only with a save, ЗАГРУЗИТЬ active only with save files",
+            title.ContinueButton.Visible == (title.Latest != null) && title.LoadButton.Disabled == !Core.Save.SaveStore.Any());
         Press(Key.Up); await Frames(2);
         Check("title: ↑ wraps to ВЫЙТИ", Focus() == title.QuitButton);
         Press(Key.Down); await Frames(2);
-        for (int i = 0; i < 3; i++) { Press(Key.Down); await Frames(2); }
-        Check("title: ↓×3 → АВТОРЫ", Focus() == title.Buttons[3]);
+        int down = ring.IndexOf(authors);
+        for (int i = 0; i < down; i++) { Press(Key.Down); await Frames(2); }
+        Check($"title: ↓×{down} → АВТОРЫ", Focus() == authors);
 
         Press(Key.Enter); await Idle();
         Check("Enter opens «Авторы»", _shell.CurrentScreen is CreditsScreen);
         Audit("credits");
         Press(Key.Enter); await Idle();   // focus is on «Назад»
         Check("«Назад» closes the screen", _shell.Depth == 0);
-        Check("focus returns to АВТОРЫ", Focus() == title.Buttons[3]);
+        Check("focus returns to АВТОРЫ", Focus() == authors);
 
         Press(Key.Up); await Frames(2); Press(Key.Up); await Frames(2);
-        Check("↑×2 → СЕТЕВАЯ ИГРА", Focus() == title.Buttons[1]);
+        Check("↑×2 → СЕТЕВАЯ ИГРА", Focus() == network);
         Press(Key.Enter); await Idle();
         Check("Enter opens the multiplayer stub", _shell.CurrentScreen is MpStubScreen);
         Audit("mpstub");
@@ -77,7 +89,13 @@ public partial class FrontSelfTest : Node
         Audit("newgame");
         Press(Key.Escape); await Idle();
         Check("Esc closes «Новая игра»", _shell.Depth == 0);
-        Check("focus returns to СЕТЕВАЯ ИГРА", Focus() == title.Buttons[1]);
+        Check("focus returns to СЕТЕВАЯ ИГРА", Focus() == network);
+
+        _shell.OpenScreen("load"); await Idle();
+        Check("«Загрузить» opens", _shell.CurrentScreen is LoadScreen);
+        Audit("load");
+        Press(Key.Escape); await Idle();
+        Check("Esc closes «Загрузить»", _shell.Depth == 0);
 
         _shell.OpenScreen("credits"); await Idle();
         _shell.Push(new LicensesScreen()); await Idle();
@@ -218,6 +236,74 @@ public partial class FrontSelfTest : Node
         await Frames(20);
     }
 
+    async Task Continue()
+    {
+        Reparent(GetTree().Root);   // survive the scene changes
+        await Idle();
+        var title = _shell.Title;
+        var latest = title.Latest;
+        if (latest == null) { Fail("continue: no save to continue (run --front-selftest=loop first)"); return; }
+        Check("continue: ПРОДОЛЖИТЬ is shown and is the default", title.ContinueButton.Visible && title.DefaultButton == title.ContinueButton);
+        title.DefaultButton.GrabFocus();
+        await Frames(2);
+        Press(Key.Enter);
+        var main = await GameRunning(g => g.SavePath != null && Same(g.SavePath, latest.Path));
+        var g = Game.I;
+        Check("continue: the saved game runs through the chapter card", main != null && g.IsReady && Session.LaunchedFromMenu);
+        Check("continue: exactly the saved state (tick, hash)", g.IsReady && g.State.Tick == latest.Header.Tick && g.State.Hash().All == latest.Header.StateHash,
+            $"tick {g.State?.Tick} vs {latest.Header.Tick}");
+        await PassCard(main);
+        Check("continue: a loaded game starts paused", g.State?.Paused == true);
+
+        for (int i = 0; i < 4 && !PauseMenu.IsOpen; i++) { Press(Key.Escape); await Frames(3); }
+        var load = FindButton(GetTree().Root, "Загрузить");
+        if (!PauseMenu.IsOpen || load == null || load.Disabled) { Fail("pause menu: «Загрузить»"); return; }
+        load.EmitSignal(BaseButton.SignalName.Pressed);
+        await Frames(12);
+        var screen = Descendants(GetTree().Root).OfType<LoadScreen>().FirstOrDefault();
+        Check("pause menu: «Загрузить» shows the saves", screen != null && screen.Rows.Count >= 2, $"{screen?.Rows.Count} saves");
+        if (screen == null || screen.Rows.Count < 2) return;
+        var (pick, row) = screen.Rows.First(r => r.Entry.Ok && !Same(r.Entry.Path, latest.Path));
+        var stamp = System.IO.File.GetLastWriteTimeUtc(pick.Path);
+        row.GrabFocus(); await Frames(2);
+        Press(Key.Enter); await Frames(4);
+        Check("pause menu: loading asks first, focus on «Загрузить»", PxConfirm.IsOpen && Focus() is Button { Text: "Загрузить" });
+        Press(Key.Enter);
+        main = await GameRunning(x => x.SavePath != null && Same(x.SavePath, pick.Path) && GetTree().CurrentScene != main);
+        g = Game.I;
+        Check("pause menu: the chosen save runs", main != null && g.IsReady && g.State.Hash().All == pick.Header.StateHash, pick.FileName);
+        Check("pause menu: the chosen file was not overwritten by the save on leaving", System.IO.File.GetLastWriteTimeUtc(pick.Path) == stamp);
+        var exit = Core.Save.SaveStore.List().FirstOrDefault(e => e.Header?.Kind == Core.Save.SaveKind.Exit && Math.Abs(e.Header.SavedUnixMs - DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()) < 60_000);
+        Check("pause menu: the game left behind went to an autosave", exit != null && exit.Header.Tick == latest.Header.Tick, exit?.FileName);
+        await PassCard(main);
+    }
+
+    async Task<Main> GameRunning(Func<Game, bool> which)
+    {
+        double waited = 0;
+        while (!(GetTree().CurrentScene is Main && (Game.I?.IsReady ?? false) && which(Game.I)) && waited < 20) { await Frames(1); waited += GetProcessDeltaTime(); }
+        return GetTree().CurrentScene as Main;
+    }
+
+    async Task PassCard(Main main)
+    {
+        double waited = 0;
+        while (main?.Hud.Loading.Visible == true && waited < 10)
+        {
+            if (waited > 2.5) Press(Key.Space);   // any key skips the held chapter card
+            await Frames(1); waited += GetProcessDeltaTime();
+        }
+        Check("the chapter card gives way to the map", main != null && !main.Hud.Loading.Visible);
+        await Frames(10);
+    }
+
+    static IEnumerable<Node> Descendants(Node n)
+    {
+        foreach (var c in n.GetChildren()) { yield return c; foreach (var d in Descendants(c)) yield return d; }
+    }
+
+    static bool Same(string a, string b) => string.Equals(System.IO.Path.GetFullPath(a), System.IO.Path.GetFullPath(b), StringComparison.OrdinalIgnoreCase);
+
     static Button FindButton(Node root, string text)
     {
         foreach (var n in root.FindChildren("*", "Button", true, false))
@@ -266,6 +352,8 @@ public partial class FrontSelfTest : Node
         for (int i = 0; i < 300 && _shell.IsBusy; i++) await Frames(1);
         await Frames(2);
     }
+
+    void Check(string what, bool ok, string detail) => Check(string.IsNullOrEmpty(detail) ? what : $"{what} — {detail}", ok);
 
     void Check(string what, bool ok)
     {

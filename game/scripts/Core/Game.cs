@@ -57,7 +57,11 @@ public partial class Game : Node
 
     public override void _EnterTree() => I = this;
 
-    public override void _Ready() => AttachSimulation();   // Sim/GameActions.cs
+    public override void _Ready()
+    {
+        AttachSimulation();   // Sim/GameActions.cs
+        AttachSaves();        // Core/Save/Game.Save.cs: autosave, playtime, the save on closing the window
+    }
 
     int _generation;   // a newer game (or EndGame) supersedes a generation still running
     CancellationTokenSource _genCancel;
@@ -70,6 +74,7 @@ public partial class Game : Node
         _genCancel?.Cancel();   // stop the superseded run instead of letting it finish on every core
         var cancel = _genCancel = new CancellationTokenSource();
         Setup = setup;
+        ResetSaveInfo();
         World = null; State = null; Seed = setup.Seed;
         Hovered = -1; Selected = -1;
         ResetClock();
@@ -121,6 +126,7 @@ public partial class Game : Node
         ++_generation;
         _genCancel?.Cancel();
         World = null; State = null;
+        ResetSaveInfo();
         Hovered = -1; Selected = -1;
         Mode = MapMode.Political;
         ResetClock();

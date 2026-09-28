@@ -1,13 +1,16 @@
 using System;
 using System.Collections.Generic;
 using Godot;
+using PaxPixelia.Core.Save;
 
 namespace PaxPixelia.UI.Front;
 
 /// <summary>
 /// The title screen layer (MAIN_MENU.md §3.1): the «PAX PIXELIA» pixel logo (stepped gradient, diagonal shimmer,
 /// hard shadow — no slogan), the BigButton column and the corner captions. Sizes switch to the compact set below
-/// 800 px of height (logo 66, buttons 340×48 with step 8).
+/// 800 px of height or with seven items (logo 66, buttons 340×48 with step 8). With saves (F-4) «Продолжить» leads the
+/// column with a second line «Ардания · 880 до н. э. · 2 ч 14 мин · вчера 23:40» and takes the default focus;
+/// «Загрузить» is inactive until a save exists.
 /// </summary>
 public partial class TitleMenu : Control
 {
@@ -25,7 +28,22 @@ public partial class TitleMenu : Control
 
     public Button NewGameButton { get; private set; }
     public Button QuitButton { get; private set; }
+    /// <summary>«Продолжить»: visible while a loadable save exists.</summary>
+    public Button ContinueButton { get; private set; }
+    public Button LoadButton { get; private set; }
     public IReadOnlyList<Button> Buttons => _buttons;
+    /// <summary>The button that takes the focus on the title: «Продолжить» when there is a save, else «Новая игра».</summary>
+    public Button DefaultButton => ContinueButton is { Visible: true } c ? c : NewGameButton;
+    /// <summary>The ↑/↓ ring: visible, active buttons in column order.</summary>
+    public List<Button> FocusRing => _buttons.FindAll(b => b.Visible && !b.Disabled);
+    /// <summary>The newest loadable save («Продолжить»), or null.</summary>
+    public SaveEntry Latest { get; private set; }
+    /// <summary>A title button by its caption, any case (tests).</summary>
+    public Button Find(string text) => string.Equals(text, "Продолжить", System.StringComparison.OrdinalIgnoreCase)
+        ? ContinueButton : _buttons.Find(b => string.Equals(b.Text, text, System.StringComparison.OrdinalIgnoreCase));
+    Label _continueTitle, _continueMeta;
+    bool _interactive = true;
+    int _layout = -1;
 
     public TitleMenu(FrontShell shell) => _shell = shell;
 
@@ -51,7 +69,9 @@ public partial class TitleMenu : Control
         _divider.Name = "Divider";
         _logo.AddChild(_divider);
 
+        ContinueButton = AddContinue();
         NewGameButton = AddItem("НОВАЯ ИГРА", () => _shell.OpenScreen("newgame"));
+        LoadButton = AddItem("ЗАГРУЗИТЬ", () => _shell.OpenScreen("load"));
         var mp = AddItem("СЕТЕВАЯ ИГРА", () => _shell.OpenScreen("mpstub"));
         var badge = PixelKit.Badge("M2", PixelKit.Surface, PixelKit.TextDim, 11);
         badge.MouseFilter = MouseFilterEnum.Ignore;
@@ -62,13 +82,6 @@ public partial class TitleMenu : Control
         AddItem("АВТОРЫ", () => _shell.OpenScreen("credits"));
         QuitButton = AddItem("ВЫЙТИ", _shell.Quit);
         Nav.Unify(_menu);
-        for (int i = 0; i < _buttons.Count; i++)
-        {
-            // wrap around the column with ↑/↓
-            var b = _buttons[i];
-            b.FocusNeighborTop = b.GetPathTo(_buttons[(i + _buttons.Count - 1) % _buttons.Count]);
-            b.FocusNeighborBottom = b.GetPathTo(_buttons[(i + 1) % _buttons.Count]);
-        }
 
         var version = PixelKit.Label(VersionText(), 13, PixelKit.TextDim);
         AddChild(version);
@@ -85,6 +98,7 @@ public partial class TitleMenu : Control
         AddChild(_author);
         _author.SetAnchorsAndOffsetsPreset(LayoutPreset.BottomRight, LayoutPresetMode.Minsize, 18);
 
+        RefreshSaves();
         Resized += Relayout;
         Relayout();
     }
@@ -94,8 +108,70 @@ public partial class TitleMenu : Control
     /// <summary>Menu buttons stop taking focus while a screen is open over the title.</summary>
     public void SetInteractive(bool on)
     {
-        foreach (var b in _buttons) b.FocusMode = on ? FocusModeEnum.All : FocusModeEnum.None;
+        _interactive = on;
+        ApplyFocusModes();
         _author.MouseFilter = on ? MouseFilterEnum.Stop : MouseFilterEnum.Ignore;
+    }
+
+    /// <summary>Only visible, active buttons take the focus, and only while no screen is open over the title.</summary>
+    void ApplyFocusModes()
+    {
+        foreach (var b in _buttons) b.FocusMode = _interactive && b.Visible && !b.Disabled ? FocusModeEnum.All : FocusModeEnum.None;
+    }
+
+    /// <summary>Re-read the saves folder: «Продолжить» shows the newest loadable save (or hides), «Загрузить» is active
+    /// while any save file exists; the ↑/↓ ring skips what is hidden or inactive.</summary>
+    public void RefreshSaves()
+    {
+        Latest = SaveStore.Latest();
+        ContinueButton.Visible = Latest != null;
+        if (Latest != null)
+        {
+            var meta = SaveText.Meta(Latest.Header);
+            var font = _continueMeta.GetThemeFont("font");
+            int size = _continueMeta.GetThemeFontSize("font_size");
+            if (font != null && font.GetStringSize(meta, HorizontalAlignment.Left, -1, size).X > ContinueButton.CustomMinimumSize.X - 28)
+                meta = SaveText.Meta(Latest.Header, withWhen: false);
+            _continueMeta.Text = meta;
+            ContinueButton.TooltipText = $"{SaveText.Title(Latest.Header)} · сохранено {SaveText.When(Latest.Header.SavedUnixMs)}";
+        }
+        bool any = SaveStore.Any();
+        LoadButton.Disabled = !any;
+        LoadButton.TooltipText = any ? "" : "Сохранений пока нет";
+        LoadButton.MouseDefaultCursorShape = any ? CursorShape.PointingHand : CursorShape.Arrow;
+        var ring = FocusRing;
+        for (int i = 0; i < ring.Count; i++)
+        {
+            // wrap around the column with ↑/↓
+            var b = ring[i];
+            b.FocusNeighborTop = b.GetPathTo(ring[(i + ring.Count - 1) % ring.Count]);
+            b.FocusNeighborBottom = b.GetPathTo(ring[(i + 1) % ring.Count]);
+        }
+        ApplyFocusModes();
+        if (IsInsideTree()) Relayout();
+    }
+
+    /// <summary>«Продолжить» with its second line (nation · date · playtime · when): two labels over an empty BigButton.</summary>
+    Button AddContinue()
+    {
+        var b = AddItem("", () => { if (Latest != null) _shell.LoadSave(Latest); });
+        b.Name = "Continue";
+        _continueTitle = PixelKit.Label("ПРОДОЛЖИТЬ", 22, PixelKit.Text, HorizontalAlignment.Center);
+        _continueTitle.AddThemeFontOverride("font", b.GetThemeFont("font") ?? PixelKit.Spaced(2));
+        _continueMeta = PixelKit.Label("", 13, PixelKit.TextDim, HorizontalAlignment.Center);
+        _continueMeta.ClipText = true;
+        _continueMeta.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis;
+        var col = new VBoxContainer { MouseFilter = MouseFilterEnum.Ignore, Alignment = BoxContainer.AlignmentMode.Center };
+        col.AddThemeConstantOverride("separation", 0);
+        col.AddChild(_continueTitle);
+        col.AddChild(_continueMeta);
+        foreach (var n in col.GetChildren()) ((Control)n).MouseFilter = MouseFilterEnum.Ignore;
+        b.AddChild(col);
+        col.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
+        col.OffsetLeft = 14; col.OffsetRight = -14;
+        b.FocusEntered += () => { _continueTitle.AddThemeColorOverride("font_color", PixelKit.AccentLight); _continueMeta.AddThemeColorOverride("font_color", PixelKit.Secondary); };
+        b.FocusExited += () => { _continueTitle.AddThemeColorOverride("font_color", PixelKit.Text); _continueMeta.AddThemeColorOverride("font_color", PixelKit.TextDim); };
+        return b;
     }
 
     /// <summary>Cold-start intro (§3.1): the title «stamps» down, the divider unrolls, the buttons pop in a ladder.</summary>
@@ -162,15 +238,27 @@ public partial class TitleMenu : Control
 
     void Relayout()
     {
-        bool compact = Size.Y < 800 || _buttons.Count >= 7;
-        if (compact == _compact && _title.HasThemeFontSizeOverride("font_size") && _title.GetThemeFontSize("font_size") == (compact ? 66 : 88)) return;
+        int visible = _buttons.FindAll(b => b.Visible).Count;
+        bool compact = Size.Y < 800 || visible >= 7;
+        int btn = compact ? 48 : 52, gap = compact ? 8 : 10, cont = compact ? 58 : 64;
+        bool withContinue = ContinueButton.Visible;
+        float need = (visible - (withContinue ? 1 : 0)) * btn + (withContinue ? cont : 0) + (visible - 1) * gap;
+        // seven items on a short window (1024×600, 1280×720): tighter buttons and the column moves up under the logo
+        bool tight = Size.Y > 0 && need > Size.Y * (.84f - .38f) + 64;
+        if (tight) { btn = 40; gap = 6; cont = 50; }
+        int layout = (compact ? 1 : 0) | (tight ? 2 : 0) | visible << 2;
+        if (layout == _layout && _title.HasThemeFontSizeOverride("font_size")) return;
+        _layout = layout;
         _compact = compact;
         int size = compact ? 66 : 88;
         _title.AddThemeFontSizeOverride("font_size", size);
         _title.AddThemeFontOverride("font", PixelKit.Spaced(compact ? 4 : 6));
         _titleMat.SetShaderParameter("snap", size / 11f);
-        _menu.AddThemeConstantOverride("separation", compact ? 8 : 10);
-        foreach (var b in _buttons) b.CustomMinimumSize = new Vector2(340, compact ? 48 : 52);
+        _menu.AddThemeConstantOverride("separation", gap);
+        foreach (var b in _buttons) b.CustomMinimumSize = new Vector2(340, btn);
+        ContinueButton.CustomMinimumSize = new Vector2(340, cont);
+        if (_logo.GetParent() is Control logoBand) { logoBand.AnchorTop = tight ? .03f : .06f; logoBand.AnchorBottom = tight ? .28f : .36f; }
+        if (_menu.GetParent() is Control menuBand) { menuBand.AnchorTop = tight ? .29f : .38f; menuBand.AnchorBottom = tight ? .92f : .84f; }
     }
 
     void UpdateTitleGradient()

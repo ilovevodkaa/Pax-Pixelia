@@ -82,6 +82,11 @@ public partial class MapCamera : Node
         int cap = s.NationCapital != null && s.NationCapital.Length > 0 ? s.NationCapital[0] : 0;
         var cam = Cli.Str("cam");
         if (cam != null && TryParseXY(cam, out var cv)) _c = cv;
+        else if (g.RestoreView is { HasCamera: true } saved)   // a loaded game opens where the player left it
+        {
+            if (!Cli.Has("zoom")) { _li = LevelIndex(saved.Zoom <= 0 ? .5f : saved.Zoom); _z = Levels[_li]; }
+            _c = new Vector2(saved.CamX, saved.CamY);
+        }
         // the province panel covers the right side: shift the capital a little left of centre (as in the mockup)
         else _c = new Vector2(w.PCX[cap] + .5f + 170f / _z, w.PCY[cap] + .5f);
         ApplyView(true);

@@ -92,6 +92,7 @@ public partial class Hud : CanvasLayer
         _root.AddChild(_toast);
         _tip = new TipCard();
         _root.AddChild(_tip);
+        _root.AddChild(new SaveIndicator());   // «Сохранено» in the corner after every save
         _loading = new ChapterCard();
         _root.AddChild(_loading);
         AddChild(new PauseMenu());   // last child of the layer: above everything, first to see input

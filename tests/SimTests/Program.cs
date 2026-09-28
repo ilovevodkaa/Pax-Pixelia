@@ -10,7 +10,7 @@ namespace PaxPixelia.Tests;
 /// <summary>
 /// Console tests of the simulation (no Godot): the scripted game (fog, scouts, commands, economy, centuries of cycles),
 /// the clock and calendar, determinism across tick batching and frame rates, journal replay, the nation roster,
-/// the determinism lint and a pacing check. Exit code 0 = all checks passed.
+/// saves (round trips at awkward moments, broken files), the determinism lint and a pacing check. Exit code 0 = all checks passed.
 /// </summary>
 public static class Program
 {
@@ -31,6 +31,7 @@ public static class Program
         Console.WriteLine($"world seed={seed}: {w.P} provinces ({Enumerable.Range(0, w.P).Count(p => w.PLand[p] == 1)} land) in {sw.ElapsedMilliseconds} ms");
 
         if (args.Any(a => a.TrimStart('-') == "bench")) { Bench.Run(w); return 0; }
+        if (args.Any(a => a.TrimStart('-') == "saves")) { SaveTests.Run(w); return Report(); }
         LintTests.Run();
         TimeTests.Run();
         var run1 = ScenarioTests.Run(w, verbose: true);
@@ -39,10 +40,16 @@ public static class Program
         T.Verbose = true;
         T.Check(run1 == run2, $"same seed, same commands → same state hash ({run1:X16} vs {run2:X16})");
         ReplayTests.Run(w);
+        SaveTests.Run(w);
         RosterTests.Run(w);
         CityTests.Run(w);
         PacingTests.Run(w, full: pacing);
 
+        return Report();
+    }
+
+    static int Report()
+    {
         Console.WriteLine();
         Console.WriteLine($"{T.Pass} passed, {T.Fail} failed");
         foreach (var f in T.Failures) Console.WriteLine("  FAIL " + f);

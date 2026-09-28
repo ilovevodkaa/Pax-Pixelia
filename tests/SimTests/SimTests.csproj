@@ -4,6 +4,7 @@
     Run from D:/supergae:  dotnet run -c Release (project tests/SimTests), optional program arguments:
       seed=N        world seed (default 1337)
       pacing        also run the full pacing report (all three length presets, ~1 min)
+      saves         only the save tests (round trips, field audit, broken files, time budgets)
       bench         only the rules benchmark (µs and bytes per tick, early and settled game)
     Test another copy of the game:  add -p:GameDir=path/to/game
   -->
@@ -28,6 +29,8 @@
   <ItemGroup>
     <Compile Include="*.cs" />
     <Compile Include="$(GameDir)/scripts/Core/Data.cs;$(GameDir)/scripts/Core/Noise.cs;$(GameDir)/scripts/Core/GameSetup.cs;$(GameDir)/scripts/Core/Flags/FlagSpec.cs;$(GameDir)/scripts/Core/Flags/FlagPatterns.cs;$(GameDir)/scripts/Core/Nations/NationDesign.cs;$(GameDir)/scripts/Core/Nations/NationRoster.cs;$(GameDir)/scripts/Core/Nations/NationNames.cs;$(GameDir)/scripts/Core/Nations/NationPalette.cs;$(GameDir)/scripts/Core/Nations/ColorMath.cs" Link="Game/Core/%(Filename)%(Extension)" />
+    <!-- saves: the file format and the world hash (the rest of Core/Save is Godot-side) -->
+    <Compile Include="$(GameDir)/scripts/Core/Save/SaveFile.cs;$(GameDir)/scripts/Core/Save/WorldHash.cs" Link="Game/Core/Save/%(Filename)%(Extension)" />
     <!-- the event deck: engine-free except its res:// reader -->
     <Compile Include="$(GameDir)/scripts/Content/**/*.cs" Exclude="$(GameDir)/scripts/Content/ContentLoader.cs" Link="Game/Content/%(RecursiveDir)%(Filename)%(Extension)" />
     <Compile Include="$(GameDir)/scripts/World/**/*.cs" Link="Game/World/%(RecursiveDir)%(Filename)%(Extension)" />

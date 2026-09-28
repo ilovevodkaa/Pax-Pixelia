@@ -147,6 +147,17 @@ public sealed class CommandQueue
 
     public void Clear() { _pending.Clear(); _journal.Clear(); Array.Clear(_seq); }
 
+    /// <summary>Per-nation sequence counters (a save keeps them with the journal).</summary>
+    public ReadOnlySpan<ushort> Sequences => _seq;
+
+    /// <summary>A loaded game: its journal and sequence counters come back, nothing is pending.</summary>
+    public void Restore(IEnumerable<Cmd> journal, ReadOnlySpan<ushort> seq)
+    {
+        Clear();
+        _journal.AddRange(journal);
+        seq[..Math.Min(seq.Length, _seq.Length)].CopyTo(_seq);
+    }
+
     /// <summary>Stamp and queue a command for the next tick boundary.</summary>
     public Cmd Submit(GameState s, Cmd c)
     {

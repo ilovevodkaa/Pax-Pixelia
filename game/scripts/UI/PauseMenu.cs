@@ -1,7 +1,9 @@
 using System;
+using System.Linq;
 using System.Threading.Tasks;
 using Godot;
 using PaxPixelia.Core;
+using PaxPixelia.Core.Save;
 using PaxPixelia.UI.Front;
 
 namespace PaxPixelia.UI;
@@ -9,12 +11,16 @@ namespace PaxPixelia.UI;
 /// <summary>
 /// In-game pause menu (MAIN_MENU.md §3.7): the end of the HUD's Esc chain. Pauses the game (and restores the previous
 /// state on close) without pausing the scene tree, so the map keeps drawing under the 0.78 shade. Продолжить ·
-/// Настройки (the front-end settings screen in the same overlay) · В главное меню · Выйти из игры (both confirmed:
-/// there are no saves yet). While open it takes every key except F12. Debug: --pausemenu opens it after WorldReady.
+/// Сохранить (asks for a name; the same name overwrites after a question) · Загрузить (the front-end «Загрузить»
+/// screen in the same overlay; the running game goes to an autosave first) · Настройки · В главное меню · Выйти из
+/// игры (both confirmed; the game is autosaved on the way out, «ПРОДОЛЖИТЬ» brings it back). While open it takes
+/// every key except F12. Debug: --pausemenu opens it after WorldReady.
 /// </summary>
 public partial class PauseMenu : Control
 {
     public const string FrontScene = "res://scenes/Front.tscn";
+    public const string MainScene = "res://scenes/Main.tscn";
+    public const string LeaveText = "Партия сохранится в автосохранение — «Продолжить» в главном меню вернёт вас сюда.";
     static PauseMenu _live;
 
     public static bool IsOpen => _live is { Visible: true };
@@ -100,6 +106,9 @@ public partial class PauseMenu : Control
         col.AddChild(SetupUi.Gap(4));
 
         _continue = MenuButton(col, "ПРОДОЛЖИТЬ", "PrimaryButton", CloseMenu, "Esc");
+        MenuButton(col, "Сохранить", "", () => _ = SaveManual());
+        var load = MenuButton(col, "Загрузить", "", OpenLoad);
+        if (!SaveStore.Any()) { load.Disabled = true; load.TooltipText = "Сохранений пока нет"; }
         MenuButton(col, "Настройки", "", OpenSettings);
         MenuButton(col, "В главное меню", "GhostButton", () => _ = ConfirmLeave(false));
         MenuButton(col, "Выйти из игры", "GhostButton", () => _ = ConfirmLeave(true));
@@ -128,7 +137,7 @@ public partial class PauseMenu : Control
     static Button MenuButton(Container parent, string text, string variation, Action onPress, string key = null)
     {
         var b = PixelKit.Button(text, variation);
-        b.CustomMinimumSize = new Vector2(320, 48);
+        b.CustomMinimumSize = new Vector2(320, _live != null && _live.GetViewportRect().Size.Y < 720 ? 40 : 48);   // six items on 1024×600
         if (variation == "PrimaryButton") { b.AddThemeFontOverride("font", PixelKit.Spaced(2)); b.AddThemeFontSizeOverride("font_size", 20); }
         if (key != null) SetupUi.WithKey(b, key);
         else b.Alignment = HorizontalAlignment.Left;
@@ -167,21 +176,103 @@ public partial class PauseMenu : Control
         PixelKit.Sfx?.Invoke("open", 1f);
     }
 
+    // ---- saves (F-4) ----
+
+    /// <summary>«Сохранить»: a name (the default «Ардания · март 3200 до н. э.»), a question when a manual save of that
+    /// name exists, then the save with a thumbnail of the map (the menu is not in it).</summary>
+    async Task SaveManual()
+    {
+        var g = Game.I;
+        if (!g.IsReady || _leaving || PxConfirm.IsOpen) return;
+        var name = await PxConfirm.AskText(this, "Сохранить партию", "Название сохранения:", g.DefaultSaveName(), "Сохранить");
+        if (name == null || !Visible || !g.IsReady) return;
+        if (name.Length == 0) name = g.DefaultSaveName();
+        string path = null;
+        if (SaveStore.FindManual(name) is { } old)
+        {
+            int a = await PxConfirm.Ask(this, "Перезаписать?", $"Сохранение «{old.Header.Name}» уже есть, от {SaveText.When(old.Header.SavedUnixMs)}.",
+                new[] { "Перезаписать", "Отмена" }, focus: 1, danger: 0);
+            if (a != 0 || !Visible) return;
+            path = old.Path;
+        }
+        var r = await g.SaveAsync(SaveKind.Manual, name, path);
+        if (_date == null || !IsInstanceValid(_date) || !_date.IsInsideTree()) return;
+        _date.ClipText = true;   // a long name must not widen the panel
+        _date.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis;
+        _date.Text = r.Ok ? $"Сохранено «{name}»" : r.Error;
+        _date.AddThemeColorOverride("font_color", r.Ok ? PixelKit.Text : PixelKit.Bad);
+        PixelKit.PopIn(_date, 0, .8f, .3f);
+        PixelKit.Sfx?.Invoke(r.Ok ? "confirm" : "error", 1f);
+        if (r.Ok && FindLoadButton() is { } load) { load.Disabled = false; load.TooltipText = ""; }
+    }
+
+    Button FindLoadButton() => _panel?.FindChildren("*", "Button", true, false).OfType<Button>().FirstOrDefault(b => b.Text == "Загрузить");
+
+    /// <summary>«Загрузить»: the front-end screen inside the pause panel.</summary>
+    void OpenLoad()
+    {
+        var screen = new LoadScreen { DialogHost = this };
+        screen.Closed += () => { if (Visible) ShowPanel(BuildMain()); };
+        screen.LoadRequested = e => _ = LoadSave(e);
+        _continue = null;
+        ShowPanel(ScreenHost.Wrap(screen, GetViewportRect().Size));
+        PixelKit.Sfx?.Invoke("open", 1f);
+    }
+
+    /// <summary>Load a save over the running game: asked first, the running game goes to an autosave slot (never over
+    /// the chosen file), then the same path as «ПРОДОЛЖИТЬ» — curtain, Main.tscn, the chapter card.</summary>
+    async Task LoadSave(SaveEntry e)
+    {
+        if (_leaving || PxConfirm.IsOpen || e is not { Ok: true }) return;
+        int answer = await PxConfirm.Ask(this, "Загрузить сохранение?", $"«{SaveText.Title(e.Header)}» · {e.Header.DateText}. Текущая партия сохранится в автосохранение.",
+            new[] { "Загрузить", "Отмена" }, focus: 0, danger: -1);
+        if (answer != 0 || _leaving) return;
+        _leaving = true;
+        var g = Game.I;
+        var r = await g.AutoSave.SaveOnLeave(keep: e.Path);
+        if (!r.Ok) GD.PushWarning($"save: the running game was not saved before loading: {r.Error}");
+        var world = g.World is { } w && w.Seed == e.Header.Seed && w.W == e.Header.WorldW && w.H == e.Header.WorldH ? w : null;
+        await Leave(() =>
+        {
+            Session.Pending = new PendingGame(e.Header.ToSetup(), world) { LoadPath = e.Path };
+            return MainScene;
+        });
+    }
+
     async Task ConfirmLeave(bool quit)
     {
         int answer = await PxConfirm.Ask(this, quit ? "Выйти из игры?" : "Выйти в главное меню?",
-            "Сохранений пока нет — партия будет потеряна.", new[] { "Выйти", "Отмена" }, focus: 1, danger: 0);
+            LeaveText, new[] { "Выйти", "Отмена" }, focus: 1, danger: 0);
         if (answer != 0 || _leaving) return;
         _leaving = true;
+        var r = await Game.I.AutoSave.SaveOnLeave();
+        if (!r.Ok)
+        {
+            int again = await PxConfirm.Ask(this, "Не удалось сохранить", $"{r.Error}. Выйти без сохранения?",
+                new[] { "Выйти", "Отмена" }, focus: 1, danger: 0);
+            if (again != 0) { _leaving = false; return; }
+        }
+        if (quit)
+        {
+            var wipeOut = new DitherWipe { Cell = Mathf.Max(2, (int)(GetViewportRect().Size.Y / 225)) };
+            GetTree().Root.AddChild(wipeOut);
+            await wipeOut.Close(2);
+            GetTree().Quit();
+            return;
+        }
+        await Leave(() => { Session.ReturnedFromGame = true; return FrontScene; });
+    }
+
+    /// <summary>Curtain, end the game, switch scenes (the scene path comes from <paramref name="prepare"/>, run after EndGame).</summary>
+    async Task Leave(Func<string> prepare)
+    {
         var tree = GetTree();   // this menu leaves the tree with the game scene
         var wipe = new DitherWipe { Cell = Mathf.Max(2, (int)(GetViewportRect().Size.Y / 225)) };
         tree.Root.AddChild(wipe);
         await wipe.Close(2);
-        if (quit) { tree.Quit(); return; }
         Game.I.EndGame();
-        Session.ReturnedFromGame = true;
-        tree.ChangeSceneToFile(FrontScene);
-        // the title starts behind its own closed curtain (ReturnedFromGame) and opens it; ours just goes away
+        tree.ChangeSceneToFile(prepare());
+        // the next scene starts behind its own closed curtain (the title's, the chapter card's) and opens it; ours goes away
         for (int i = 0; i < 2; i++) await wipe.ToSignal(tree, SceneTree.SignalName.ProcessFrame);
         wipe.QueueFree();
     }

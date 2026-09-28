@@ -1,5 +1,6 @@
 using System;
 using Godot;
+using PaxPixelia.Core.Save;
 using PaxPixelia.Dev;
 using PaxPixelia.Map;
 using PaxPixelia.UI;
@@ -35,12 +36,29 @@ public partial class Main : Node
         if (Cli.Has("qa")) AddChild(new QaTest(this));
         if (Cli.Has("pacing")) AddChild(new PacingReport());
         if (Cli.Has("sfxprobe")) AddChild(new SfxProbe(this));
+        if (Cli.Has("savetest")) AddChild(new SaveTest(this));
         if (Cli.Has("noinput")) AddChild(new InputShield { Name = "InputShield" });   // added last: sees input first
 
         var mode = Cli.Str("mode");
         if (mode != null) Game.I.SetMode(mode switch { "ter" => MapMode.Terrain, "rel" => MapMode.Religion, "trd" => MapMode.Trade, "fer" => MapMode.Fertility, _ => MapMode.Political });
 
-        await Game.I.NewGame(pending?.Setup ?? SetupFromCli(), pending?.World);
+        // «ПРОДОЛЖИТЬ» / «ЗАГРУЗИТЬ» hand over a save; --load=latest|file loads one from the command line
+        var load = pending != null ? pending.LoadPath : Cli.Has("load") ? SaveStore.Resolve(Cli.Str("load")) : null;
+        if (load != null)
+        {
+            var r = await Game.I.LoadGame(load, pending?.World);
+            if (!r.Ok && !r.Superseded)
+            {
+                GD.PushWarning($"load failed: {r.Error}");
+                if (pending != null) { BackToMenu(r.Error); return; }
+                await Game.I.NewGame(SetupFromCli());   // the command line's run goes on with its own game
+            }
+        }
+        else
+        {
+            if (pending == null && Cli.Has("load")) GD.PushWarning("--load: no save to load, starting a new game");
+            await Game.I.NewGame(pending?.Setup ?? SetupFromCli(), pending?.World);
+        }
 
         var shot = Cli.Str("shot");
         if (shot != null)
@@ -52,6 +70,15 @@ public partial class Main : Node
             if (Cli.Has("quit")) GetTree().Quit();
         }
         else if (Cli.Has("quit")) GetTree().Quit();
+    }
+
+    /// <summary>A save chosen in the menu could not be loaded: back to the title, which shows the reason.</summary>
+    void BackToMenu(string error)
+    {
+        Game.I.EndGame();
+        Session.Notice = error;
+        Session.ReturnedFromGame = true;
+        GetTree().ChangeSceneToFile(PauseMenu.FrontScene);
     }
 
     /// <summary>

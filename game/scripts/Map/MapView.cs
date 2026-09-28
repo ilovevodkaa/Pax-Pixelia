@@ -81,6 +81,7 @@ public partial class MapView : Node2D
         g.ProvinceHovered += OnHovered;
         g.ProvinceSelected += OnSelected;
         g.TimeControlChanged += OnTimeControl;
+        g.MapMemoryWriter = Memory.Save;   // saves keep what stale provinces showed
         if (g.IsReady) OnWorldReady();
     }
 
@@ -96,6 +97,7 @@ public partial class MapView : Node2D
             g.ProvinceHovered -= OnHovered;
             g.ProvinceSelected -= OnSelected;
             g.TimeControlChanged -= OnTimeControl;
+            if (Current == this) g.MapMemoryWriter = null;
         }
         if (Current == this) Current = null;
         if (g != null && g.CaptureFills == Trans) g.CaptureFills = null;
@@ -118,6 +120,7 @@ public partial class MapView : Node2D
         Fog.Init(w, s);
         MapAtlas.Bake(g.Nations);
         Memory.Reset(w, s);
+        if (g.RestoreView?.MapMemory is { } memory && !Memory.Load(memory)) GD.PushWarning("save: the map memory does not fit this world, rebuilt from the state");
         Plots.Reset(w);
         _eraKey = MapEra.Key(g.Nations.Length);
         Labels.Reset(w, Fog, Memory);

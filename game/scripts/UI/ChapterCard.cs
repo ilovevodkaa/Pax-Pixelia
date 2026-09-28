@@ -3,6 +3,7 @@ using System.Threading.Tasks;
 using Godot;
 using PaxPixelia.Core;
 using PaxPixelia.Core.Flags;
+using PaxPixelia.Sim;
 using PaxPixelia.UI.Front;
 
 namespace PaxPixelia.UI;
@@ -87,14 +88,16 @@ public partial class ChapterCard : Control
         _sky.ShowPlanet = false;
         Game.I.GenerationProgress += OnProgress;
         Game.I.WorldReady += OnWorldReady;
+        Game.I.LoadStarted += OnLoadStarted;
         GetViewport().SizeChanged += Layout;
         Layout();
     }
 
     public override void _ExitTree()
     {
-        if (Game.I != null) { Game.I.GenerationProgress -= OnProgress; Game.I.WorldReady -= OnWorldReady; }
+        if (Game.I != null) { Game.I.GenerationProgress -= OnProgress; Game.I.WorldReady -= OnWorldReady; Game.I.LoadStarted -= OnLoadStarted; }
         GetViewport().SizeChanged -= Layout;
+        if (_wipe != null && IsInstanceValid(_wipe)) _wipe.QueueFree();   // a load that failed leaves for the menu mid-card
     }
 
     // ---- the LoadingScreen API used by Hud ----
@@ -134,8 +137,10 @@ public partial class ChapterCard : Control
     {
         var g = Game.I;
         var (name, rgb, flag) = PlayerLook();
-        int era = Math.Clamp(g.EraIndex, 0, Sayings.Length - 1);
-        _kicker.Text = $"Глава {Roman(era + 1)} · {g.EraName}{(g.DateText == "" ? "" : " · " + g.DateText)}".ToUpper();
+        var save = g.State == null ? g.Loading : null;   // a save regenerating its world: its era and date
+        int era = Math.Clamp(save?.Era ?? g.EraIndex, 0, Sayings.Length - 1);
+        string date = save?.DateText ?? g.DateText;
+        _kicker.Text = $"Глава {Roman(era + 1)} · {Eras.Name(era)}{(date == "" ? "" : " · " + date)}".ToUpper();
         _name.Text = name.ToUpper();
         _saying.Text = $"«{Sayings[era]}»";
         _flag.Texture = FlagTextures.Get(flag, rgb);
@@ -148,6 +153,7 @@ public partial class ChapterCard : Control
     static (string, (byte, byte, byte), FlagSpec) PlayerLook()
     {
         var g = Game.I;
+        if (g.State == null && g.Loading is { } h) return (h.NationName, (h.R, h.G, h.B), h.Flag == default ? FlagSpec.ForBot(h.Seed, 0) : h.Flag);
         if (g.Setup?.Player is { } d) return (d.Name, d.Rgb, d.Flag);
         var n = g.Nations[0];
         return (n.Name, (n.R, n.G, n.B), n.Flag == default ? FlagSpec.ForBot(g.Seed, 0) : n.Flag);
@@ -182,6 +188,13 @@ public partial class ChapterCard : Control
         foreach (var (t, share) in Stages)
             if (t == text) { _target = Mathf.Max(_target, share); return; }
         _target = Mathf.Min(.95f, _target + .1f);
+    }
+
+    /// <summary>A save is loading: the card shows its nation, era and date while the world regenerates.</summary>
+    void OnLoadStarted()
+    {
+        if (Visible && !_leaving) Fill(); else ShowNow();
+        SetStatus("Сохранение прочитано · мир восстанавливается…");
     }
 
     void OnWorldReady()
