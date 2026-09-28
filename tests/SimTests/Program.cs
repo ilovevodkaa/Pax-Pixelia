@@ -40,6 +40,7 @@ public static class Program
         T.Check(run1 == run2, $"same seed, same commands → same state hash ({run1:X16} vs {run2:X16})");
         ReplayTests.Run(w);
         RosterTests.Run(w);
+        CityTests.Run(w);
         PacingTests.Run(w, full: pacing);
 
         Console.WriteLine();

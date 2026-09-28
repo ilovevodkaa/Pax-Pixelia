@@ -6,7 +6,7 @@ using Bld = PaxPixelia.Core.Data.Bld;
 
 namespace PaxPixelia.Sim;
 
-public enum ClaimError { None, NotLand, Owned, NotAdjacent, NoGold, Unexplored }
+public enum ClaimError { None, NotLand, Owned, NotAdjacent, NoGold, Unexplored, CityFull }
 public enum BuildError { None, NotOwned, NoSlot, NotAllowed, AlreadyBuilt, NoGold }
 public enum SurveyError { None, NotOwned, AlreadyDone, NoGold }
 
@@ -36,6 +36,7 @@ public static class Rules
         if (s.Owner[p] >= 0) return ClaimError.Owned;
         if (s.Nat[n].Fog is { } f && !f.Explored[p]) return ClaimError.Unexplored;   // fog, never FogEnabled: observer mode is a view
         if (!Borders(w, s, p, n)) return ClaimError.NotAdjacent;
+        if (s.City != null && Cities.Absorber(w, s, p, n) < 0) return ClaimError.CityFull;   // gold speeds growth, never beats the limit
         if (s.Nat[n].Treasury < ClaimCost * Cents) return ClaimError.NoGold;
         return ClaimError.None;
     }
@@ -50,6 +51,7 @@ public static class Rules
     public static void Claim(WorldData w, GameState s, int p, int n)
     {
         s.Nat[n].Treasury -= ClaimCost * Cents;
+        if (s.City != null) s.City[p] = Cities.Absorber(w, s, p, n);
         s.Owner[p] = s.Controller[p] = (short)n;
         s.Religion[p] = (sbyte)s.Nations[n].Religion;
         s.Pop[p] = (int)Math.Min(int.MaxValue, (long)s.Pop[p] * ClaimPopBoostPermille / 1000);

@@ -17,6 +17,8 @@ public enum CmdType : byte
     CheatGold, CheatEra,
     // answer the nation's open event choice (SimEvents): A = option
     Choose,
+    // found a town at A (settlers from the nearest city)
+    FoundCity,
 }
 
 /// <summary>
@@ -36,6 +38,7 @@ public readonly record struct Cmd(int Tick, byte Nation, ushort Seq, CmdType Typ
     public static Cmd CheatGold(int n, int gold) => new(0, (byte)n, 0, CmdType.CheatGold, gold);
     public static Cmd CheatEra(int n, int era) => new(0, (byte)n, 0, CmdType.CheatEra, era);
     public static Cmd Choose(int n, int option) => new(0, (byte)n, 0, CmdType.Choose, option);
+    public static Cmd FoundCity(int n, int province) => new(0, (byte)n, 0, CmdType.FoundCity, province);
 
     public bool IsSession => Type is CmdType.Pause or CmdType.Unpause or CmdType.SetSpeed;
 
@@ -103,6 +106,14 @@ public static class Commands
             case CmdType.SetSpeed: s.Speed = IntMath.Clamp(c.A, Clock.MinSpeed, Clock.MaxSpeed); return 0;
             case CmdType.CheatGold: s.Nat[n].Treasury += (long)c.A * Rules.Cents; return 0;
             case CmdType.CheatEra: Simulation.JumpToEra(s, c.A); return 0;
+            case CmdType.FoundCity:
+            {
+                var e = Cities.Check(w, s, c.A, n);
+                if (e != FoundError.None) return (int)e;
+                Cities.Found(w, s, c.A, n);
+                Changed(w, s, c.A, sink, batch, fog: true);
+                return 0;
+            }
             case CmdType.Choose: return s.Events != null && s.Events.Choose(s, n, c.A, sink) ? 0 : BadCommand;
             default: return BadCommand;
         }

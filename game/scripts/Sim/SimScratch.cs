@@ -21,6 +21,13 @@ internal sealed class SimScratch
     // per-nation tallies of the rules cycle (sized on demand: the roster may hold 2..16 nations)
     public int[] Provinces = System.Array.Empty<int>(), Shrines = System.Array.Empty<int>();
     public long[] Taxes = System.Array.Empty<long>(), Upkeep = System.Array.Empty<long>();
+    // bots: terrain travel cost from each nation's capital (Bots.Reach), cached per capital — capitals do not move
+    public int[][] Reach = System.Array.Empty<int[]>();
+    public int[] ReachCap = System.Array.Empty<int>();
+    public readonly PriorityQueue<int, long> Heap = new();
+    // cities (Cities.cs): nearest-city BFS, sphere BFS with a touched list so it resets in O(sphere), per-city counts
+    public readonly int[] Dist, Dist2, Queue, Touched, CityCount;
+    public int TouchedCount;
     int _stamp, _seenStamp;
 
     public SimScratch(int p)
@@ -31,6 +38,8 @@ internal sealed class SimScratch
         for (int r = 0; r < Buckets.Length; r++) Buckets[r] = new List<int>(256);
         A = new Bfs(p); B = new Bfs(p);
         Mark = new int[p]; Seen = new int[p]; Stack = new int[p];
+        Dist = new int[p]; Dist2 = new int[p]; Queue = new int[p]; Touched = new int[p]; CityCount = new int[p];
+        Array.Fill(Dist2, -1);
     }
 
     /// <summary>A fresh value for Mark: provinces with Mark[p] == stamp count as visited.</summary>

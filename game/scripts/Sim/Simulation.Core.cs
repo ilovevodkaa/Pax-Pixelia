@@ -50,6 +50,7 @@ public static partial class Simulation
     public static void Begin(WorldData w, GameState s)
     {
         FogOfWar.Init(w, s);
+        Cities.Init(w, s);
         for (int n = 0; n < s.Nat.Length; n++)
         {
             var nat = s.Nat[n];
@@ -88,6 +89,7 @@ public static partial class Simulation
         if (Research(s, sc, sink)) r.EraChanged = true;
         List<int> changed = null;
         for (int n = 0; n < s.Nat.Length; n++) Queue(s, n, sink, ref changed);
+        Cities.Grow(w, s, sink, ref changed);
         Bots.Act(w, s, cycle, sc, sink, ref changed);
         s.Events?.Cycle(cycle, sink);
         PlanDate(s);

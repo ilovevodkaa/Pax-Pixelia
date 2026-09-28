@@ -54,6 +54,7 @@ public partial class Game : ISimSink
         ClaimError.Unexplored => "Сначала разведайте эти земли",
         ClaimError.NotAdjacent => "Слишком далеко от ваших границ",
         ClaimError.NoGold => $"Не хватает золота: нужно {ClaimCost}",
+        ClaimError.CityFull => "Ближайшие города уже освоили свои земли — основайте новый город",
         _ => "Нельзя присоединить",
     };
 
@@ -64,6 +65,58 @@ public partial class Game : ISimSink
         int r = Issue(Cmd.Claim(Viewer, p));
         if (r != 0) { ShowRefusal(ClaimText((ClaimError)r) ?? "Нельзя присоединить"); return; }
         Notify("flag", $"Провинция {World.PName[p]} вошла в состав {Sim.Ru.Genitive(Nations[Viewer].Name)}");
+    }
+
+    // ------------------------------------------------------------------ cities
+
+    public const int FoundCityCost = Cities.FoundCost;
+
+    /// <summary>City sphere of the city p belongs to (p may be the city itself): city, provinces, cap, cycles to the next
+    /// province (-1 = stalled). city = -1 when p has no city.</summary>
+    public (int city, int count, int cap, int cyclesToNext) CityInfo(int p)
+    {
+        if (!IsReady || !Valid(p) || State.City == null || State.Owner[p] < 0) return (-1, 0, 0, -1);
+        int c = State.City[p];
+        if (c < 0) return (-1, 0, 0, -1);
+        return (c, Cities.Counts(World, State)[c], Cities.Cap(State, c), Cities.CyclesToNext(World, State, c));
+    }
+
+    /// <summary>Real seconds at the current speed that a number of rules cycles takes.</summary>
+    public double CyclesToSeconds(int cycles) => IsReady ? cycles * (double)Clock.CycleTicks / Clock.TicksPerSecond[State.Speed] : 0; // pax-allow: UI
+
+    public bool CanFoundCity(int p) => IsReady && Cities.Check(World, State, p, Viewer) == FoundError.None;
+
+    public string FoundCityProblem(int p) => !IsReady ? "Мир ещё не создан" : FoundText(Cities.Check(World, State, p, Viewer));
+
+    static string FoundText(FoundError e) => e switch
+    {
+        FoundError.None => null,
+        FoundError.NotLand => "Город можно основать только на суше",
+        FoundError.NotYours => "Только в своих землях или рядом с границей",
+        FoundError.IsCity => "Здесь уже стоит город",
+        FoundError.TooClose => $"Слишком близко к другому городу: нужно не меньше {Cities.MinCityDistance} провинций",
+        FoundError.NoGold => $"Не хватает золота: нужно {Cities.FoundCost}",
+        FoundError.NoSettlers => $"Ни один город не может дать поселенцев: нужно больше {Cities.SettlersKeep + Cities.SettlersMin} жителей",
+        FoundError.Unexplored => "Сначала разведайте эти земли",
+        _ => "Здесь нельзя основать город",
+    };
+
+    /// <summary>Where the settlers would come from and how many (for the button's tooltip), or (-1, 0).</summary>
+    public (int source, int people) FoundCityPlan(int p)
+    {
+        if (!IsReady || !Valid(p)) return (-1, 0);
+        int src = Cities.SettlerSource(World, State, p, Viewer);
+        return src < 0 ? (-1, 0) : (src, Cities.Settlers(State, src));
+    }
+
+    public void FoundCity(int p)
+    {
+        var why = FoundCityProblem(p);
+        if (why != null) { ShowRefusal(why); return; }
+        var (src, people) = FoundCityPlan(p);
+        int r = Issue(Cmd.FoundCity(Viewer, p));
+        if (r != 0) { ShowRefusal(FoundText((FoundError)r) ?? "Здесь нельзя основать город"); return; }
+        Notify("map-pin", $"Основан город {World.PName[p]}: {people:N0} поселенцев пришли из {World.PName[src]}".Replace(' ', ' '));
     }
 
     // ------------------------------------------------------------------ buildings & geology

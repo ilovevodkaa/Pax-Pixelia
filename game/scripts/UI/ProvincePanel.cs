@@ -286,6 +286,61 @@ public partial class ProvincePanel : PanelContainer
         }
         Sync();
         _live.Add(Sync);
+        FoundButton(flow, p);
+    }
+
+    /// <summary>«Город»: for a city — its sphere (provinces / cap, time to the next province); for another own province —
+    /// the city it belongs to and the «Основать город» button.</summary>
+    void CitySection(Flow flow, int p)
+    {
+        var w = Game.I.World;
+        var info = Game.I.CityInfo(p);
+        if (info.city < 0) return;
+        if (info.city != p)
+        {
+            flow.Add(Kit.Kv(("Город", w.PName[info.city], null)), 12);
+            FoundButton(flow, p);
+            return;
+        }
+        flow.Add(Kit.H4("Сфера города", "", out var aside), 20, 10);
+        var status = flow.Add(Kit.Para(""), 0);
+        void Sync()
+        {
+            var i = Game.I.CityInfo(p);
+            aside.Text = $"{i.count} / {i.cap} {Fmt.Plural(i.cap, "провинция", "провинции", "провинций")}";
+            status.Text = i.cyclesToNext >= 0
+                ? $"Город сам присоединяет свободные земли вокруг. Следующая — примерно через {Math.Max(1, (int)Math.Ceiling(Game.I.CyclesToSeconds(i.cyclesToNext)))} с"
+                : i.count >= i.cap
+                    ? $"Предел города — {i.cap} {Fmt.Plural(i.cap, "провинция", "провинции", "провинций")}. Чтобы расти дальше, основайте новый город"
+                    : "Свободные земли вокруг освоены. Чтобы расти дальше, основайте новый город";
+        }
+        Sync();
+        _live.Add(Sync);
+    }
+
+    void FoundButton(Flow flow, int p)
+    {
+        var w = Game.I.World;
+        var found = Ui.Button($"Основать город · {Game.FoundCityCost} золота", "home", null, () => Game.I.FoundCity(p), 1, 34);
+        found.Tip(t =>
+        {
+            t.Title("Основать город").Line("Новый город получит свою сферу и сам будет присоединять земли вокруг.");
+            var (src, people) = Game.I.FoundCityPlan(p);
+            if (src >= 0) t.Kv("Поселенцы", $"{Fmt.Int(people)} из {w.PName[src]}");
+            t.Kv("Стоимость", $"{Game.FoundCityCost} золота")
+             .Kv("В казне", Fmt.Int(Game.I.State.Gold), Game.I.State.Gold >= Game.FoundCityCost ? Pal.Ok : Pal.Bad);
+        });
+        flow.Add(found, 10);
+        var note = flow.Add(Kit.Para("", true, UiFonts.Small), 8);
+        void Sync()
+        {
+            string why = Game.I.FoundCityProblem(p);
+            Ui.Enable(found, why == null);
+            note.Visible = why != null;
+            if (why != null) note.Text = why;
+        }
+        Sync();
+        _live.Add(Sync);
     }
 
     void ForeignBody(Flow flow, int p, int o, bool stale)
@@ -319,6 +374,7 @@ public partial class ProvincePanel : PanelContainer
         SyncStats();
         _live.Add(SyncStats);
         flow.Add(Kit.Grid(("Население", pop), ("Довольство", mood), ("Плодородие", Kit.Fertility(w.PFert[p])), ("Налоги", Kit.ValueUnit(tax, "за цикл"))), 0);
+        CitySection(flow, p);
 
         if (capital) { flow.Add(BuildScouts(), 20); RefreshScouts(); }
 

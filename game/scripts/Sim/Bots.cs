@@ -24,7 +24,7 @@ public static class Bots
             if (!WantsToClaim(w.Seed, n, cycle, count[n])) continue;
             if (nat.Treasury < Rules.ClaimCost * Rules.Cents) continue;
             int q = BestClaim(w, s, n);
-            if (q < 0) continue;
+            if (q < 0) { TryFoundCity(w, s, n, sink, ref changed); continue; }
             changed ??= new List<int>();
             if (Commands.Apply(w, s, Cmd.Claim(n, q), sink, changed) != 0) continue;
             count[n]++;
@@ -36,6 +36,21 @@ public static class Bots
                     break;
                 }
         }
+    }
+
+    /// <summary>All spheres full: a bot that can pay founds a town on its best free site — only when its land is really
+    /// used up (about 6 provinces per city) and rarely (≈ once in 30 s at speed 3 at most).</summary>
+    static void TryFoundCity(WorldData w, GameState s, int n, ISimSink sink, ref List<int> changed)
+    {
+        if (s.Nat[n].Treasury < (Cities.FoundCost + Rules.ClaimCost) * Rules.Cents) return;
+        int cities = 0, provinces = 0;
+        for (int q = 0; q < w.P; q++) if (s.Owner[q] == n) { provinces++; if (Cities.IsCity(s, q)) cities++; }
+        if (provinces < cities * 6) return;
+        if (!SimRng.Chance(w.Seed, 33, n, Clock.CycleOf(s.Tick), 1, 60)) return;
+        int p = Cities.BotFoundSite(w, s, n);
+        if (p < 0) return;
+        changed ??= new List<int>();
+        Commands.Apply(w, s, Cmd.FoundCity(n, p), sink, changed);
     }
 
     /// <summary>The unowned land province next to nation n that it wants most, or -1. Score in 1/10000:
@@ -52,6 +67,7 @@ public static class Bots
             foreach (int q in w.Adj[p])
             {
                 if (s.Owner[q] >= 0 || w.PLand[q] != 1) continue;
+                if (s.City != null && Cities.Absorber(w, s, q, n) < 0) continue;   // every city nearby is full
                 int nb = 0;
                 foreach (int r in w.Adj[q]) if (s.Owner[r] == n) nb++;
                 long sc = fert[q] * 6L + SimRng.Permille(w.Seed, 22, q, n) * 2L + nb * 3500L
