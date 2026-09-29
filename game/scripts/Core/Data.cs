@@ -34,8 +34,8 @@ public static class Data
     public static readonly Religion[] Religions = { new("Культ Солнца",214,176,84), new("Путь Мирры",152,114,208), new("Древние духи",112,162,112), new("Огненный завет",216,112,64) };
 
     public record PopClass(string Name, byte R, byte G, byte B);
-    /// <summary>Ancient-era classes (they change per era, see GDD).</summary>
-    public static readonly PopClass[] AncientClasses = { new("Общинники",0x7f,0xa3,0x5a), new("Рабы",0x7d,0x7a,0x74), new("Жрецы",0xd0,0xad,0x5c), new("Знать",0xb8,0x5c,0x52) };
+    /// <summary>Ancient-era classes (they change per era, see GDD). No slaves at the start: a tribe has none.</summary>
+    public static readonly PopClass[] AncientClasses = { new("Общинники",0x7f,0xa3,0x5a), new("Жрецы",0xd0,0xad,0x5c), new("Знать",0xb8,0x5c,0x52) };
 
     public enum Bld : byte { Farm, Lumber, Quarry, Fishery, Pasture, Shrine, Market, Granary }
     public static readonly string[] BldName = { "Ферма", "Лесопилка", "Каменоломня", "Рыбацкая пристань", "Пастбище", "Святилище", "Рынок", "Амбар" };

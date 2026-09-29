@@ -409,9 +409,9 @@ public partial class ProvincePanel : PanelContainer
 
         if (capital) { flow.Add(BuildScouts(), 20); RefreshScouts(); }
 
-        // population classes (ancient era): the mockup's deterministic split around 62/18/12/8
+        // population classes (ancient era): a deterministic split around 78/13/9 (no slaves at the start)
         var classes = Data.AncientClasses;
-        int[] baseSplit = { 62, 18, 12, 8 };
+        int[] baseSplit = { 78, 13, 9 };
         var parts = new float[classes.Length]; var colors = new Color[classes.Length]; var names = new string[classes.Length];
         float sum = 0;
         for (int k = 0; k < classes.Length; k++)
