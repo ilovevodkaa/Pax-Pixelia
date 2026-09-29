@@ -137,7 +137,7 @@ public static class FogOfWar
                 }
             }
         foreach (var scout in s.Scouts)
-            if (scout.Nation == n && scout.Path != null && scout.Path.Length > 0) src.Add((Scouts.Current(scout), ScoutRange + Nomads.MythScoutRange(s, n)));
+            if (scout.Nation == n && scout.Path != null && scout.Path.Length > 0) src.Add((Scouts.Current(scout), ScoutRange + Nomads.MythScoutRange(s, n) + Techs.Sum(s.Nat[n], TechFx.ScoutRange)));
         return src;
     }
 

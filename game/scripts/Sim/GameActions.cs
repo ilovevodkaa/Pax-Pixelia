@@ -126,7 +126,7 @@ public partial class Game : ISimSink
 
     public IReadOnlyList<Data.Bld> BuildOptions(int p) => IsReady ? Rules.BuildOptions(World, State, p, Viewer) : Array.Empty<Data.Bld>();
     public int BuildCost(Data.Bld b) => Rules.BuildCost(b);
-    public int BuildMaterials(Data.Bld b) => Rules.BuildMaterials(b);
+    public int BuildMaterials(Data.Bld b) => IsReady ? Rules.BuildMaterials(b, State.Nat[Viewer]) : Rules.BuildMaterials(b);
 
     /// <summary>Where the local nation's materials come from: lumber mills, quarries, mines on metal veins, the capital.</summary>
     public (int lumber, int quarry, int mines, int capital) MaterialSources()
@@ -152,7 +152,7 @@ public partial class Game : ISimSink
         BuildError.NotAllowed => "Местность не подходит для этой постройки",
         BuildError.NoGold => $"Не хватает золота: нужно {Rules.BuildCost(b)}",
         BuildError.NoMaterials => $"Не хватает материалов: нужно {Rules.BuildMaterials(b)}. Постройте лесопилку или каменоломню",
-        BuildError.NeedTech => Techs.For(b) is int t and >= 0 ? $"Нужна технология «{Techs.All[t].Name}»" : $"Откроется в эпоху «{Eras.Name(Techs.BuildingEra(b))}»",
+        BuildError.NeedTech => Techs.For(b) is int t and >= 0 ? $"Нужна технология «{Techs.All[t].Name}»" : "Нужна технология",
         _ => "Строительство невозможно",
     };
 
@@ -174,7 +174,7 @@ public partial class Game : ISimSink
         if (err != BuildError.None) { ShowRefusal(BuildText(err, b)); return; }
         int r = Issue(Cmd.Build(Viewer, p, b));
         if (r != 0) { ShowRefusal(BuildText((BuildError)r, b)); return; }
-        int mat = Rules.BuildMaterials(b);
+        int mat = Rules.BuildMaterials(b, State.Nat[Viewer]);
         Notify("hammer", $"{World.PName[p]}: заложена постройка «{Data.BldName[(int)b]}» (−{Rules.BuildCost(b)} золота{(mat > 0 ? $", −{mat} материалов" : "")})");
     }
 
@@ -216,10 +216,12 @@ public partial class Game : ISimSink
     /// <summary>Raised when the local nation chose, switched or finished a study (the tech card and the top bar refresh).</summary>
     public event Action ResearchChanged;
 
-    public enum TechState { Known, Studying, Open, Later }
+    /// <summary>Where a technology stands for the viewer. Locked: seen but its prerequisites or era are missing;
+    /// Closed: another path of its fork was taken; Hidden: not reached yet (the tree shows «???»).</summary>
+    public enum TechState { Known, Studying, Open, Locked, Closed, Hidden }
 
-    /// <summary>One row of the tech card: the definition, where it stands, points so far, full cost, real seconds left
-    /// at the current speed (-1 when not studied now).</summary>
+    /// <summary>One technology for the tree: the definition, where it stands, points so far, full cost, real seconds
+    /// left at the current speed (-1 when not studied now).</summary>
     public readonly record struct TechView(int Id, TechDef Def, TechState State, long Points, int Cost, int SecondsLeft);
 
     public List<TechView> TechViews()
@@ -230,15 +232,34 @@ public partial class Game : ISimSink
         for (int t = 0; t < Techs.Count; t++)
         {
             var d = Techs.All[t];
-            if (d.Era > nat.Era + 1) continue;
             int cost = Techs.Cost(t, State.Pace);
-            var st = Techs.Known(nat, t) ? TechState.Known : nat.Researching == t ? TechState.Studying : Techs.Open(nat, t) ? TechState.Open : TechState.Later;
+            var st = Techs.Known(nat, t) ? TechState.Known
+                : nat.Researching == t ? TechState.Studying
+                : Techs.ForkClosed(nat, t) ? TechState.Closed
+                : Techs.Open(nat, t) ? TechState.Open
+                : d.Era <= nat.Era || Techs.PrereqsKnown(nat, t) ? TechState.Locked   // its era has come, or it is the next step
+                : TechState.Hidden;
             int secs = -1;
             if (st == TechState.Studying && nat.ScienceRate > 0)
                 secs = (int)Math.Ceiling(CyclesToSeconds((int)((cost - nat.TechPts[t] + nat.ScienceRate - 1) / nat.ScienceRate)));
             list.Add(new TechView(t, d, st, st == TechState.Known ? cost : nat.TechPts[t], cost, secs));
         }
         return list;
+    }
+
+    /// <summary>Why t cannot be studied now (for a locked card), or null.</summary>
+    public string TechProblem(int t)
+    {
+        if (!IsReady) return null;
+        var nat = State.Nat[Viewer];
+        var d = Techs.All[t];
+        if (Techs.Known(nat, t)) return null;
+        if (Techs.ForkClosed(nat, t)) return "Путь закрыт: на развилке выбран другой";
+        var missing = new List<string>();
+        foreach (int r in Techs.Requires(t)) if (!Techs.Known(nat, r)) missing.Add($"«{Techs.All[r].Name}»");
+        if (missing.Count > 0) return "Сначала изучите " + string.Join(" и ", missing);
+        if (d.Era > nat.Era) return $"Откроется в эпоху «{Eras.Name(d.Era)}»";
+        return null;
     }
 
     /// <summary>Science banked while nothing was chosen (goes to the next choice).</summary>

@@ -19,12 +19,17 @@ public static class TechTests
         var nat = s.Nat[Me];
         Check(nat.TechsDone == 0 && nat.Researching == -1 && nat.TechPts.Length == Techs.Count, $"a tribe knows none of the {Techs.Count} technologies");
         Check(Techs.CountIn(0) == 6 && Techs.Required(0) == 4, "Первобытная: 6 technologies, 4 needed for the next era");
+        Check(Techs.CountIn(1) >= 10 && Techs.Required(1) > 0 && Techs.Required(1) < Techs.CountIn(1) - 2, $"Древний мир: {Techs.CountIn(1)} technologies, {Techs.Required(1)} needed");
+        Check(Enumerable.Range(0, Techs.Count).All(t => Techs.Requires(t).All(r => r >= 0 && Techs.All[r].Era <= Techs.All[t].Era)), "every prerequisite exists and comes no later");
+        Check(Enumerable.Range(0, Techs.Count).Select(t => (Techs.All[t].Era, Techs.All[t].Lane, Techs.All[t].Order)).Distinct().Count() == Techs.Count, "no two cards on one spot of the tree");
+        Check(Techs.All.Where(d => d.Fork == 1).Count() == 3, "the Great Fork has three paths");
         int plot = Own(w, s, p => s.Buildings[p].Count < s.Slots[p] && WorldFacts.Of(w).Allows(p, Bld.Farm) && !s.Buildings[p].Contains(Bld.Farm));
         if (plot >= 0) Check(Rules.CheckBuild(w, s, plot, Bld.Farm, Me) == BuildError.NeedTech, "a farm needs «Дикие злаки»");
         int dig = Own(w, s, p => !s.OreFound[p]);
         if (dig >= 0) Check(Rules.CheckSurvey(s, dig, Me) == SurveyError.NeedTech, "geologists need «Кремень»");
         Check(Rules.CheckBuild(w, s, System.Math.Max(0, plot), Bld.Market, Me) is BuildError.NeedTech or BuildError.NotAllowed or BuildError.NotOwned,
-            "markets and granaries wait for Древний мир");
+            "markets and granaries wait for their technologies");
+        Check(!Techs.Open(nat, Techs.Index("pottery")), "Древний мир technologies stay closed in Первобытная");
 
         Section("technologies: the pool, a choice, a switch");
         int rate = nat.ScienceRate;
@@ -55,8 +60,41 @@ public static class TechTests
         Techs.Learn(gn, 3);
         Cycles(w, g, 1);
         Check(gn.Era == 1 && Techs.EraCap(gn) >= 1, "the 4th technology opens Древний мир");
-        Check(Rules.CheckBuild(w, g, 0, Bld.Market, Me) is not BuildError.NeedTech, "markets open with the era");
         Check(Techs.Open(gn, 4) && Techs.Open(gn, 5), "the rest of the first era can still be studied later");
+        int pottery = Techs.Index("pottery"), barter = Techs.Index("barter");
+        Check(Techs.Open(gn, pottery) && !Techs.Open(gn, barter), "Древний мир: «Гончарный круг» opens (grain known), «Обмен» waits for it");
+        Techs.Learn(gn, pottery);
+        Check(Techs.Open(gn, barter), "a prerequisite learned opens the next step");
+        Techs.Learn(gn, barter);
+        Check(Techs.Allows(gn, Bld.Market) && Techs.Allows(gn, Bld.Granary), "«Обмен» opens the market, «Гончарный круг» the granary");
+
+        Section("technologies: the Great Fork");
+        var fk = Fresh(w);
+        var fn = fk.Nat[Me];
+        Simulation.JumpToEra(fk, 1);
+        foreach (var id in new[] { "pottery", "chief_law", "first_cities" }) Techs.Learn(fn, Techs.Index(id));
+        int temple = Techs.Index("temple_kingdom"), river = Techs.Index("river_realm"), steppe = Techs.Index("steppe_union");
+        Check(Techs.Open(fn, temple) && Techs.Open(fn, river) && Techs.Open(fn, steppe), "after «Первые города» all three paths are open");
+        Techs.Choose(fn, river);
+        fn.TechPts[river] += 5;
+        Check(Commands.Apply(w, fk, Cmd.Research(Me, temple), null) == 0 && fn.TechPts[river] == 5, "switching between paths while studying is free");
+        Techs.Learn(fn, temple);
+        Check(!Techs.Open(fn, river) && !Techs.Open(fn, steppe) && Techs.ForkClosed(fn, river) && fn.TechPts[river] == 0, "a path learned closes the others forever");
+        Check(Commands.Apply(w, fk, Cmd.Research(Me, steppe), null) == Commands.BadCommand, "a closed path cannot be chosen");
+        int sci0 = Science.Of(fk, Me).Total;
+        Check(Techs.Sum(fn, TechFx.Science) >= 3 && Science.Of(fk, Me).Knowledge >= 3, $"«Храмовое царство» adds science (+{Science.Of(fk, Me).Knowledge})");
+
+        Section("technologies: effects");
+        var fx = Fresh(w);
+        var xn = fx.Nat[Me];
+        xn.TechsDone = Techs.AllMask & ~(1L << Techs.Index("masonry"));
+        int full = Rules.BuildMaterials(Bld.Shrine, xn);
+        Techs.Learn(xn, Techs.Index("masonry"));
+        Check(Rules.BuildMaterials(Bld.Shrine, xn) < full, $"«Каменное строительство»: a shrine takes {full} → {Rules.BuildMaterials(Bld.Shrine, xn)} materials");
+        int cap = fx.NationCapital[Me];
+        long tax0 = Rules.ProvinceTax(fx, cap);
+        xn.TechsDone &= ~(1L << Techs.Index("chief_law"));
+        Check(Rules.ProvinceTax(fx, cap) < tax0, "«Закон вождя» raises the taxes");
 
         Section("technologies: bots and the whole first era");
         var b = Fresh(w);

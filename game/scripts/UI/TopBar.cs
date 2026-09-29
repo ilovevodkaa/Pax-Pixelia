@@ -110,7 +110,7 @@ public partial class TopBar : PanelContainer
             b.MouseFilter = MouseFilterEnum.Stop;
             if (i == 0) b.Tip(t =>
             {
-                t.Title("Технологии");
+                t.Title("Технологии").Mu("Клавиша T — дерево технологий");
                 var g = Game.I;
                 if (!g.IsReady) return;
                 var (known, needed, _) = g.EraKnowledge;
@@ -178,7 +178,7 @@ public partial class TopBar : PanelContainer
         {
             var g = Game.I;
             var sp = g.ScienceParts;
-            t.Title("Наука").Line($"Мудрецы +{sp.Sages} · Земли +{sp.Lands} · Святилища +{sp.Shrines}" + (sp.CatchUp > 0 ? $" · Догоняем +{sp.CatchUp}" : ""))
+            t.Title("Наука").Line($"Мудрецы +{sp.Sages} · Земли +{sp.Lands} · Святилища +{sp.Shrines}" + (sp.Knowledge > 0 ? $" · Знания +{sp.Knowledge}" : "") + (sp.CatchUp > 0 ? $" · Догоняем +{sp.CatchUp}" : ""))
              .Kv("За цикл", "+" + g.ScienceRate, Pal.Ok);
             if (g.NextEraName != "") t.Kv($"До эпохи «{g.NextEraName}»", $"{g.EraProgressPermille / 10}%", Pal.Hi);
             int r = g.Researching;

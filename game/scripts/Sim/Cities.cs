@@ -187,6 +187,7 @@ public static class Cities
     {
         int v = 10 + Math.Min(30, s.Pop[c] / 2000) + s.Mood[c] / 10;
         foreach (var b in s.Buildings[c]) v += b switch { Bld.Shrine => 8, Bld.Market => 5, _ => 0 };
+        if (s.Owner[c] >= 0) v += Techs.Sum(s.Nat[s.Owner[c]], TechFx.CityInfluence);
         return v;
     }
 

@@ -33,6 +33,9 @@ public static class Rules
     static readonly int[] MaterialCost = { 10, 0, 0, 10, 5, 30, 25, 20 };
     public static int BuildMaterials(Bld b) => MaterialCost[(int)b];
 
+    /// <summary>What b takes from nation n's store, after its technologies (Каменное строительство).</summary>
+    public static int BuildMaterials(Bld b, NationState nat) => MaterialCost[(int)b] * (100 - Math.Min(90, Techs.Sum(nat, TechFx.MaterialDiscount))) / 100;
+
     // ---------------------------------------------------------------- materials and ore
 
     /// <summary>Materials every nation starts with, and what sources yield per rules cycle (whole units).</summary>
@@ -57,7 +60,11 @@ public static class Rules
         foreach (var b in s.Buildings[p])
             m += b switch { Bld.Lumber => LumberMaterials, Bld.Quarry => QuarryMaterials, _ => 0 };
         if (IsMine(s, p)) m += MineMaterials;
-        if (s.Owner[p] >= 0) m += Nomads.MythMaterials(s, s.Owner[p], p);
+        if (s.Owner[p] >= 0)
+        {
+            m += Nomads.MythMaterials(s, s.Owner[p], p);
+            if (s.Buildings[p].Contains(Bld.Quarry)) m += Techs.Sum(s.Nat[s.Owner[p]], TechFx.QuarryMaterials);
+        }
         return m;
     }
 
@@ -132,14 +139,14 @@ public static class Rules
         if (!WorldFacts.Of(w).Allows(p, b)) return BuildError.NotAllowed;
         if (!Techs.Allows(s.Nat[n], b)) return BuildError.NeedTech;
         if (s.Nat[n].Treasury < BuildCost(b) * Cents) return BuildError.NoGold;
-        if (s.Nat[n].Materials < BuildMaterials(b)) return BuildError.NoMaterials;
+        if (s.Nat[n].Materials < BuildMaterials(b, s.Nat[n])) return BuildError.NoMaterials;
         return BuildError.None;
     }
 
     public static void Build(GameState s, int p, Bld b, int n)
     {
         s.Nat[n].Treasury -= BuildCost(b) * Cents;
-        s.Nat[n].Materials -= BuildMaterials(b);
+        s.Nat[n].Materials -= BuildMaterials(b, s.Nat[n]);
         s.Buildings[p].Add(b);
     }
 
@@ -173,6 +180,7 @@ public static class Rules
         foreach (var b in s.Buildings[p]) if (b == Bld.Market) t += 50;
         if (s.CapitalOf[p] >= 0) t += 200;
         if (KnownOre(s, p) == OreGold) t += GoldVeinTax;
+        if (s.Owner[p] >= 0) t += t * Techs.Sum(s.Nat[s.Owner[p]], TechFx.TaxPermille) / 1000;
         return t;
     }
 

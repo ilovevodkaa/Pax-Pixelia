@@ -22,7 +22,7 @@ public partial class Hud : CanvasLayer
     Minimap _mini;
     ProvincePanel _panel;
     Leaderboard _lead;
-    TechCard _tech;
+    TechScreen _tech;
     Toast _toast;
     TipCard _tip;
     ChapterCard _loading;
@@ -40,7 +40,7 @@ public partial class Hud : CanvasLayer
     internal Control ForcedTip;
     internal ProvincePanel Panel => _panel;
     internal Leaderboard Lead => _lead;
-    internal TechCard Tech => _tech;
+    internal TechScreen Tech => _tech;
     internal void DebugToggleTech() => ToggleTech();
     internal ChapterCard Loading => _loading;
     internal TopBar Top => _top;
@@ -90,7 +90,7 @@ public partial class Hud : CanvasLayer
         _root.AddChild(_panel);
         _lead = new Leaderboard();
         _root.AddChild(_lead);
-        _tech = new TechCard();
+        _tech = new TechScreen { Hud = this };
         _root.AddChild(_tech);
         _events = new EventWindow();
         _root.AddChild(_events);
@@ -271,13 +271,15 @@ public partial class Hud : CanvasLayer
     void ToggleTech()
     {
         if (_lead.Visible && !_tech.Visible) ToggleLeaderboard();
+        if (!Game.I.IsReady && !_tech.Visible) return;
         bool open = _tech.Toggle();
         _top.SetTechOpen(open);
         _top.SetResearchIdle(Game.I.ResearchIdle);
-        if (open) PlaceTech();
+        if (open) HideTip();
     }
 
-    void PlaceTech() => _tech.Place(_top.TechButton.GetGlobalRect(), _root.Size);
+    /// <summary>The screen's × button.</summary>
+    internal void CloseTech() { if (_tech.Visible) ToggleTech(); }
 
     /// <summary>The tribe moved, set out, stopped or settled: the panel follows the camp (or the new capital).</summary>
     void OnTribeChanged()
@@ -333,10 +335,13 @@ public partial class Hud : CanvasLayer
             case >= Key.Kp1 and <= Key.Kp5:
                 if (Game.I.IsReady) Game.I.SetSpeed((int)(k.Keycode - Key.Kp0));
                 break;
+            case Key.T:
+                if (Game.I.IsReady && !_loading.Visible) ToggleTech();
+                break;
             case Key.Escape:
-                if (Game.I.IsTargeting) Game.I.CancelScoutTargeting();
+                if (_tech.Visible) ToggleTech();
+                else if (Game.I.IsTargeting) Game.I.CancelScoutTargeting();
                 else if (_lead.Visible) ToggleLeaderboard();
-                else if (_tech.Visible) ToggleTech();
                 else if (_panel.Visible) Game.I.Select(-1);
                 else if (Game.I.IsReady && !_loading.Visible) PauseMenu.Open();
                 else return;
@@ -358,7 +363,6 @@ public partial class Hud : CanvasLayer
         _modes.SetWidth(mw + 16);
         _panel.SetViewport(size);
         if (_lead.Visible) Callable.From(PlaceLeaderboard).CallDeferred();
-        if (_tech.Visible) Callable.From(PlaceTech).CallDeferred();
     }
 
     // ---------------- tooltip ----------------
@@ -381,7 +385,7 @@ public partial class Hud : CanvasLayer
         {
             _techDirty = false;
             _top.SetResearchIdle(Game.I.ResearchIdle);
-            if (_tech.Visible) { _tech.Refresh(); PlaceTech(); }
+            if (_tech.Visible) _tech.Refresh();
         }
     }
 

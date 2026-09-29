@@ -66,6 +66,7 @@ public static class UiDebug
         var tip = Cli.Str("tipui");
         if (tip != null) hud.ForcedTip = hud.DebugTarget(tip);
         if (Cli.Has("lead")) hud.DebugToggleLead();
+        if (Cli.Has("techs")) hud.DebugToggleTech();
         if (Cli.Has("toast"))
         {
             var text = Cli.Str("toast");

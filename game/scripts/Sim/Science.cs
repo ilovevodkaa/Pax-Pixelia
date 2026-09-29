@@ -3,9 +3,9 @@ using Bld = PaxPixelia.Core.Data.Bld;
 namespace PaxPixelia.Sim;
 
 /// <summary>A nation's science per rules cycle, split by source (the top-bar tooltip shows the same parts the rules add up).</summary>
-public readonly record struct ScienceParts(int Sages, int Lands, int Shrines, int CatchUp)
+public readonly record struct ScienceParts(int Sages, int Lands, int Shrines, int CatchUp, int Knowledge = 0)
 {
-    public int Total => Sages + Lands + Shrines + CatchUp;
+    public int Total => Sages + Lands + Shrines + Knowledge + CatchUp;
 }
 
 /// <summary>
@@ -18,13 +18,13 @@ public static class Science
 {
     public const int Sages = 4, ProvincesPerPoint = 5, LandsMax = 4, ShrinesPerPoint = 2, ShrinesMax = 2, CatchUpPermille = 250;
 
-    public static ScienceParts Of(int provinces, int shrines, bool behindLeader, bool nomad = false)
+    public static ScienceParts Of(int provinces, int shrines, bool behindLeader, bool nomad = false, int knowledge = 0)
     {
         if (provinces <= 0 && !nomad) return default;   // a tribe still has its sages (the shamans)
         int lands = System.Math.Min(LandsMax, provinces / ProvincesPerPoint);
         int temples = System.Math.Min(ShrinesMax, shrines / ShrinesPerPoint);
-        int sum = Sages + lands + temples;
-        return new ScienceParts(Sages, lands, temples, behindLeader ? sum * CatchUpPermille / 1000 : 0);
+        int sum = Sages + lands + temples + knowledge;
+        return new ScienceParts(Sages, lands, temples, behindLeader ? sum * CatchUpPermille / 1000 : 0, knowledge);
     }
 
     /// <summary>The parts for nation n right now (counts its land; used by tooltips, the rules count in their own pass).</summary>
@@ -37,7 +37,7 @@ public static class Science
             provinces++;
             foreach (var b in s.Buildings[p]) if (b == Bld.Shrine) shrines++;
         }
-        return Of(provinces, shrines, s.Nat[n].Era < LeaderEra(s), Nomads.IsNomad(s.Nat[n]));
+        return Of(provinces, shrines, s.Nat[n].Era < LeaderEra(s), Nomads.IsNomad(s.Nat[n]), Techs.Sum(s.Nat[n], TechFx.Science));
     }
 
     public static int LeaderEra(GameState s)

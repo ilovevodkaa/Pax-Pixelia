@@ -145,6 +145,8 @@ public static partial class Simulation
         foreach (var b in s.Buildings[p])
             m += b switch { Bld.Farm => 300, Bld.Granary => 200, Bld.Fishery => 150, Bld.Pasture => 100, _ => 0 };
         m += Nomads.MythCapacity(w, s, s.Owner[p], p);
+        var own = s.Nat[s.Owner[p]];
+        m += Techs.Sum(own, TechFx.CapPermille) * 1600 / 1000 + (w.PRiver[p] != 0 ? Techs.Sum(own, TechFx.RiverCap) * 1600 / 1000 : 0);
         if (s.CapitalOf[p] >= 0) m = m * 5 / 2;
         return (int)Math.Min(int.MaxValue, baseCap * m / 1000);
     }
@@ -183,8 +185,10 @@ public static partial class Simulation
             int target = 60;
             if (o >= 0)
             {
+                int shrine = 8 + Techs.Sum(s.Nat[o], TechFx.ShrineMood);
                 foreach (var b in s.Buildings[p])
-                    target += b switch { Bld.Shrine => 8, Bld.Market => 3, Bld.Granary => 4, _ => 0 };
+                    target += b switch { Bld.Shrine => shrine, Bld.Market => 3, Bld.Granary => 4, _ => 0 };
+                target += Techs.Sum(s.Nat[o], TechFx.Mood);
                 if (s.CapitalOf[p] >= 0) target += 5;
                 if (Rules.KnownOre(s, p) == Rules.OreSalt) target += Rules.SaltMood;
                 target += Nomads.MythMood(s, o);
@@ -243,7 +247,7 @@ public static partial class Simulation
     {
         int leaderEra = Science.LeaderEra(s);
         for (int n = 0; n < s.Nat.Length; n++)
-            s.Nat[n].ScienceRate = Science.Of(sc.Provinces[n], sc.Shrines[n], s.Nat[n].Era < leaderEra, Nomads.IsNomad(s.Nat[n])).Total;
+            s.Nat[n].ScienceRate = Science.Of(sc.Provinces[n], sc.Shrines[n], s.Nat[n].Era < leaderEra, Nomads.IsNomad(s.Nat[n]), Techs.Sum(s.Nat[n], TechFx.Science)).Total;
     }
 
     internal static bool MetByHumanPublic(GameState s, int n) => MetByHuman(s, n);
