@@ -10,14 +10,14 @@ namespace PaxPixelia.Sim;
 public struct TickReport
 {
     public int Ticks;
-    public bool DayChanged, MonthChanged, YearChanged, Cycle, EraChanged;
+    public bool DayChanged, MonthChanged, YearChanged, Cycle, EraChanged, Tribes;
     public int ScoutSteps, ScoutsFinished;
 
     public void Add(in TickReport o)
     {
         Ticks += o.Ticks;
         DayChanged |= o.DayChanged; MonthChanged |= o.MonthChanged; YearChanged |= o.YearChanged;
-        Cycle |= o.Cycle; EraChanged |= o.EraChanged;
+        Cycle |= o.Cycle; EraChanged |= o.EraChanged; Tribes |= o.Tribes;
         ScoutSteps += o.ScoutSteps; ScoutsFinished += o.ScoutsFinished;
     }
 }
@@ -69,6 +69,17 @@ public static partial class Simulation
         var r = new TickReport { Ticks = 1 };
         var mv = Scouts.Tick(w, s, sink);
         r.ScoutSteps = mv.Steps; r.ScoutsFinished = mv.Finished;
+        if (s.AnyNomads)
+        {
+            List<int> settled = null; bool moved = false;
+            Nomads.Tick(w, s, sink, ref settled, ref moved);
+            r.Tribes = moved || settled != null;
+            if (settled != null)
+            {
+                sink?.RaiseProvincesChanged(settled.ToArray());
+                FogOfWar.Refresh(w, s, sink);
+            }
+        }
         if (Clock.IsCycleTick(s.Tick)) { Cycle(w, s, Clock.CycleOf(s.Tick), sink, ref r); r.Cycle = true; }
         AdvanceDate(s, ref r);
         s.Tick++;
@@ -133,6 +144,7 @@ public static partial class Simulation
         int m = 1600;
         foreach (var b in s.Buildings[p])
             m += b switch { Bld.Farm => 300, Bld.Granary => 200, Bld.Fishery => 150, Bld.Pasture => 100, _ => 0 };
+        m += Nomads.MythCapacity(w, s, s.Owner[p], p);
         if (s.CapitalOf[p] >= 0) m = m * 5 / 2;
         return (int)Math.Min(int.MaxValue, baseCap * m / 1000);
     }
@@ -175,6 +187,7 @@ public static partial class Simulation
                     target += b switch { Bld.Shrine => 8, Bld.Market => 3, Bld.Granary => 4, _ => 0 };
                 if (s.CapitalOf[p] >= 0) target += 5;
                 if (Rules.KnownOre(s, p) == Rules.OreSalt) target += Rules.SaltMood;
+                target += Nomads.MythMood(s, o);
                 if (s.Religion[p] >= 0 && s.Religion[p] != s.Nations[o].Religion) target -= 10;
             }
             target = IntMath.Clamp(target, 5, 95);
@@ -230,8 +243,10 @@ public static partial class Simulation
     {
         int leaderEra = Science.LeaderEra(s);
         for (int n = 0; n < s.Nat.Length; n++)
-            s.Nat[n].ScienceRate = Science.Of(sc.Provinces[n], sc.Shrines[n], s.Nat[n].Era < leaderEra).Total;
+            s.Nat[n].ScienceRate = Science.Of(sc.Provinces[n], sc.Shrines[n], s.Nat[n].Era < leaderEra, Nomads.IsNomad(s.Nat[n])).Total;
     }
+
+    internal static bool MetByHumanPublic(GameState s, int n) => MetByHuman(s, n);
 
     static bool MetByHuman(GameState s, int n)
     {
@@ -282,7 +297,7 @@ public static partial class Simulation
     {
         SyncQueue(s, n);
         var nat = s.Nat[n];
-        if (nat.ProjectIndex < 0) return;
+        if (nat.ProjectIndex < 0 || s.NationCapital[n] < 0) return;   // no capital yet (nomads): nothing to build
         nat.QueuePct += QueuePctPerCycle;
         if (nat.QueuePct < 100) return;
         var pr = Projects[nat.ProjectIndex];

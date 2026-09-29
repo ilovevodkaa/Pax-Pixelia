@@ -15,6 +15,8 @@ public partial class Game : ISimSink
     /// <summary>Raised when scout-targeting mode starts/ends (map shows a crosshair cursor while true).</summary>
     public event Action<bool> TargetingChanged;
     public bool IsTargeting { get; private set; }
+    /// <summary>What a map pick in targeting mode does: send scouts (false) or lead the tribe (true).</summary>
+    public bool TargetingTribe { get; private set; }
     /// <summary>Scouts were sent, stepped into a new province or came back (scout box, leaderboard).</summary>
     public event Action ScoutsChanged;
 
@@ -270,6 +272,108 @@ public partial class Game : ISimSink
 
     bool Valid(int p) => (uint)p < (uint)World.P;
 
+    // ------------------------------------------------------------------ the tribe (nomad phase)
+
+    /// <summary>Raised when a tribe moved a province, set out, stopped or settled (panel, map, top bar).</summary>
+    public event Action TribeChanged;
+    internal void RaiseTribeChanged() => TribeChanged?.Invoke();
+
+    /// <summary>The local tribe's camp, or -1 once the capital stands.</summary>
+    public int Camp => IsReady ? State.Nat[Viewer].Camp : -1;
+    public bool IsNomad => Camp >= 0;
+    public NationState Me => State?.Nat[Viewer];
+
+    /// <summary>Real seconds (at the current speed) until the elders settle by themselves; 0 when due.</summary>
+    public int ElderSeconds => !IsReady ? 0 : (int)Math.Max(0, (Nomads.AutoTicks - State.Tick) / Clock.TicksPerSecond[State.Speed]);
+
+    /// <summary>Real seconds (current speed) until the walking tribe arrives, -1 when it stands.</summary>
+    public int TribeArrivalSeconds
+    {
+        get
+        {
+            var n = Me;
+            if (n == null || n.CampPath == null) return -1;
+            long ticks = (long)(n.CampPath.Length - 1 - n.CampStep) * Nomads.StepTicks - n.CampSub;
+            return (int)Math.Ceiling(ticks / (double)Clock.TicksPerSecond[State.Speed]); // pax-allow: UI
+        }
+    }
+
+    public Nomads.SiteParts SiteOf(int p) => IsReady ? Nomads.Site(World, State, Viewer, p) : default;
+    public List<int> BestSites(int count = 3) => IsReady ? Nomads.BestSites(World, State, Viewer, count) : new List<int>();
+
+    public string SettleProblem(int p) => !IsReady ? "Мир ещё не создан" : SettleText(Nomads.CheckSettle(World, State, Viewer, p));
+
+    static string SettleText(SettleError e) => e switch
+    {
+        SettleError.None => null,
+        SettleError.Settled => "Столица уже основана",
+        SettleError.NotLand => "Очаг разводят только на суше",
+        SettleError.Owned => "Эти земли уже чьи-то",
+        SettleError.TooClose => $"Слишком близко к чужому городу: нужно не меньше {Cities.MinCityDistance} провинций",
+        _ => "Здесь осесть нельзя",
+    };
+
+    static string MoveText(TribeMoveError e) => e switch
+    {
+        TribeMoveError.Settled => "Род уже осел",
+        TribeMoveError.Sea => "Племя не ходит по морю",
+        TribeMoveError.Here => "Род уже здесь",
+        TribeMoveError.Far => "Туда нет пути по суше",
+        TribeMoveError.Unexplored => "Сначала разведайте эти земли",
+        _ => "Туда не пройти",
+    };
+
+    /// <summary>Aim the tribe: the next map click is where it walks (Esc / right click cancel).</summary>
+    public void BeginTribeTargeting()
+    {
+        if (!IsReady || !IsNomad) return;
+        if (IsTargeting) { CancelScoutTargeting(); return; }
+        IsTargeting = true;
+        TargetingTribe = true;
+        TargetingChanged?.Invoke(true);
+        ShowToast("Куда вести род? Выберите место на карте · Esc — отмена", PickToastSeconds, ToastKind.Pick);
+    }
+
+    public bool MoveTribe(int p)
+    {
+        if (!IsReady) return false;
+        bool picking = IsTargeting && TargetingTribe;
+        var err = Nomads.CheckMove(World, State, Viewer, p, out _);
+        if (err == TribeMoveError.None) err = (TribeMoveError)Issue(Cmd.TribeTo(Viewer, p));
+        if (err != TribeMoveError.None)
+        {
+            if (picking) { ShowToast(MoveText(err), PickToastSeconds, ToastKind.Error); return false; }
+            ShowRefusal(MoveText(err));
+            return false;
+        }
+        if (picking) EndTargeting();
+        ShowToast($"Род снялся со стоянки и идёт к провинции {World.PName[p]}");
+        TribeChanged?.Invoke();
+        return true;
+    }
+
+    public void HaltTribe()
+    {
+        if (!IsReady || !IsNomad || Me.CampPath == null) return;
+        Issue(Cmd.TribeTo(Viewer, -1));
+        ShowToast("Род остановился");
+        TribeChanged?.Invoke();
+    }
+
+    /// <summary>Found the capital on the camp; the chosen legend (-1 = none) becomes the myth.</summary>
+    public void Settle(int myth)
+    {
+        if (!IsReady) return;
+        var why = SettleProblem(Camp);
+        if (why != null) { ShowRefusal(why); return; }
+        int camp = Camp;
+        if (IsTargeting) EndTargeting();
+        int r = Issue(Cmd.Settle(Viewer, myth));
+        if (r != 0) { ShowRefusal(SettleText((SettleError)r) ?? "Здесь осесть нельзя"); return; }
+        TribeChanged?.Invoke();
+        Select(camp);
+    }
+
     // ------------------------------------------------------------------ scouts
 
     public int FreeScouts => IsReady ? Scouts.Free(State, Viewer) : 0;
@@ -283,6 +387,7 @@ public partial class Game : ISimSink
         if (IsTargeting) { CancelScoutTargeting(); return; }
         if (FreeScouts == 0) { ShowRefusal(ScoutText(ScoutError.Max)); return; }
         IsTargeting = true;
+        TargetingTribe = false;
         TargetingChanged?.Invoke(true);
         ShowToast("Выберите цель для разведчиков · Esc — отмена", PickToastSeconds, ToastKind.Pick);
     }
@@ -290,13 +395,21 @@ public partial class Game : ISimSink
     public void CancelScoutTargeting()
     {
         if (!IsTargeting) return;
+        bool tribe = TargetingTribe;
         EndTargeting();
-        ShowToast("Отправка разведчиков отменена");
+        ShowToast(tribe ? "Род остаётся на месте" : "Отправка разведчиков отменена");
+    }
+
+    /// <summary>A map click in targeting mode: scouts or the tribe, whichever is being aimed.</summary>
+    public void PickTarget(int p)
+    {
+        if (TargetingTribe) MoveTribe(p); else SendScout(p);
     }
 
     void EndTargeting()
     {
         IsTargeting = false;
+        TargetingTribe = false;
         TargetingChanged?.Invoke(false);
     }
 

@@ -79,7 +79,8 @@ public partial class MapCamera : Node
         if (!_hasWorld) return;
         _li = LevelIndex(Math.Max(.5f, Cli.Int("zoom", 3)));
         _z = Levels[_li]; _zt = 1; _jt = 1;
-        int cap = s.NationCapital != null && s.NationCapital.Length > 0 ? s.NationCapital[0] : 0;
+        int cap = s.NationCapital != null && s.NationCapital.Length > 0 ? Sim.Scouts.Capital(s, 0) : 0;   // the tribe's camp before a capital
+        if (cap < 0) cap = 0;
         var cam = Cli.Str("cam");
         if (cam != null && TryParseXY(cam, out var cv)) _c = cv;
         else if (g.RestoreView is { HasCamera: true } saved)   // a loaded game opens where the player left it
@@ -355,7 +356,7 @@ public partial class MapCamera : Node
     void Click(Vector2 screen)
     {
         int p = ProvinceAtScreen(screen);
-        if (Game.I.IsTargeting) { if (p >= 0) Game.I.SendScout(p); }
+        if (Game.I.IsTargeting) { if (p >= 0) Game.I.PickTarget(p); }
         else Game.I.Select(p);
     }
 

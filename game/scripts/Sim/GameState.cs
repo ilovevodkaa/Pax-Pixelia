@@ -38,6 +38,14 @@ public sealed class NationState
     public int Researching = -1;        // the technology being studied, -1 = none chosen
     public long[] TechPts;              // science put into each technology so far (Techs.Count)
     public long TechPool;               // science made while nothing was chosen: goes to the next choice
+    // ---- the nomad phase (Nomads.cs): the tribe before its capital ----
+    public int Camp = -1;               // province the tribe stands on, -1 once settled (or never nomadic)
+    public int[] CampPath;              // the walk under way (null = standing)
+    public int CampStep, CampSub;       // index into CampPath of the province it is leaving; ticks towards the next
+    public int Supplies;                // 0..Nomads.StartSupplies
+    public int TribePop;                // people of the tribe, they found the capital
+    public int Legends;                 // bit l: Nomads.Legends[l] collected
+    public int Myth = -1;               // the legend that became the nation's myth at the founding
     public NationFog Fog;
 
     public bool Human => Control == NationControl.Human;

@@ -44,6 +44,7 @@ public static class FogOfWar
             Array.Fill(f.KnownOwner, (short)-1);
             var seeds = sc.Sources; seeds.Clear();
             for (int p = 0; p < P; p++) if (s.Owner[p] == n) seeds.Add((p, InitialRange));
+            if (s.Nat[n].Camp >= 0) seeds.Add((s.Nat[n].Camp, Nomads.InitialSight));   // a tribe knows its own hunting grounds
             Reach(w, sc, seeds);
             for (int p = 0; p < P; p++) if (sc.Rem[p] >= 0) { f.Explored[p] = true; f.KnownOwner[p] = s.Owner[p]; }
             Recompute(w, s, n);   // initial vision + met nations; nothing is announced for what is known at the start
@@ -124,6 +125,7 @@ public static class FogOfWar
         var src = sc.Sources; src.Clear();
         int P = w.P, cap = Scouts.Capital(s, n);
         for (int p = 0; p < P; p++) if (s.Owner[p] == n) src.Add((p, p == cap ? CapitalRange : OwnRange));
+        if (s.Nat[n].Camp >= 0) src.Add((s.Nat[n].Camp, Nomads.CampSight));
         if (cap >= 0)
             foreach (var rt in s.Routes)
             {
@@ -135,7 +137,7 @@ public static class FogOfWar
                 }
             }
         foreach (var scout in s.Scouts)
-            if (scout.Nation == n && scout.Path != null && scout.Path.Length > 0) src.Add((Scouts.Current(scout), ScoutRange));
+            if (scout.Nation == n && scout.Path != null && scout.Path.Length > 0) src.Add((Scouts.Current(scout), ScoutRange + Nomads.MythScoutRange(s, n)));
         return src;
     }
 

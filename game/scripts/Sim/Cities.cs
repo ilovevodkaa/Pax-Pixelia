@@ -264,6 +264,8 @@ public static class Cities
         Math.Min(s.Pop[source] - SettlersKeep, Math.Max(SettlersMin, (int)((long)s.Pop[source] * SettlersPermille / 1000)));
 
     /// <summary>Is any city (of any nation) closer than <see cref="MinCityDistance"/> land steps to p?</summary>
+    public static bool CityNearAny(WorldData w, GameState s, int p) => CityNear(w, s, p);
+
     static bool CityNear(WorldData w, GameState s, int p)
     {
         var sc = SimScratch.For(w, s);

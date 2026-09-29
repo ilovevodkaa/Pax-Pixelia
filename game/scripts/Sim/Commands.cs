@@ -21,6 +21,8 @@ public enum CmdType : byte
     FoundCity,
     // study technology A (Techs.All index); debug: learn technology A (-1 = every one)
     Research, CheatTech,
+    // the tribe: walk to A (-1 = stop), found the capital on the camp with legend A as the myth (-1 = none)
+    TribeTo, Settle,
 }
 
 /// <summary>
@@ -43,6 +45,8 @@ public readonly record struct Cmd(int Tick, byte Nation, ushort Seq, CmdType Typ
     public static Cmd FoundCity(int n, int province) => new(0, (byte)n, 0, CmdType.FoundCity, province);
     public static Cmd Research(int n, int tech) => new(0, (byte)n, 0, CmdType.Research, tech);
     public static Cmd CheatTech(int n, int tech) => new(0, (byte)n, 0, CmdType.CheatTech, tech);
+    public static Cmd TribeTo(int n, int province) => new(0, (byte)n, 0, CmdType.TribeTo, province);
+    public static Cmd Settle(int n, int myth) => new(0, (byte)n, 0, CmdType.Settle, myth);
 
     public bool IsSession => Type is CmdType.Pause or CmdType.Unpause or CmdType.SetSpeed;
 
@@ -120,6 +124,25 @@ public static class Commands
             }
             case CmdType.Choose: return s.Events != null && s.Events.Choose(s, n, c.A, sink) ? 0 : BadCommand;
             case CmdType.Research: return Techs.Choose(s.Nat[n], c.A) ? 0 : BadCommand;
+            case CmdType.TribeTo:
+                if (c.A < 0)
+                {
+                    if (s.Nat[n].Camp < 0) return (int)TribeMoveError.Settled;
+                    Nomads.Halt(s.Nat[n]);
+                    return 0;
+                }
+                return (int)Nomads.MoveTo(w, s, n, c.A);
+            case CmdType.Settle:
+            {
+                var e = Nomads.CheckSettle(w, s, n, s.Nat[n].Camp);
+                if (e != SettleError.None) return (int)e;
+                List<int> got = null;
+                Nomads.Found(w, s, n, c.A, sink, ref got);
+                if (batch != null) { batch.AddRange(got); return 0; }
+                sink?.RaiseProvincesChanged(got.ToArray());
+                FogOfWar.Refresh(w, s, sink);
+                return 0;
+            }
             case CmdType.CheatTech:
             {
                 var nat = s.Nat[n];

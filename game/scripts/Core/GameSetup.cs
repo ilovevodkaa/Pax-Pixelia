@@ -17,5 +17,7 @@ public sealed record GameSetup(
     public const int PaceQuick = 480, PaceNormal = 1000, PaceEpic = 1600;
     /// <summary>Lobby «Летописец»: joke weight in percent — Серьёзный 0 / Обычный 100 / Балагур 200.</summary>
     public int JokePercent { get; init; } = 100;
+    /// <summary>Start as wandering tribes (the nomad phase «Тропа племени»); false = settled nations with borders (tests, CLI).</summary>
+    public bool Nomad { get; init; } = true;
     public static GameSetup Default(int seed) => new(seed, seed.ToString(), 16, true, PaceNormal, false, null);
 }

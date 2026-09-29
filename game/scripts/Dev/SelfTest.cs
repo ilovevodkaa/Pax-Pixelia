@@ -56,6 +56,13 @@ public partial class SelfTest : Node
         {
             while (!G.IsReady) await Frames(1);
             await Seconds(.8);                         // loading fade + deferred capital selection
+            if (G.IsNomad)
+            {
+                await NomadFlow();                     // --selftest --nomad: the tribe start, then done
+                GD.Print($"selftest: {_pass} passed, {_fail} failed");
+                GetTree().Quit(_fail);
+                return;
+            }
             await Boot();
             await Labels();
             await Modes();

@@ -94,6 +94,7 @@ public partial class Game : Node
                 st.Pace = Eras.ClampPace(setup.PacePermille);
                 st.FogEnabled = setup.Fog;
                 st.Paused = setup.StartPaused;
+                if (setup.Nomad) Nomads.Start(w, st);
                 Simulation.Begin(w, st);
                 AttachEvents(w, st, setup);
                 return (w, st);
@@ -115,6 +116,8 @@ public partial class Game : Node
         GD.Print($"world seed={world.Seed} provinces={world.P} nations={state.Nat.Length} ms={LastGenerationMs}");
         WorldReady?.Invoke();
         RaiseDateChanged();
+        if (State.Nat[Viewer].Camp >= 0)   // the first line of the chronicle (CONTENT §8, Первобытная)
+            Notify("history", "Огонь горит. Род цел. Идём. Найдите место для очага и основайте столицу");
     }
 
     /// <summary>«Новый мир»: a new world for the same setup (the player's nation and options are kept).</summary>
@@ -208,6 +211,7 @@ public partial class Game : Node
         if (!IsReady || ticks <= 0) return default;
         var r = _commands.Run(World, State, ticks, this);
         if (r.ScoutSteps > 0 || r.ScoutsFinished > 0) RaiseScoutsChanged();
+        if (r.Tribes) RaiseTribeChanged();
         if (r.EraChanged) CheckEra();
         if (r.Cycle) { CycleTick?.Invoke(); CheckResearch(); }
         if (r.MonthChanged) MonthTick?.Invoke();

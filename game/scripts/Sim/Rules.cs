@@ -57,6 +57,7 @@ public static class Rules
         foreach (var b in s.Buildings[p])
             m += b switch { Bld.Lumber => LumberMaterials, Bld.Quarry => QuarryMaterials, _ => 0 };
         if (IsMine(s, p)) m += MineMaterials;
+        if (s.Owner[p] >= 0) m += Nomads.MythMaterials(s, s.Owner[p], p);
         return m;
     }
 

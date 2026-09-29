@@ -65,6 +65,9 @@ public sealed partial class GameState
             nat.Add(x.Materials); nat.Add(x.LastMaterials);
             nat.Add(x.TechsDone); nat.Add(x.Researching); nat.Add(x.TechPool);
             foreach (long v in x.TechPts) nat.Add(v);
+            nat.Add(x.Camp); nat.Add(x.CampStep); nat.Add(x.CampSub); nat.Add(x.Supplies); nat.Add(x.TribePop); nat.Add(x.Legends); nat.Add(x.Myth);
+            nat.Add(x.CampPath?.Length ?? -1);
+            if (x.CampPath != null) foreach (int p in x.CampPath) nat.Add(p);
             nat.Add(NationCapital[n]);
             if (Events?.Mem[n] is { } m) { nat.Add(m.Total); nat.Add(m.NextDue); nat.Add(m.NextChoice); nat.Add(m.Pending?.Event ?? -1); }
         }

@@ -18,9 +18,9 @@ public static class Science
 {
     public const int Sages = 4, ProvincesPerPoint = 5, LandsMax = 4, ShrinesPerPoint = 2, ShrinesMax = 2, CatchUpPermille = 250;
 
-    public static ScienceParts Of(int provinces, int shrines, bool behindLeader)
+    public static ScienceParts Of(int provinces, int shrines, bool behindLeader, bool nomad = false)
     {
-        if (provinces <= 0) return default;
+        if (provinces <= 0 && !nomad) return default;   // a tribe still has its sages (the shamans)
         int lands = System.Math.Min(LandsMax, provinces / ProvincesPerPoint);
         int temples = System.Math.Min(ShrinesMax, shrines / ShrinesPerPoint);
         int sum = Sages + lands + temples;
@@ -37,7 +37,7 @@ public static class Science
             provinces++;
             foreach (var b in s.Buildings[p]) if (b == Bld.Shrine) shrines++;
         }
-        return Of(provinces, shrines, s.Nat[n].Era < LeaderEra(s));
+        return Of(provinces, shrines, s.Nat[n].Era < LeaderEra(s), Nomads.IsNomad(s.Nat[n]));
     }
 
     public static int LeaderEra(GameState s)

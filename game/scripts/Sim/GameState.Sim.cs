@@ -6,6 +6,12 @@ namespace PaxPixelia.Sim;
 /// </summary>
 public sealed partial class GameState
 {
+    /// <summary>Is some nation still a wandering tribe (the nomad phase runs every tick while it is)?</summary>
+    public bool AnyNomads
+    {
+        get { foreach (var n in Nat) if (n.Camp >= 0) return true; return false; }
+    }
+
     /// <summary>The nation this client plays (UI/map view only — the rules never ask who is local).</summary>
     public const int LocalPlayer = 0;
 

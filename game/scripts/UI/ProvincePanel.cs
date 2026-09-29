@@ -197,6 +197,7 @@ public partial class ProvincePanel : PanelContainer
         // fog: nothing about the place is told — not even land or sea (the terrain class would leak through the sub-line)
         if (f == 0) { Head("Туман войны", "Неизведанные земли", "Что там — узнают разведчики", "cloud-fog", Pal.Mu2); FogBody(flow, p, land); }
         else if (!land) { Head("Морская зона", w.PName[p], "Рыба и морские пути", "anchor", Pal.Info); SeaBody(flow, p, f == 1); }
+        else if (p == Game.I.Camp) { Head($"{Game.I.Nations[GameState.LocalPlayer].Name} · стоянка рода", w.PName[p], sub, "walk", Pal.Nation(GameState.LocalPlayer)); TribeBody(flow, p); }
         else if (owner < 0) { Head("Ничья земля", w.PName[p], sub, null, Pal.Unowned); UnownedBody(flow, p, f == 1); }
         else
         {
@@ -261,6 +262,7 @@ public partial class ProvincePanel : PanelContainer
         var w = Game.I.World; var s = Game.I.State;
         if (stale) flow.Add(Kit.Stale(), 0, 10);
         flow.Add(Kit.Grid(("Кочевые племена", LivePop(p, stale)), ("Плодородие", Kit.Fertility(w.PFert[p]))), 0);
+        if (Game.I.IsNomad) { SiteSection(flow, p, here: false); return; }   // no land to claim from yet: a place for the hearth
         flow.Add(Kit.H4("Присоединение"), 20, 10);
 
         bool near = false;

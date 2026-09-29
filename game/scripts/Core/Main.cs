@@ -82,7 +82,7 @@ public partial class Main : Node
     }
 
     /// <summary>
-    /// The game the command line asks for: --seed=N, --nations=2..16, --nofog, --pace=quick|normal|epic|‰, --pause.
+    /// The game the command line asks for: --seed=N, --nations=2..16, --nofog, --pace=quick|normal|epic|‰, --pause, --nomad.
     /// </summary>
     public static GameSetup SetupFromCli()
     {
@@ -100,6 +100,7 @@ public partial class Main : Node
             Fog = !Cli.Has("nofog"),
             PacePermille = pace,
             StartPaused = Cli.Has("pause"),
+            Nomad = Cli.Has("nomad"),   // runs with flags start settled (tests, screenshots); --nomad = the tribe start
         };
     }
 }

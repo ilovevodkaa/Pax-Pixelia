@@ -22,7 +22,7 @@ namespace PaxPixelia.Sim;
 public sealed partial class GameState
 {
     /// <summary>Layout version of the snapshot (the save file carries it; older layouts are read field by field).</summary>
-    public const int SnapshotVersion = 3;   // 2: materials · 3: technologies
+    public const int SnapshotVersion = 4;   // 2: materials · 3: technologies · 4: the nomad phase
 
     const int MaxNations = 255;
 
@@ -53,6 +53,9 @@ public sealed partial class GameState
             w.Write(x.TechsDone); w.Write(x.Researching); w.Write(x.TechPool);
             w.Write(x.TechPts.Length);
             foreach (long v in x.TechPts) w.Write(v);
+            w.Write(x.Camp); w.Write(x.CampStep); w.Write(x.CampSub); w.Write(x.Supplies); w.Write(x.TribePop); w.Write(x.Legends); w.Write(x.Myth);
+            w.Write(x.CampPath != null);
+            if (x.CampPath != null) WriteInts(w, x.CampPath);
             w.Write(x.Fog != null);
             if (x.Fog == null) continue;
             WriteBytes(w, x.Fog.Fog);
@@ -145,6 +148,15 @@ public sealed partial class GameState
                 Require(x.Researching >= -1 && x.Researching < Techs.Count && x.TechPool >= 0, "research");
             }
             else Techs.GrantBefore(x, x.Era + 1);   // an older save: everything up to its era counts as known
+            if (version >= 4)
+            {
+                x.Camp = r.ReadInt32(); x.CampStep = r.ReadInt32(); x.CampSub = r.ReadInt32(); x.Supplies = r.ReadInt32();
+                x.TribePop = r.ReadInt32(); x.Legends = r.ReadInt32(); x.Myth = r.ReadInt32();
+                if (r.ReadBoolean()) x.CampPath = ReadInts(r, P);
+                Require(x.Camp >= -1 && x.Camp < P && x.Supplies >= 0 && x.Supplies <= Nomads.StartSupplies && x.TribePop >= 0
+                        && x.Myth >= -1 && x.Myth < Nomads.Legends.Length && (x.CampPath == null || x.CampStep >= 0 && x.CampStep < x.CampPath.Length)
+                        && x.CampSub >= 0 && x.CampSub < Nomads.StepTicks, "tribe");
+            }
             Require(x.Era <= Eras.Last && x.ProjectIndex >= -1 && x.ProjectIndex < Simulation.Projects.Length, "nation");
             if (!r.ReadBoolean()) continue;
             x.Fog = new NationFog

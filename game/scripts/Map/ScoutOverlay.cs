@@ -10,6 +10,8 @@ namespace PaxPixelia.Map;
 /// Scouts: the concept's torch-bearer (4-frame walk facing its way, 180 ms a frame; on pause it stands on frame 0 while
 /// the torch keeps flickering) with a dark rim so it stands in front of map names, the rest of its route as a marching
 /// dotted line and a flag where the route ends. Everything is hidden over unexplored land and the frayed cloud edge.
+/// Tribes of the nomad phase walk the same way (the nomads' sprite in their nation's colour); only the player's own
+/// tribe shows its route.
 /// </summary>
 internal partial class ScoutOverlay : MapOverlay
 {
@@ -23,14 +25,14 @@ internal partial class ScoutOverlay : MapOverlay
 
     public override void _Process(double delta)
     {
-        if (Game.I.IsReady && Game.I.State.Scouts.Count > 0) QueueRedraw();
+        if (Game.I.IsReady && (Game.I.State.Scouts.Count > 0 || Game.I.State.AnyNomads)) QueueRedraw();
     }
 
     public override void _Draw()
     {
         if (Map == null || !Map.HasWorld || !Game.I.IsReady) return;
         var s = Game.I.State;
-        if (s.Scouts.Count == 0) return;
+        if (s.Scouts.Count == 0 && !s.AnyNomads) return;
         var v = Map.View; var w = Game.I.World;
         float z = v.Zoom;
         int pz = Lod.UnitScale(Math.Max(v.Level, 2));
@@ -39,10 +41,46 @@ internal partial class ScoutOverlay : MapOverlay
         float lw = Math.Max(2, MathF.Round(v.Level * .5f));
         float dashOffset = (float)(t / 60 % (lw * 3));
 
+        for (int n = 0; n < s.Nat.Length; n++)
+        {
+            var nat = s.Nat[n];
+            if (nat.Camp < 0) continue;
+            bool mine = n == Game.I.Viewer, walking = nat.CampPath != null;
+            if (walking) BuildRoute(nat.CampPath, nat.CampStep, nat.CampSub / (float)Nomads.StepTicks, w);
+            else { _pts.Clear(); _pts.Add(new Vector2(w.PCX[nat.Camp] + .5f, w.PCY[nat.Camp] + .5f)); }
+            var pos = _pts[0];
+            float sy0 = v.ScreenY(pos.Y);
+            if (sy0 < -400 || sy0 > v.Screen.Y + 400) continue;
+            if (mine) Resample();
+            bool visible = !FogOn || Map.Fog.IsClear(pos.X, pos.Y, 18);
+            int tpz = pz + (mine ? 1 : 0);
+            for (float sx0 = v.FirstX(pos.X, 400); sx0 < v.Screen.X + 400; sx0 += v.WZ)
+            {
+                var off = new Vector2(sx0 - pos.X * z, v.Origin.Y);
+                if (mine && _pts.Count > 1)
+                {
+                    BuildDashes(off, z, lw, dashOffset);
+                    if (_dashN > 1)
+                    {
+                        var span = new ReadOnlySpan<Vector2>(_dash, 0, _dashN);
+                        DrawMultiline(span, new Color(22 / 255f, 26 / 255f, 31 / 255f, .72f), lw + 2);
+                        DrawMultiline(span, Colors.White, lw);
+                    }
+                    var end = _pts[^1];
+                    DrawSprite(MapAtlas.TargetFlag, n, end.X * z + off.X + pz * 2, end.Y * z + off.Y - pz * 3, pz);
+                }
+                if (!visible) continue;
+                bool left = _pts.Count > 1 && _pts[1].X < _pts[0].X;
+                int figure = MapAtlas.Unit(UnitKind.Nomads, walking && !s.Paused ? frame : 0, left);
+                MapAtlas.DrawRim(this, figure, sx0, sy0 - tpz * 4, tpz, Rim);
+                DrawSprite(figure, n, sx0, sy0 - tpz * 4, tpz);
+            }
+        }
+
         foreach (var sc in s.Scouts)
         {
             if (sc.Path == null || sc.Path.Length == 0) continue;
-            BuildRoute(sc, w);
+            BuildRoute(sc.Path, sc.Step, sc.Progress, w);
             var pos = _pts[0];
             float sy0 = v.ScreenY(pos.Y);
             if (sy0 < -400 || sy0 > v.Screen.Y + 400) continue;
@@ -73,14 +111,13 @@ internal partial class ScoutOverlay : MapOverlay
         }
     }
 
-    void BuildRoute(GameState.Scout sc, World.WorldData w)
+    void BuildRoute(int[] R, int step, float progress, World.WorldData w)
     {
         _pts.Clear();
-        var R = sc.Path;
-        int k = Math.Clamp(sc.Step, 0, R.Length - 1), a = R[k], b = R[Math.Min(k + 1, R.Length - 1)];
+        int k = Math.Clamp(step, 0, R.Length - 1), a = R[k], b = R[Math.Min(k + 1, R.Length - 1)];
         float ax = w.PCX[a] + .5f, bx = w.PCX[b] + .5f;
         if (bx - ax > w.W / 2f) bx -= w.W; else if (ax - bx > w.W / 2f) bx += w.W;
-        float t = Math.Clamp(sc.Progress, 0, 1);
+        float t = Math.Clamp(progress, 0, 1);
         _pts.Add(new Vector2(ax + (bx - ax) * t, w.PCY[a] + .5f + (w.PCY[b] - w.PCY[a]) * t));
         float px = bx;
         for (int j = k + 1; j < R.Length; j++)

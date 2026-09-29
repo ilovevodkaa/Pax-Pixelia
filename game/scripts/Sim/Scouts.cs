@@ -24,7 +24,9 @@ public static class Scouts
 {
     public const int Max = 2, AutoSteps = 36, SubSteps = 40, SubPerTick = 16;
 
-    public static int Capital(GameState s, int n) => s.NationCapital != null && (uint)n < (uint)s.NationCapital.Length ? s.NationCapital[n] : -1;
+    /// <summary>Where parties set out from: the capital, or the tribe's camp before it settles.</summary>
+    public static int Capital(GameState s, int n) => s.NationCapital != null && (uint)n < (uint)s.NationCapital.Length
+        ? s.NationCapital[n] >= 0 ? s.NationCapital[n] : s.Nat[n].Camp : -1;
 
     public static int Target(GameState.Scout sc) => sc.Path[^1];
     public static int Current(GameState.Scout sc) => sc.Path[Math.Clamp(sc.Step, 0, sc.Path.Length - 1)];

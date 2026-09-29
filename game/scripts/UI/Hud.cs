@@ -132,6 +132,7 @@ public partial class Hud : CanvasLayer
             g.CameraMoved += OnCameraMoved; g.TargetingChanged += OnTargeting;
             g.ScoutsChanged += OnScoutsChanged;
             g.ResearchChanged += OnResearchChanged;
+            g.TribeChanged += OnTribeChanged;
         }
         else
         {
@@ -141,6 +142,7 @@ public partial class Hud : CanvasLayer
             g.CameraMoved -= OnCameraMoved; g.TargetingChanged -= OnTargeting;
             g.ScoutsChanged -= OnScoutsChanged;
             g.ResearchChanged -= OnResearchChanged;
+            g.TribeChanged -= OnTribeChanged;
         }
     }
 
@@ -171,7 +173,7 @@ public partial class Hud : CanvasLayer
     static void SelectCapital()
     {
         if (!Game.I.IsReady) return;
-        Game.I.Select(Game.I.State.NationCapital[GameState.LocalPlayer]);
+        Game.I.Select(Sim.Scouts.Capital(Game.I.State, GameState.LocalPlayer));   // the camp while nomadic
     }
 
     void OnSelected(int p) { if (p >= 0) _panel.Open(p); else _panel.Close(); }
@@ -276,6 +278,24 @@ public partial class Hud : CanvasLayer
     }
 
     void PlaceTech() => _tech.Place(_top.TechButton.GetGlobalRect(), _root.Size);
+
+    /// <summary>The tribe moved, set out, stopped or settled: the panel follows the camp (or the new capital).</summary>
+    void OnTribeChanged()
+    {
+        var g = Game.I;
+        if (!g.IsReady) return;
+        int home = Sim.Scouts.Capital(g.State, g.Viewer);
+        if (_panel.Visible && home >= 0 && _panel.Province != home && (g.State.Nat[g.Viewer].Camp >= 0 || g.Selected == home))
+        {
+            // the panel showed the camp: keep it on the tribe as it walks
+            if (_followCamp) g.Select(home); else _panel.Rebuild();
+        }
+        else if (_panel.Visible) _panel.Rebuild();
+        _followCamp = _panel.Visible && _panel.Province == home;
+        _liveDirty = true;
+    }
+
+    bool _followCamp = true;
 
     void OnResearchChanged()
     {

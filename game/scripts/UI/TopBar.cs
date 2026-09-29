@@ -81,7 +81,8 @@ public partial class TopBar : PanelContainer
         {
             if (e is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Left } && Game.I.IsReady)
             {
-                int cap = Game.I.State.NationCapital[GameState.LocalPlayer];
+                int cap = Scouts.Capital(Game.I.State, GameState.LocalPlayer);   // the camp while nomadic
+                if (cap < 0) return;
                 Game.I.JumpCamera(new Vector2(Game.I.World.PCX[cap], Game.I.World.PCY[cap]));
             }
         };
@@ -238,6 +239,7 @@ public partial class TopBar : PanelContainer
         double pop = 0, mood = 0;
         for (int p = 0; p < s.Owner.Length; p++)
             if (s.Owner[p] == GameState.LocalPlayer) { pop += s.Pop[p]; mood += s.Mood[p] * s.Pop[p]; }
+        if (s.Nat[GameState.LocalPlayer].Camp >= 0) pop += s.Nat[GameState.LocalPlayer].TribePop;   // the tribe on the move
         double income = s.LastIncome;
         _res[0].Set(Fmt.Int(s.Gold), _incomeKnown ? Fmt.Signed(income, Math.Abs(income) < 10 ? 1 : 0) : null, income >= 0 ? Pal.Ok : Pal.Bad);
         _res[1].Set($"{Game.I.EraProgressPermille / 10}%", "+" + Game.I.ScienceRate, Pal.Ok);
