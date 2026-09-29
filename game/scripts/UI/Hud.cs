@@ -22,6 +22,7 @@ public partial class Hud : CanvasLayer
     Minimap _mini;
     ProvincePanel _panel;
     Leaderboard _lead;
+    TechCard _tech;
     Toast _toast;
     TipCard _tip;
     ChapterCard _loading;
@@ -31,7 +32,7 @@ public partial class Hud : CanvasLayer
     int _tipProvince = -1;
     bool _tipDirty;
     // heavy refreshes are coalesced: fog/ownership events may arrive every tick at speed 5
-    bool _miniDirty, _leadDirty, _liveDirty;
+    bool _miniDirty, _leadDirty, _liveDirty, _techDirty;
     double _miniCooldown, _leadCooldown, _liveCooldown, _miniHeld;
 
     /// <summary>Debug hooks (UiDebug): a fixed mouse position for screenshots and the control whose tip is forced.</summary>
@@ -39,6 +40,8 @@ public partial class Hud : CanvasLayer
     internal Control ForcedTip;
     internal ProvincePanel Panel => _panel;
     internal Leaderboard Lead => _lead;
+    internal TechCard Tech => _tech;
+    internal void DebugToggleTech() => ToggleTech();
     internal ChapterCard Loading => _loading;
     internal TopBar Top => _top;
     internal Notifications Notes => _notes;
@@ -66,6 +69,7 @@ public partial class Hud : CanvasLayer
         _top = new TopBar();
         _top.SetAnchorsPreset(Control.LayoutPreset.TopWide);
         _top.LeaderboardToggled += ToggleLeaderboard;
+        _top.TechToggled += ToggleTech;
         _top.PauseClicked += TogglePause;
         _root.AddChild(_top);
 
@@ -86,6 +90,8 @@ public partial class Hud : CanvasLayer
         _root.AddChild(_panel);
         _lead = new Leaderboard();
         _root.AddChild(_lead);
+        _tech = new TechCard();
+        _root.AddChild(_tech);
         _events = new EventWindow();
         _root.AddChild(_events);
         _toast = new Toast();
@@ -125,6 +131,7 @@ public partial class Hud : CanvasLayer
             g.CycleTick += OnCycleTick; g.DateChanged += OnDateChanged; g.TimeControlChanged += OnTimeControl; g.Notified += OnNotified; g.Toast += OnToast;
             g.CameraMoved += OnCameraMoved; g.TargetingChanged += OnTargeting;
             g.ScoutsChanged += OnScoutsChanged;
+            g.ResearchChanged += OnResearchChanged;
         }
         else
         {
@@ -133,6 +140,7 @@ public partial class Hud : CanvasLayer
             g.CycleTick -= OnCycleTick; g.DateChanged -= OnDateChanged; g.TimeControlChanged -= OnTimeControl; g.Notified -= OnNotified; g.Toast -= OnToast;
             g.CameraMoved -= OnCameraMoved; g.TargetingChanged -= OnTargeting;
             g.ScoutsChanged -= OnScoutsChanged;
+            g.ResearchChanged -= OnResearchChanged;
         }
     }
 
@@ -153,6 +161,8 @@ public partial class Hud : CanvasLayer
         _panel.Close();
         _notes.Clear();
         _lead.Refresh();
+        _tech.Refresh();
+        _top.SetResearchIdle(Game.I.ResearchIdle);
         _tipDirty = true;
         if (!KeepLoading) _loading.FadeOut();
         if (!Cli.Has("noselect") && !Cli.Has("select")) Callable.From(SelectCapital).CallDeferred();   // --select wins
@@ -193,7 +203,7 @@ public partial class Hud : CanvasLayer
     void OnCycleTick()
     {
         _top.OnCycleTick();
-        _liveDirty = _leadDirty = true;   // top bar + panel live values, coalesced in _Process
+        _liveDirty = _leadDirty = _techDirty = true;   // top bar + panel live values, coalesced in _Process
     }
 
     /// <summary>The date moves every tick (months/days): the clock follows at once, the heavier live values
@@ -248,6 +258,7 @@ public partial class Hud : CanvasLayer
 
     void ToggleLeaderboard()
     {
+        if (_tech.Visible && !_lead.Visible) ToggleTech();
         bool open = _lead.Toggle();
         _top.SetLeaderboardOpen(open);
         if (open) { _leadCooldown = 1; PlaceLeaderboard(); }
@@ -255,12 +266,32 @@ public partial class Hud : CanvasLayer
 
     void PlaceLeaderboard() => _lead.Place(_top.Trophy.GetGlobalRect(), _root.Size);
 
+    void ToggleTech()
+    {
+        if (_lead.Visible && !_tech.Visible) ToggleLeaderboard();
+        bool open = _tech.Toggle();
+        _top.SetTechOpen(open);
+        _top.SetResearchIdle(Game.I.ResearchIdle);
+        if (open) PlaceTech();
+    }
+
+    void PlaceTech() => _tech.Place(_top.TechButton.GetGlobalRect(), _root.Size);
+
+    void OnResearchChanged()
+    {
+        _tech.Refresh();
+        _top.SetResearchIdle(Game.I.ResearchIdle);
+        _liveDirty = _tipDirty = true;
+        _panel.Rebuild();   // new buildings may have opened in the build menu
+    }
+
     void RegenerateWorld()
     {
         int seed = (int)(GD.Randi() % 1_000_000);
         if (Game.I.IsTargeting) Game.I.CancelScoutTargeting();
         _panel.Close();
         if (_lead.Visible) ToggleLeaderboard();
+        if (_tech.Visible) ToggleTech();
         _toast.HideNow();
         _loading.ShowNow();
         _loading.SetStatus($"Генерация мира · зерно {seed}");
@@ -285,6 +316,7 @@ public partial class Hud : CanvasLayer
             case Key.Escape:
                 if (Game.I.IsTargeting) Game.I.CancelScoutTargeting();
                 else if (_lead.Visible) ToggleLeaderboard();
+                else if (_tech.Visible) ToggleTech();
                 else if (_panel.Visible) Game.I.Select(-1);
                 else if (Game.I.IsReady && !_loading.Visible) PauseMenu.Open();
                 else return;
@@ -306,6 +338,7 @@ public partial class Hud : CanvasLayer
         _modes.SetWidth(mw + 16);
         _panel.SetViewport(size);
         if (_lead.Visible) Callable.From(PlaceLeaderboard).CallDeferred();
+        if (_tech.Visible) Callable.From(PlaceTech).CallDeferred();
     }
 
     // ---------------- tooltip ----------------
@@ -323,6 +356,12 @@ public partial class Hud : CanvasLayer
             _leadCooldown -= delta;
             if (_leadDirty && _leadCooldown <= 0) { _leadDirty = false; _leadCooldown = 1; _lead.Refresh(); }
             PlaceLeaderboard();
+        }
+        if (_techDirty)
+        {
+            _techDirty = false;
+            _top.SetResearchIdle(Game.I.ResearchIdle);
+            if (_tech.Visible) { _tech.Refresh(); PlaceTech(); }
         }
     }
 

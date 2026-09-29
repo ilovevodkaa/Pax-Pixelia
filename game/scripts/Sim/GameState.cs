@@ -34,6 +34,10 @@ public sealed class NationState
     public int EventCount;              // chronicle cards dealt to this nation so far
     public long Materials;              // wood and stone for buildings and new cities (whole units)
     public int LastMaterials;           // materials gained in the last cycle
+    public long TechsDone;              // bit t: Techs.All[t] is known
+    public int Researching = -1;        // the technology being studied, -1 = none chosen
+    public long[] TechPts;              // science put into each technology so far (Techs.Count)
+    public long TechPool;               // science made while nothing was chosen: goes to the next choice
     public NationFog Fog;
 
     public bool Human => Control == NationControl.Human;

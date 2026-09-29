@@ -44,6 +44,7 @@ public static class Program
         RosterTests.Run(w);
         CityTests.Run(w);
         MaterialTests.Run(w);
+        TechTests.Run(w);
         PacingTests.Run(w, full: pacing);
 
         return Report();

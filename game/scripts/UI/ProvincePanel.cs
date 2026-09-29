@@ -174,7 +174,7 @@ public partial class ProvincePanel : PanelContainer
     }
 
     // ---------------- content ----------------
-    void Rebuild()
+    internal void Rebuild()
     {
         int p = Province;
         if (p < 0 || !Game.I.IsReady) return;
@@ -437,26 +437,33 @@ public partial class ProvincePanel : PanelContainer
             if (_buildOpen)
             {
                 var buttons = new List<Button>();
-                foreach (var b in Game.I.BuildOptions(p))
+                var open = new List<Data.Bld>(Game.I.BuildOptions(p));
+                var menu = new List<Data.Bld>(open);
+                menu.AddRange(Game.I.LockedBuildOptions(p));   // not known yet: shown greyed with what opens them
+                foreach (var b in menu)
                 {
                     if (blds.Contains(b)) continue;
                     var bb = b;
+                    bool locked = !open.Contains(b);
                     int cost = Game.I.BuildCost(b), mat = Game.I.BuildMaterials(b);
                     var btn = Ui.Button(Data.BldName[(int)b], BuildingIcon(b), "Menu", () => { _buildOpen = false; Game.I.Build(p, bb); Rebuild(); }, 1, 28);
                     btn.Tip(t =>
                     {
                         var st = Game.I.State;
-                        t.Title(Data.BldName[(int)bb]).Line(BuildingEffect(st, p, bb, full: true)).Kv("Стоимость", mat > 0 ? $"{cost} золота · {mat} материалов" : $"{cost} золота")
-                         .Kv("В казне", Fmt.Int(st.Gold), st.Gold >= cost ? Pal.Ok : Pal.Bad);
+                        t.Title(Data.BldName[(int)bb]).Line(BuildingEffect(st, p, bb, full: true)).Kv("Стоимость", mat > 0 ? $"{cost} золота · {mat} материалов" : $"{cost} золота");
+                        if (locked) { t.Kv("Закрыто", Game.I.BuildProblem(p, bb) ?? "", Pal.Bad); return; }
+                        t.Kv("В казне", Fmt.Int(st.Gold), st.Gold >= cost ? Pal.Ok : Pal.Bad);
                         if (mat > 0) t.Kv("На складе", Fmt.Int(st.Materials), st.Materials >= mat ? Pal.Ok : Pal.Bad);
                     });
-                    void SyncBuild() => Ui.Enable(btn, Game.I.State.Gold >= cost && Game.I.State.Materials >= mat);   // gold and materials arrive every cycle
+                    void SyncBuild() => Ui.Enable(btn, Game.I.BuildProblem(p, bb) == null);   // gold and materials arrive every cycle
                     SyncBuild();
                     _live.Add(SyncBuild);
                     buttons.Add(btn);
                 }
                 if (buttons.Count > 0) flow.Add(Kit.Menu(buttons), 0, 6);
-                else flow.Add(Kit.Para("Здесь пока нечего строить: нужны другие земли или технологии.", true, UiFonts.Small), 0, 6);
+                else flow.Add(Kit.Para("Здесь пока нечего строить: нужны другие земли.", true, UiFonts.Small), 0, 6);
+                if (open.Count == 0 && menu.Count > 0)
+                    flow.Add(Kit.Para("Постройки откроют технологии: кнопка с атомом на верхней панели.", true, UiFonts.Small), 0, 6);
             }
         }
 
@@ -469,9 +476,13 @@ public partial class ProvincePanel : PanelContainer
         else
         {
             var survey = Ui.Button("Отправить геологов", "shovel", "Sm", () => { Game.I.Survey(p); Rebuild(); }, 1, 26);
-            survey.Tip(t => t.Title("Геологическая разведка").Line("Геологи осмотрят холмы и найдут залежи, если они есть.")
-                .Kv("Стоимость", $"{Game.SurveyCost} золота").Kv("В казне", Fmt.Int(Game.I.State.Gold), Game.I.State.Gold >= Game.SurveyCost ? Pal.Ok : Pal.Bad));
-            void SyncSurvey() => Ui.Enable(survey, Game.I.State.Gold >= Game.SurveyCost);
+            survey.Tip(t =>
+            {
+                t.Title("Геологическая разведка").Line("Геологи осмотрят холмы и найдут залежи, если они есть.")
+                 .Kv("Стоимость", $"{Game.SurveyCost} золота").Kv("В казне", Fmt.Int(Game.I.State.Gold), Game.I.State.Gold >= Game.SurveyCost ? Pal.Ok : Pal.Bad);
+                if (Game.I.SurveyProblem(p) is string why) t.Kv("Нельзя", why, Pal.Bad);
+            });
+            void SyncSurvey() => Ui.Enable(survey, Game.I.SurveyProblem(p) == null);
             SyncSurvey();
             _live.Add(SyncSurvey);
             flow.Add(Kit.Row("help", "Не разведаны", null, survey, mutedText: true), 0, 5);

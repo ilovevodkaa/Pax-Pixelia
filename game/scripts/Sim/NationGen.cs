@@ -44,7 +44,7 @@ public static class NationGen
         s.NationCapital = PlaceCapitals(w, roster.Length);
         s.Nat = new NationState[s.NationCapital.Length];
         for (int n = 0; n < s.Nat.Length; n++)
-            s.Nat[n] = new NationState { Control = n == PlayerSlot ? NationControl.Human : NationControl.Bot, Treasury = Simulation.StartTreasury, Materials = Rules.StartMaterials };
+            s.Nat[n] = new NationState { Control = n == PlayerSlot ? NationControl.Human : NationControl.Bot, Treasury = Simulation.StartTreasury, Materials = Rules.StartMaterials, TechPts = new long[Techs.Count] };
         for (int n = 0; n < s.NationCapital.Length; n++) { s.Owner[s.NationCapital[n]] = (short)n; s.CapitalOf[s.NationCapital[n]] = (short)n; }
         GrowTerritories(w, s);
         Populate(w, s);

@@ -19,6 +19,8 @@ public enum CmdType : byte
     Choose,
     // found a town at A (settlers from the nearest city)
     FoundCity,
+    // study technology A (Techs.All index); debug: learn technology A (-1 = every one)
+    Research, CheatTech,
 }
 
 /// <summary>
@@ -39,6 +41,8 @@ public readonly record struct Cmd(int Tick, byte Nation, ushort Seq, CmdType Typ
     public static Cmd CheatEra(int n, int era) => new(0, (byte)n, 0, CmdType.CheatEra, era);
     public static Cmd Choose(int n, int option) => new(0, (byte)n, 0, CmdType.Choose, option);
     public static Cmd FoundCity(int n, int province) => new(0, (byte)n, 0, CmdType.FoundCity, province);
+    public static Cmd Research(int n, int tech) => new(0, (byte)n, 0, CmdType.Research, tech);
+    public static Cmd CheatTech(int n, int tech) => new(0, (byte)n, 0, CmdType.CheatTech, tech);
 
     public bool IsSession => Type is CmdType.Pause or CmdType.Unpause or CmdType.SetSpeed;
 
@@ -115,6 +119,15 @@ public static class Commands
                 return 0;
             }
             case CmdType.Choose: return s.Events != null && s.Events.Choose(s, n, c.A, sink) ? 0 : BadCommand;
+            case CmdType.Research: return Techs.Choose(s.Nat[n], c.A) ? 0 : BadCommand;
+            case CmdType.CheatTech:
+            {
+                var nat = s.Nat[n];
+                if (c.A >= 0 && c.A < Techs.Count) Techs.Learn(nat, c.A);
+                else if (c.A < 0) for (int t = 0; t < Techs.Count; t++) Techs.Learn(nat, t);
+                else return BadCommand;
+                return 0;
+            }
             default: return BadCommand;
         }
     }

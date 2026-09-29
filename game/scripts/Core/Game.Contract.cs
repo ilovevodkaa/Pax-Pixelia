@@ -62,8 +62,10 @@ public partial class Game
     public string EraName => Eras.Name(EraIndex);
     /// <summary>Name of the next era («» in the last one).</summary>
     public string NextEraName => EraIndex >= Eras.Last ? "" : Eras.Name(EraIndex + 1);
-    /// <summary>Way through the current era, 0…1000.</summary>
-    public int EraProgressPermille => State == null ? 0 : Eras.FractionPermille(State.Nat[Viewer].Progress, State.Pace);
+    /// <summary>Way through the current era, 0…1000 (1000 while the stock has passed it but knowledge holds the era back).</summary>
+    public int EraProgressPermille => State == null ? 0
+        : Eras.EraOf(State.Nat[Viewer].Progress, State.Pace) > State.Nat[Viewer].Era ? 1000
+        : Eras.FractionPermille(State.Nat[Viewer].Progress, State.Pace);
     /// <summary>The era the calendar follows (the most advanced nation).</summary>
     public int LeaderEraIndex => State == null ? 0 : Science.LeaderEra(State);
 

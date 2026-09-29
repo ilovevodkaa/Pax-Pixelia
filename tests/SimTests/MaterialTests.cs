@@ -34,18 +34,18 @@ public static class MaterialTests
             Check(nat.Materials - m0 == 3L * nat.LastMaterials && nat.LastMaterials > 0, $"3 cycles: {m0} → {nat.Materials} materials (+{nat.LastMaterials} a cycle)");
         }
 
-        int marketAt = Own(w, s, p => WorldFacts.Of(w).Allows(p, Bld.Market) && s.Buildings[p].Count < s.Slots[p] && !s.Buildings[p].Contains(Bld.Market));
-        if (marketAt >= 0)
+        int shrineAt = Own(w, s, p => WorldFacts.Of(w).Allows(p, Bld.Shrine) && s.Buildings[p].Count < s.Slots[p] && !s.Buildings[p].Contains(Bld.Shrine));
+        if (shrineAt >= 0)
         {
             nat.Treasury += 10_000 * Rules.Cents;
-            nat.Materials = Rules.BuildMaterials(Bld.Market) - 1;
-            Check(Rules.CheckBuild(w, s, marketAt, Bld.Market, Me) == BuildError.NoMaterials, "a market needs materials: refused one short");
-            nat.Materials = Rules.BuildMaterials(Bld.Market);
+            nat.Materials = Rules.BuildMaterials(Bld.Shrine) - 1;
+            Check(Rules.CheckBuild(w, s, shrineAt, Bld.Shrine, Me) == BuildError.NoMaterials, "a shrine needs materials: refused one short");
+            nat.Materials = Rules.BuildMaterials(Bld.Shrine);
             long gold = nat.Treasury;
-            Check(Commands.Apply(w, s, Cmd.Build(Me, marketAt, Bld.Market), null) == 0 && nat.Materials == 0
-                  && gold - nat.Treasury == Rules.BuildCost(Bld.Market) * Rules.Cents, "built with exactly enough: gold and materials both spent");
+            Check(Commands.Apply(w, s, Cmd.Build(Me, shrineAt, Bld.Shrine), null) == 0 && nat.Materials == 0
+                  && gold - nat.Treasury == Rules.BuildCost(Bld.Shrine) * Rules.Cents, "built with exactly enough: gold and materials both spent");
         }
-        else Check(true, "no market site on this seed (skip)");
+        else Check(true, "no shrine site on this seed (skip)");
 
         Section("materials: founding a town takes them");
         var t = Fresh(w);
@@ -116,6 +116,7 @@ public static class MaterialTests
     {
         var s = NationGen.CreateInitialState(w);
         s.Nat[Me].Control = NationControl.Human;
+        s.Nat[Me].TechsDone = Techs.AllMask;   // the buildings under test are all known
         Simulation.Begin(w, s);
         return s;
     }

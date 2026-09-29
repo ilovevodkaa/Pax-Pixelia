@@ -88,7 +88,7 @@ public static partial class Simulation
         }
         Grow(w, s, cycle);
         Moods(w, s, cycle);
-        if (Research(s, sc, sink)) r.EraChanged = true;
+        if (Research(w, s, sc, sink)) r.EraChanged = true;
         List<int> changed = null;
         for (int n = 0; n < s.Nat.Length; n++) Queue(s, n, sink, ref changed);
         Cities.Grow(w, s, sink, ref changed);
@@ -188,8 +188,10 @@ public static partial class Simulation
 
     // ------------------------------------------------------------------ research, eras and the date
 
-    /// <summary>Everyone adds this cycle's science; returns true when some nation entered a new era.</summary>
-    static bool Research(GameState s, SimScratch sc, ISimSink sink)
+    /// <summary>Everyone adds this cycle's science to the era stock and to the technology it studies; returns true when
+    /// some nation entered a new era. A nation enters the era its stock has reached only with enough of its technologies
+    /// (<see cref="Techs.EraCap"/>): the calendar still follows the stock.</summary>
+    static bool Research(WorldData w, GameState s, SimScratch sc, ISimSink sink)
     {
         int leaderEra = Science.LeaderEra(s);
         Rates(s, sc);
@@ -197,8 +199,21 @@ public static partial class Simulation
         for (int n = 0; n < s.Nat.Length; n++)
         {
             var nat = s.Nat[n];
+            long before = nat.Progress;
             nat.Progress += nat.ScienceRate;
-            int e = Eras.EraOf(nat.Progress, s.Pace);
+            int learned = Techs.Advance(w.Seed, n, nat, nat.ScienceRate, s.Pace);
+            if (learned >= 0 && nat.Human && sink != null)
+            {
+                var d = Techs.All[learned];
+                sink.Notify("atom", $"Изучено: «{d.Name}». {d.Effect}" + (Techs.HasOpen(nat) ? ". Выберите, чему учиться дальше" : ""));
+            }
+            int reached = Eras.EraOf(nat.Progress, s.Pace);
+            int e = Math.Min(reached, Techs.EraCap(nat));
+            if (nat.Human && sink != null && reached > nat.Era && e == nat.Era && Eras.EraOf(before, s.Pace) <= nat.Era)
+            {
+                int left = Techs.Required(nat.Era) - Techs.KnownIn(nat, nat.Era);
+                sink.Notify("atom", $"Род готов к эпохе «{Eras.Name(nat.Era + 1)}», но знаний мало: изучите ещё {left} {Ru.Plural(left, "технологию", "технологии", "технологий")}");
+            }
             if (e <= nat.Era) continue;
             nat.Era = (byte)e;
             any = true;
@@ -254,7 +269,8 @@ public static partial class Simulation
         foreach (var nat in s.Nat)
         {
             if (nat.Progress < need) nat.Progress = need;
-            nat.Era = (byte)Eras.EraOf(nat.Progress, s.Pace);
+            Techs.GrantBefore(nat, era);
+            nat.Era = (byte)Math.Min(Eras.EraOf(nat.Progress, s.Pace), Techs.EraCap(nat));
         }
         s.Day256 = Math.Max(s.Day256, Calendar.DayAt(s.Nat[Science.Leader(s)].Progress, s.Pace));
         PlanDate(s);

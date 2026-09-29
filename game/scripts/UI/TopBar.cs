@@ -17,6 +17,8 @@ public partial class TopBar : PanelContainer
     public const int Height = 52;
     public Button Trophy { get; private set; }
     public event Action LeaderboardToggled;
+    public event Action TechToggled;
+    public Button TechButton => _screenBtns[0];
     public event Action PauseClicked;
 
     readonly FlagView _flag = new();
@@ -101,9 +103,21 @@ public partial class TopBar : PanelContainer
         for (int i = 0; i < screens.Length; i++)
         {
             var (icon, name) = screens[i];
-            var b = Ui.IconButton(icon, "Ib", 36, 34, 2, () => Game.I.ShowToast($"Экран «{name}» — нарисуем следующим"));
+            var b = i == 0
+                ? Ui.IconButton(icon, "Ib", 36, 34, 2, () => TechToggled?.Invoke())
+                : Ui.IconButton(icon, "Ib", 36, 34, 2, () => Game.I.ShowToast($"Экран «{name}» — нарисуем следующим"));
             b.MouseFilter = MouseFilterEnum.Stop;
-            b.Tip(name, null, "Экран в разработке");
+            if (i == 0) b.Tip(t =>
+            {
+                t.Title("Технологии");
+                var g = Game.I;
+                if (!g.IsReady) return;
+                var (known, needed, _) = g.EraKnowledge;
+                int r = g.Researching;
+                t.Line(r >= 0 ? $"Изучается: «{Techs.All[r].Name}»" : g.ResearchIdle ? "Ничего не изучается — выберите технологию" : "Всё доступное изучено");
+                if (needed > 0) t.Kv($"До эпохи «{g.NextEraName}»", $"{known} из {needed}", known >= needed ? Pal.Ok : Pal.Hi);
+            });
+            else b.Tip(name, null, "Экран в разработке");
             _screens.AddChild(b);
             _screenBtns[i] = b;
         }
@@ -166,6 +180,8 @@ public partial class TopBar : PanelContainer
             t.Title("Наука").Line($"Мудрецы +{sp.Sages} · Земли +{sp.Lands} · Святилища +{sp.Shrines}" + (sp.CatchUp > 0 ? $" · Догоняем +{sp.CatchUp}" : ""))
              .Kv("За цикл", "+" + g.ScienceRate, Pal.Ok);
             if (g.NextEraName != "") t.Kv($"До эпохи «{g.NextEraName}»", $"{g.EraProgressPermille / 10}%", Pal.Hi);
+            int r = g.Researching;
+            t.Kv("Изучается", r >= 0 ? Techs.All[r].Name : "ничего", r >= 0 ? Pal.Ok : Pal.Bad);
             t.Mu("Эпоха наступает, когда наука наберёт свою цену");
         });
         _res[2].Root.Tip("Население", "Во всех провинциях державы");
@@ -287,6 +303,19 @@ public partial class TopBar : PanelContainer
         "clock" => _clock, "pause" => _pause, "pips" => _pips, "session" => _session, "nation" => _nation, "screen" => _screenBtns[0], "trophy" => Trophy,
         _ => null,
     };
+
+    public void SetTechOpen(bool open)
+    {
+        TechButton.ThemeTypeVariation = open ? "IbOn" : "Ib";
+        TechButton.Icon = Icons.Get("atom", 2, !open);
+    }
+
+    /// <summary>Nothing studied while something could be: the atom glows until the player chooses.</summary>
+    public void SetResearchIdle(bool idle)
+    {
+        if (TechButton.ThemeTypeVariation == "IbOn") return;
+        TechButton.SelfModulate = idle ? new Color(1.6f, 1.35f, .7f) : Colors.White;
+    }
 
     public void SetLeaderboardOpen(bool open)
     {

@@ -127,6 +127,10 @@ public static class ReplayTests
             (40, s => ClaimBest(w, s, 0)),
             (40, s => Cmd.Unpause(0)),
             (41, s => Cmd.ScoutAuto(0)),
+            (60, s => Cmd.Research(0, 0)),                 // study, then switch mid-way: points stay with the first
+            (200, s => Cmd.Research(0, 2)),
+            (299, s => Cmd.CheatTech(0, 2)),               // the studied one learned by cheat: its points go to the pool
+            (299, s => Cmd.CheatTech(0, 4)),
             (300, s => BuildFirst(w, s, 0)),
             (301, s => Cmd.Survey(0, FirstOwned(s, 0))),
             (777, s => ClaimBest(w, s, 0)),

@@ -7,8 +7,8 @@ using Bld = PaxPixelia.Core.Data.Bld;
 namespace PaxPixelia.Sim;
 
 public enum ClaimError { None, NotLand, Owned, NotAdjacent, NoGold, Unexplored, CityFull }
-public enum BuildError { None, NotOwned, NoSlot, NotAllowed, AlreadyBuilt, NoGold, NoMaterials }
-public enum SurveyError { None, NotOwned, AlreadyDone, NoGold }
+public enum BuildError { None, NotOwned, NoSlot, NotAllowed, AlreadyBuilt, NoGold, NoMaterials, NeedTech }
+public enum SurveyError { None, NotOwned, AlreadyDone, NoGold, NeedTech }
 
 /// <summary>
 /// Player actions as pure rules (validation + effects) and the economy formulas, in integers: gold in hundredths,
@@ -102,13 +102,23 @@ public static class Rules
         foreach (var b in MenuOrder) if (f.Allows(p, b)) into.Add(b);
     }
 
-    /// <summary>Buildings nation n can start in p now: owned, a free slot, allowed by terrain, not built yet.</summary>
+    /// <summary>Buildings nation n can start in p now: owned, a free slot, allowed by terrain and knowledge, not built yet.</summary>
     public static List<Bld> BuildOptions(WorldData w, GameState s, int p, int n)
     {
         var list = new List<Bld>(8);
         if (p < 0 || p >= w.P || s.Owner[p] != n || s.Buildings[p].Count >= s.Slots[p]) return list;
         TerrainOptions(w, p, list);
-        list.RemoveAll(s.Buildings[p].Contains);
+        list.RemoveAll(b => s.Buildings[p].Contains(b) || !Techs.Allows(s.Nat[n], b));
+        return list;
+    }
+
+    /// <summary>What the terrain of p would allow but nation n does not know yet (the build menu shows them locked).</summary>
+    public static List<Bld> LockedOptions(WorldData w, GameState s, int p, int n)
+    {
+        var list = new List<Bld>(8);
+        if (p < 0 || p >= w.P || s.Owner[p] != n || s.Buildings[p].Count >= s.Slots[p]) return list;
+        TerrainOptions(w, p, list);
+        list.RemoveAll(b => s.Buildings[p].Contains(b) || Techs.Allows(s.Nat[n], b));
         return list;
     }
 
@@ -119,6 +129,7 @@ public static class Rules
         if (s.Buildings[p].Count >= s.Slots[p]) return BuildError.NoSlot;
         if (s.Buildings[p].Contains(b)) return BuildError.AlreadyBuilt;
         if (!WorldFacts.Of(w).Allows(p, b)) return BuildError.NotAllowed;
+        if (!Techs.Allows(s.Nat[n], b)) return BuildError.NeedTech;
         if (s.Nat[n].Treasury < BuildCost(b) * Cents) return BuildError.NoGold;
         if (s.Nat[n].Materials < BuildMaterials(b)) return BuildError.NoMaterials;
         return BuildError.None;
@@ -137,6 +148,7 @@ public static class Rules
     {
         if (p < 0 || p >= s.Owner.Length || s.Owner[p] != n) return SurveyError.NotOwned;
         if (s.OreFound[p]) return SurveyError.AlreadyDone;
+        if (!Techs.Known(s.Nat[n], Techs.SurveyTech)) return SurveyError.NeedTech;
         if (s.Nat[n].Treasury < SurveyCost * Cents) return SurveyError.NoGold;
         return SurveyError.None;
     }

@@ -250,6 +250,22 @@ public partial class SelfTest : Node
     async Task BuildAndSurvey()
     {
         var w = G.World; var s = G.State;
+        // the tribe knows nothing yet: buildings are locked until the first technology
+        int lockedAt = First(q => s.Owner[q] == GameState.LocalPlayer && G.LockedBuildOptions(q).Count > 0);
+        Check("techs: buildings locked before the first technology", lockedAt >= 0 && G.BuildOptions(lockedAt).Count == 0 && G.ResearchIdle,
+            lockedAt >= 0 ? G.BuildProblem(lockedAt, G.LockedBuildOptions(lockedAt)[0]) : "no plot");
+        Hud.DebugToggleTech();
+        await Frames(3);
+        Check("techs: the card opens from the atom", Hud.Tech.Visible);
+        await Shot("techs");
+        G.Research(0);
+        await Frames(2);
+        Check("techs: a study chosen (a journaled command)", G.Researching == 0 && G.Journal.Any(c => c.Type == CmdType.Research));
+        Hud.DebugToggleTech();
+        G.Issue(Cmd.CheatTech(G.Viewer, -1));   // the rest of the test builds and surveys
+        await Frames(2);
+        Check("techs: learned → the build menu opens", lockedAt < 0 || G.BuildOptions(lockedAt).Count > 0);
+
         int p = First(q => s.Owner[q] == GameState.LocalPlayer && G.BuildOptions(q).Count > 0);
         if (p < 0) { Fail("build", "no free plot"); return; }
         var b = G.BuildOptions(p)[0];

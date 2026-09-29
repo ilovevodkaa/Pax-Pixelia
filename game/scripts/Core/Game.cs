@@ -187,6 +187,7 @@ public partial class Game : Node
         int r = _commands.Flush(World, State, this);
         if (State.Day256 / Calendar.DayUnit != day) RaiseDateChanged();   // a console jump moves the calendar between ticks
         CheckEra();
+        CheckResearch();
         return r;
     }
 
@@ -208,7 +209,7 @@ public partial class Game : Node
         var r = _commands.Run(World, State, ticks, this);
         if (r.ScoutSteps > 0 || r.ScoutsFinished > 0) RaiseScoutsChanged();
         if (r.EraChanged) CheckEra();
-        if (r.Cycle) CycleTick?.Invoke();
+        if (r.Cycle) { CycleTick?.Invoke(); CheckResearch(); }
         if (r.MonthChanged) MonthTick?.Invoke();
         if (r.YearChanged) YearTick?.Invoke();
         if (r.DayChanged) RaiseDateChanged();
@@ -236,6 +237,18 @@ public partial class Game : Node
     int _shownEra;
 
     /// <summary>EraChanged fires only for the local player's own era, whoever else advanced.</summary>
+    long _shownTechs = -1;
+    int _shownStudy = -2;
+
+    /// <summary>The viewer learned or switched a technology since the UI last looked: one ResearchChanged.</summary>
+    void CheckResearch()
+    {
+        var nat = State.Nat[Viewer];
+        if (nat.TechsDone == _shownTechs && nat.Researching == _shownStudy) return;
+        _shownTechs = nat.TechsDone; _shownStudy = nat.Researching;
+        RaiseResearchChanged();
+    }
+
     void CheckEra()
     {
         if (EraIndex == _shownEra) return;

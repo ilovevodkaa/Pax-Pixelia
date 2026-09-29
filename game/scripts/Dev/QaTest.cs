@@ -134,6 +134,7 @@ public partial class QaTest : Node
     {
         var w = G.World; var s = G.State; int cap = Cap;
         G.SetPaused(true);
+        G.Issue(Cmd.CheatTech(G.Viewer, -1));   // actions under test need the first era's knowledge
         double gold0 = s.Gold;
 
         // ---- claim when poor
@@ -178,6 +179,7 @@ public partial class QaTest : Node
 
         // ---- build
         s.Gold = 100000; s.Materials = 10000;
+        if (s.Nat[G.Viewer].Era < 1) s.Nat[G.Viewer].Era = 1;   // granaries and markets come with Древний мир: every plot can be filled
         int bp = p;   // just claimed
         var opts = G.BuildOptions(bp).ToList();
         Info("build target", $"{w.PName[bp]} slots={s.Slots[bp]} built={s.Buildings[bp].Count} options={string.Join(",", opts)}");
@@ -255,16 +257,16 @@ public partial class QaTest : Node
 
         // ---- capital queue vs. a building the player already built by hand
         {
-            int mk = Array.FindIndex(Simulation.Projects, pr => pr.Building == Bld.Market);
-            s.Buildings[cap].Remove(Bld.Market);
+            int mk = Array.FindIndex(Simulation.Projects, pr => pr.Building == Bld.Shrine);   // the market waits for Древний мир
+            s.Buildings[cap].Remove(Bld.Shrine);
             if (s.Buildings[cap].Count >= s.Slots[cap]) s.Slots[cap]++;
             s.ProjectIndex = mk; s.QueuePct = 99;
-            G.Build(cap, Bld.Market);
+            G.Build(cap, Bld.Shrine);
             int notes0 = _notes.Count;
             G.RunTicks(Clock.CycleTicks);
             await Frames(2);
             bool lie = _notes.Skip(notes0).Any(n => n.text == Simulation.Projects[mk].DoneText);
-            int markets = s.Buildings[cap].Count(b => b == Bld.Market);
+            int markets = s.Buildings[cap].Count(b => b == Bld.Shrine);
             Check("queue: project already built by hand is not «completed» again", !lie, $"notes: {string.Join(" | ", _notes.Skip(notes0).Select(n => n.text))}; markets={markets}");
         }
 

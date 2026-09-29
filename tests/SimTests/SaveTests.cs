@@ -103,6 +103,9 @@ public static class SaveTests
             (40, s => ClaimBest(w, s)),
             (40, s => ClaimBest(w, s)),
             (41, s => Cmd.ScoutAuto(0)),
+            (60, s => Cmd.Research(0, 1)),                 // a study under way at the save points
+            (299, s => Cmd.CheatTech(0, Techs.SurveyTech)),
+            (299, s => Cmd.CheatTech(0, 4)),
             (300, s => BuildFirst(w, s)),
             (301, s => Cmd.Survey(0, Array.FindIndex(s.Owner, o => o == 0))),
             (500, s => Cmd.Pause(0)),
@@ -231,7 +234,7 @@ public static class SaveTests
                 "Owner", "Controller", "Pop", "Religion", "Mood", "Slots", "Buildings", "Ore", "OreFound", "CapitalOf", "IsTown", "City", "Growth", "SphereNoted", "Routes",
                 "FogEnabled", "Scouts", "ScoutSeq", "Events" }, new[] { "Scratch" }),
             (typeof(NationState), new[] { "Control", "Treasury", "LastTaxes", "LastUpkeep", "Progress", "ScienceRate", "Era", "ProjectIndex",
-                "QueuePct", "ProjectsDone", "EventCount", "Materials", "LastMaterials", "Fog" }, Array.Empty<string>()),
+                "QueuePct", "ProjectsDone", "EventCount", "Materials", "LastMaterials", "TechsDone", "Researching", "TechPts", "TechPool", "Fog" }, Array.Empty<string>()),
             (typeof(NationFog), new[] { "Fog", "Explored", "KnownOwner", "Met" }, Array.Empty<string>()),
             (typeof(GameState.Scout), new[] { "Id", "Nation", "Path", "Step", "Sub", "Auto", "Steps", "MaxSteps", "Found" }, new[] { "Progress" }),
             (typeof(EventMemory), new[] { "Nation", "Bot", "NextDue", "NextChoice", "ReadyAt", "FiredCount", "Flags", "ThreadEra", "GuaranteedThreads",

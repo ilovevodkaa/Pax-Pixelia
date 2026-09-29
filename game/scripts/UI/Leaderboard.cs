@@ -104,7 +104,7 @@ public partial class Leaderboard : Control
     }
 
     /// <summary>Stepped pixel notch pointing at the trophy: 2px stairs of frame colour around the card fill.</summary>
-    sealed partial class Notch : Control
+    internal sealed partial class Notch : Control
     {
         public const int W = 20, H = 12;
 

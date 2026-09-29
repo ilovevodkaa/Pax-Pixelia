@@ -63,6 +63,8 @@ public sealed partial class GameState
             nat.Add(x.Progress); nat.Add(x.ScienceRate); nat.Add(x.Era);
             nat.Add(x.ProjectIndex); nat.Add(x.QueuePct); nat.Add(x.ProjectsDone); nat.Add(x.EventCount);
             nat.Add(x.Materials); nat.Add(x.LastMaterials);
+            nat.Add(x.TechsDone); nat.Add(x.Researching); nat.Add(x.TechPool);
+            foreach (long v in x.TechPts) nat.Add(v);
             nat.Add(NationCapital[n]);
             if (Events?.Mem[n] is { } m) { nat.Add(m.Total); nat.Add(m.NextDue); nat.Add(m.NextChoice); nat.Add(m.Pending?.Event ?? -1); }
         }
