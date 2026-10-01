@@ -77,6 +77,7 @@ public partial class SelfTest : Node
             await LeaderboardFlow();
             await PolicyFlow();
             await WondersFlow();
+            await UnrestFlow();
             await EventChoiceFlow();
             await PauseMenuFlow();
             await SkinFlow();

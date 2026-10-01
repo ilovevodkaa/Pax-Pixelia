@@ -388,6 +388,44 @@ public partial class ProvincePanel : PanelContainer
         _live.Add(Sync);
     }
 
+    /// <summary>Unrest and the plague in an own province: the stage and what it costs, the time to secession, the sickness,
+    /// and «Раздать хлеб». Shown only when there is something to say; kept live.</summary>
+    void UnrestSection(Flow flow, int p)
+    {
+        var g = Game.I;
+        var title = Ui.Text("", "Semi");
+        var line = Kit.Para("", true, UiFonts.Small);
+        var bread = Ui.Button("Раздать хлеб", "cheese", null, () => Game.I.Relief(p), 1, 28);
+        var box = Ui.Panel(new Box().Fill(Pal.Surface).Border(Pal.Ln).AccentLeft(Pal.Bad, 4).Pad(10, 7, 10, 8),
+            Ui.VBox(4, Ui.HBox(8, Ui.Icon("alert-triangle", 1, Pal.Bad).Center(), title.Grow()), line, bread), MouseFilterEnum.Pass);
+        bread.Tip(t => t.Title("Раздать хлеб").Line($"Довольство +{Unrest.ReliefMood} здесь и +{Unrest.ReliefNeighbourMood} в соседних своих провинциях; мятеж стихает")
+            .Kv("Стоимость", $"{Game.I.ReliefPrice(p)} золота").Mu("Чем больше людей, тем дороже хлеб"));
+        flow.Add(box, 12);
+        void Sync()
+        {
+            var st = g.UnrestStageOf(p);
+            bool sick = g.IsSick(p);
+            box.Visible = st != UnrestStage.Calm || sick;
+            if (!box.Visible) return;
+            var parts = new List<string>();
+            if (st != UnrestStage.Calm)
+            {
+                parts.Add(Unrest.StageEffect(st));
+                double secs = g.SecedeSeconds(p);
+                if (secs >= 0) parts.Add($"до отделения ≈ {(int)System.Math.Ceiling(secs)} с");
+            }
+            if (sick) parts.Add($"мор: умирают люди, довольство −{Unrest.PlagueMood}");
+            if (g.InDebt) parts.Add($"казна пуста: довольство −{Unrest.DebtMood}");
+            title.Text = st != UnrestStage.Calm ? Unrest.StageName(st) + (sick ? " · мор" : "") : "Мор";
+            line.Text = string.Join("; ", parts);
+            if (bread is TextButton tb) tb.Caption = $"Раздать хлеб · {g.ReliefPrice(p)} золота";
+            bread.Visible = st != UnrestStage.Calm || g.State.Mood[p] < Unrest.GrumbleBelow + 10;
+            Ui.Enable(bread, g.ReliefProblem(p) == null);
+        }
+        Sync();
+        _live.Add(Sync);
+    }
+
     void ForeignBody(Flow flow, int p, int o, bool stale)
     {
         var s = Game.I.State;
@@ -420,6 +458,7 @@ public partial class ProvincePanel : PanelContainer
         _live.Add(SyncStats);
         flow.Add(Kit.Grid(("Население", pop), ("Довольство", mood), ("Плодородие", Kit.Fertility(Climate.FertNow(w, s)[p] / 1000f)), ("Налоги", Kit.ValueUnit(tax, "за цикл"))), 0);
         ClimateLine(flow, p);
+        UnrestSection(flow, p);
         CitySection(flow, p);
 
         if (capital) { flow.Add(BuildScouts(), 20); RefreshScouts(); }

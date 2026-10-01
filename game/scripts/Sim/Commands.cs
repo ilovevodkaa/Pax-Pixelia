@@ -27,6 +27,8 @@ public enum CmdType : byte
     Edict,
     // lay wonder A in the capital (-1 = give the one under way up); pour A gold and B materials into it (-1 = all there is)
     WonderStart, WonderInvest,
+    // «Раздать хлеб» in province A
+    Relief,
 }
 
 /// <summary>
@@ -53,6 +55,7 @@ public readonly record struct Cmd(int Tick, byte Nation, ushort Seq, CmdType Typ
     public static Cmd Settle(int n, int myth) => new(0, (byte)n, 0, CmdType.Settle, myth);
     public static Cmd Edict(int n, int edict, bool on) => new(0, (byte)n, 0, CmdType.Edict, edict, on ? 1 : 0);
     public static Cmd WonderStart(int n, int wonder) => new(0, (byte)n, 0, CmdType.WonderStart, wonder);
+    public static Cmd Relief(int n, int province) => new(0, (byte)n, 0, CmdType.Relief, province);
     public static Cmd WonderInvest(int n, int gold = -1, int mats = -1) => new(0, (byte)n, 0, CmdType.WonderInvest, gold, mats);
 
     public bool IsSession => Type is CmdType.Pause or CmdType.Unpause or CmdType.SetSpeed;
@@ -175,6 +178,13 @@ public static class Commands
                 var e = Wonders.CheckStart(s, n, c.A);
                 if (e != WonderError.None) return (int)e;
                 Wonders.Start(s, n, c.A);
+                return 0;
+            }
+            case CmdType.Relief:
+            {
+                var e = Unrest.CheckRelief(s, c.A, n);
+                if (e != ReliefError.None) return (int)e;
+                Unrest.Relief(w, s, c.A, n);
                 return 0;
             }
             case CmdType.WonderInvest:

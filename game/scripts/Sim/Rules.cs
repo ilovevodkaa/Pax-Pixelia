@@ -62,6 +62,7 @@ public static class Rules
     /// <summary>Materials p yields per cycle: lumber mill, quarry, a mine on a metal vein, and the capital's workshops.</summary>
     public static int ProvinceMaterials(GameState s, int p)
     {
+        if (!Unrest.Works(s, p)) return 0;   // on strike
         int m = s.CapitalOf[p] >= 0 ? CapitalMaterials : 0;
         foreach (var b in s.Buildings[p])
             m += b switch { Bld.Lumber => LumberMaterials, Bld.Quarry => QuarryMaterials, _ => 0 };
@@ -206,6 +207,7 @@ public static class Rules
         {
             var nat = s.Nat[s.Owner[p]];
             t += t * (Techs.Sum(nat, TechFx.TaxPermille) + 10 * Policy.TaxPct(nat)) / 1000;
+            t = t * Unrest.TaxPermille(s, p) / 1000;   // grumbling pays less, strikes pay nothing
         }
         return t;
     }

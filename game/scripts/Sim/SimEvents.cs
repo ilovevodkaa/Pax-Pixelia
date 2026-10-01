@@ -247,7 +247,8 @@ public sealed class SimEvents
                     break;
             }
             if (what == Resource.Legacy) nat.Glory = Math.Max(0, nat.Glory + amount);   // «наследие» is glory
-            // Stability, Culture, Faith, Food: no such system yet
+            if (what == Resource.Stability) ForProvinces(n, province, p => _s.Mood[p] = (byte)IntMath.Clamp(_s.Mood[p] + amount, 0, 100));   // stability is the people's mood
+            // Culture, Faith, Food: no such system yet
         }
 
         void ForProvinces(int n, int province, Action<int> f)

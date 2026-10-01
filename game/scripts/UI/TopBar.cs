@@ -219,7 +219,23 @@ public partial class TopBar : PanelContainer
             t.Mu("Эпоха наступает, когда наука наберёт свою цену");
         });
         _res[2].Root.Tip("Население", "Во всех провинциях державы");
-        _res[3].Root.Tip("Стабильность", "Довольство попов · законы · вера", "Среднее довольство провинций державы");
+        _res[3].Root.Tip(t =>
+        {
+            t.Title("Стабильность").Line("Среднее довольство провинций державы");
+            var g = Game.I;
+            if (!g.IsReady) return;
+            var (gr, un, rv, sick) = g.UnrestCounts();
+            if (gr + un + rv == 0) t.Kv("Беспорядки", "нет", Pal.Ok);
+            else
+            {
+                if (gr > 0) t.Kv("Ворчание", $"{gr} · налоги −{100 - Unrest.GrumbleTaxPct}%", Pal.Warn);
+                if (un > 0) t.Kv("Волнения", $"{un} · ни налогов, ни материалов", Pal.Bad);
+                if (rv > 0) t.Kv("Мятеж", $"{rv} · вот-вот отложатся", Pal.Bad);
+            }
+            if (sick > 0) t.Kv("Мор", $"{sick} {Fmt.Plural(sick, "провинция", "провинции", "провинций")}", Pal.Bad);
+            if (g.InDebt) t.Kv("Казна", "пуста: довольство −10", Pal.Bad);
+            t.Mu($"Ниже {Unrest.GrumbleBelow} ворчат, ниже {Unrest.UnrestBelow} бастуют, ниже {Unrest.RevoltBelow} — мятеж и отделение через минуту");
+        });
         _res[4].Root.Tip(t =>
         {
             t.Title("Материалы");

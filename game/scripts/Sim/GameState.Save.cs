@@ -22,7 +22,7 @@ namespace PaxPixelia.Sim;
 public sealed partial class GameState
 {
     /// <summary>Layout version of the snapshot (the save file carries it; older layouts are read field by field).</summary>
-    public const int SnapshotVersion = 10;   // 2: materials · 3: technologies · 4: the nomad phase · 5: techs past 64 · 6: character · 7: edicts · 8: world firsts · 9: wonders and glory · 10: eurekas
+    public const int SnapshotVersion = 11;   // 2: materials · 3: technologies · 4: the nomad phase · 5: techs past 64 · 6: character · 7: edicts · 8: world firsts · 9: wonders and glory · 10: eurekas · 11: unrest
 
     const int MaxNations = 255;
 
@@ -125,6 +125,7 @@ public sealed partial class GameState
         foreach (var x in Nat) { w.Write(x.Glory); w.Write(x.Wonder); w.Write(x.WonderGold); w.Write(x.WonderMats); }
         w.Write(WonderOwner.Length);
         for (int k = 0; k < WonderOwner.Length; k++) { w.Write(WonderOwner[k]); w.Write(WonderFlag[k]); }
+
         // ---- eurekas (10) ----
         foreach (var x in Nat)
         {
@@ -132,6 +133,10 @@ public sealed partial class GameState
             w.Write(x.Eurekas.Length);
             foreach (ulong v in x.Eurekas) w.Write(v);
         }
+
+        // ---- unrest (11) ----
+        WriteBytes(w, Unrest ?? new byte[P]);
+        WriteBytes(w, Plague ?? new byte[P]);
     }
 
     /// <summary>
@@ -325,6 +330,15 @@ public sealed partial class GameState
                 Require(words >= 0 && words <= 64, "eurekas");
                 for (int i = 0; i < words; i++) { ulong v = r.ReadUInt64(); if (i < x.Eurekas.Length) x.Eurekas[i] = v; }
             }
+
+        if (version >= 11)
+        {
+            s.Unrest = ReadBytes(r, P);
+            foreach (byte u in s.Unrest) Require(u <= Sim.Unrest.RevoltAt, "unrest");
+            s.Plague = ReadBytes(r, P);
+            foreach (byte u in s.Plague) Require(u <= Sim.Unrest.PlagueCycles / Sim.Unrest.PlagueStep + 1 || u >= Sim.Unrest.ImmuneBase, "plague");
+        }
+        else { s.Unrest = new byte[P]; s.Plague = new byte[P]; }
         return s;
     }
 

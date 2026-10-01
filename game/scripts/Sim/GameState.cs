@@ -98,6 +98,8 @@ public sealed partial class GameState
     public bool[] OreFound;
     public short[] CapitalOf;               // nation index if capital else -1
     public bool[] IsTown;
+    public byte[] Unrest;                   // cycles of rising towards secession, 0..Unrest.RevoltAt (Unrest.cs)
+    public byte[] Plague;                   // 0 healthy; 1..: steps of sickness left (×PlagueStep cycles); from Unrest.ImmuneBase: immune
 
     // ---- trade routes: province paths ----
     public List<int[]> Routes = new();

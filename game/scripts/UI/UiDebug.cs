@@ -54,6 +54,11 @@ public static class UiDebug
         if (Cli.Has("event")) ForceEvent(g, Cli.Str("event"));
         var sel = Cli.Str("select");
         if (sel != null) { int p = Find(sel); if (p >= 0) g.Select(p); }
+        if (Cli.Has("riot") && g.Selected >= 0)   // a rising, sick province for the unrest screenshots
+        {
+            var st = g.State; int rp = g.Selected;
+            st.Mood[rp] = 10; st.Unrest[rp] = 50; st.Plague[rp] = 30;
+        }
         if (Cli.Has("build")) hud.Panel.DebugOpenBuild();
         if (Cli.Has("targeting")) g.BeginScoutTargeting();
         var hov = Cli.Str("hover");

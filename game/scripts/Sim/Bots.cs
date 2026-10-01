@@ -28,6 +28,7 @@ public static class Bots
             if (WantsEdicts(w.Seed, n, cycle)) ChooseEdicts(w, s, n, tally.OverPct[n], sink);
             Wonders.BotChoose(w, s, n, cycle);
             Wonders.BotInvest(w, s, n, cycle);
+            Unrest.BotCare(w, s, n, cycle);
         }
     }
 
@@ -71,6 +72,9 @@ public static class Bots
         for (int p = 0; p < w.P; p++) if (s.Owner[p] == n) { mood += (long)s.Mood[p] * s.Pop[p]; people += s.Pop[p]; }
         int avg = people > 0 ? (int)(mood / people) : 60;
         var want = new List<int>(Policy.Count);
+        bool sick = false;
+        for (int p = 0; p < w.P && !sick; p++) if (s.Owner[p] == n && Unrest.Sick(s, p)) sick = true;
+        if (sick && nat.Era >= Policy.Edicts[Policy.Index("quarantine")].MinEra) want.Add(Policy.Index("quarantine"));
         if (avg < 52 || overPct >= 15) want.Add(Policy.Index("feasts"));
         if (nat.Materials < BotMaterialsLow && avg >= 58) want.Add(Policy.Index("corvee"));
         if (nat.Treasury < Rules.ClaimPrice(s, n) * Rules.Cents && avg >= 62) want.Add(Policy.Index("levy"));

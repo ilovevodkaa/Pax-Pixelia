@@ -93,6 +93,8 @@ public sealed partial class GameState
         {
             prov.Add(Owner[p]); prov.Add(Controller[p]); prov.Add(Pop[p]); prov.Add(Religion[p]); prov.Add(Mood[p]);
             prov.Add(CapitalOf[p]); prov.Add(IsTown[p]);
+            if (Unrest != null && Unrest[p] != 0) { prov.Add(-7L); prov.Add(Unrest[p]); }   // no rising hashes as before unrest
+            if (Plague != null && Plague[p] != 0) { prov.Add(-8L); prov.Add(Plague[p]); }
             if (City != null) { prov.Add(City[p]); prov.Add(Growth[p]); prov.Add(SphereNoted[p]); }
             bld.Add(Slots[p]); bld.Add(Ore[p]); bld.Add(OreFound[p]); bld.Add(Buildings[p].Count);
             foreach (var b in Buildings[p]) bld.Add((long)b);

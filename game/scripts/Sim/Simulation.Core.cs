@@ -58,6 +58,7 @@ public static partial class Simulation
         Wonders.Init(s);
         Wonders.Refresh(s);
         for (int n = 0; n < s.Nat.Length; n++) Eurekas.Baseline(w, s, n);
+        Unrest.Init(w, s);
         for (int n = 0; n < s.Nat.Length; n++)
         {
             var nat = s.Nat[n];
@@ -100,7 +101,9 @@ public static partial class Simulation
         {
             var nat = s.Nat[n];
             nat.LastTaxes = sc.Taxes[n]; nat.LastUpkeep = sc.Upkeep[n];
+            bool solvent = nat.Treasury >= 0;
             nat.Treasury += sc.Taxes[n] - sc.Upkeep[n];
+            if (solvent && nat.Treasury < 0) Unrest.OnDebt(s, n, sink);
             nat.LastMaterials = sc.Materials[n];
             nat.Materials += sc.Materials[n];
         }
@@ -108,6 +111,8 @@ public static partial class Simulation
         Moods(w, s, cycle, sc);
         if (Research(w, s, sc, sink)) r.EraChanged = true;
         List<int> changed = null;
+        Unrest.Plague(w, s, cycle, sink);
+        Unrest.Cycle(w, s, sink, ref changed);
         for (int n = 0; n < s.Nat.Length; n++) Queue(s, n, sink, ref changed);
         Cities.Grow(w, s, sink, ref changed);
         Bots.Act(w, s, cycle, sc, sink, ref changed);
@@ -184,7 +189,7 @@ public static partial class Simulation
         {
             if (w.PLand[p] != 1) continue;
             long pop = s.Pop[p];
-            if (pop <= 0) continue;
+            if (pop <= 0 || Unrest.Sick(s, p)) continue;   // the plague: no births (its deaths: Unrest.Plague)
             long cap = Math.Max(1, Capacity(fert, w, s, p));
             long rPpm = 3000 + 12L * fert[p];                                 // growth rate, per million
             long moodPm = IntMath.Clamp((s.Mood[p] - 30) * 20, -500, 1200);   // (mood − 30) / 50
@@ -210,6 +215,8 @@ public static partial class Simulation
                 foreach (var b in s.Buildings[p])
                     target += b switch { Bld.Shrine => shrine, Bld.Market => 3, Bld.Granary => 4, _ => 0 };
                 target += Techs.Sum(s.Nat[o], TechFx.Mood) + Policy.MoodOf(s.Nat[o]) + Policy.OverMood(sc.OverPct[o]);
+                if (Unrest.InDebt(s.Nat[o])) target -= Unrest.DebtMood;
+                if (Unrest.Sick(s, p)) target -= Unrest.PlagueMood;
                 if (s.CapitalOf[p] >= 0) target += 5;
                 if (Rules.KnownOre(s, p) == Rules.OreSalt) target += Rules.SaltMood;
                 target += Nomads.MythMood(s, o);

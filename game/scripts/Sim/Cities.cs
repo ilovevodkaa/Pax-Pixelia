@@ -185,6 +185,7 @@ public static class Cities
     /// <summary>Influence a city gathers per rules cycle: 10, +1 per 2000 people (≤ 30), mood/10, shrine +8, market +5.</summary>
     public static int Influence(GameState s, int c)
     {
+        if (!Unrest.Works(s, c)) return 0;   // a striking city does not grow
         int v = 10 + Math.Min(30, s.Pop[c] / 2000) + s.Mood[c] / 10;
         foreach (var b in s.Buildings[c]) v += b switch { Bld.Shrine => 8, Bld.Market => 5, _ => 0 };
         if (s.Owner[c] >= 0)
@@ -248,8 +249,9 @@ public static class Cities
     {
         if (s.City == null || !IsCity(s, c)) return -1;
         if (Counts(w, s)[c] >= Cap(s, c) || Target(w, s, c) < 0) return -1;
-        int left = Need(s) - s.Growth[c];
-        return left <= 0 ? 0 : (left + Influence(s, c) - 1) / Influence(s, c);
+        int left = Need(s) - s.Growth[c], inf = Influence(s, c);
+        if (inf <= 0) return -1;   // on strike: the city does not grow
+        return left <= 0 ? 0 : (left + inf - 1) / inf;
     }
 
     // ------------------------------------------------------------------ founding a city

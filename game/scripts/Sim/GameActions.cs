@@ -162,6 +162,51 @@ public partial class Game : ISimSink
         Notify("building-bank", on ? $"Издан указ «{d.Name}»: {d.Effect.ToLowerInvariant()}" : $"Указ «{d.Name}» отменён");
     }
 
+    // ------------------------------------------------------------------ unrest and the plague
+
+    public UnrestStage UnrestStageOf(int p) => IsReady && Valid(p) ? Unrest.StageOf(State, p) : UnrestStage.Calm;
+    /// <summary>Seconds at the current speed until p secedes (its rising goes on), or -1.</summary>
+    public double SecedeSeconds(int p) => IsReady && Valid(p) && State.Unrest[p] > 0 && State.Mood[p] < Unrest.RevoltBelow ? CyclesToSeconds(Unrest.RevoltAt - State.Unrest[p]) : -1;
+    public bool IsSick(int p) => IsReady && Valid(p) && Unrest.Sick(State, p);
+    public bool IsImmune(int p) => IsReady && Valid(p) && Unrest.Immune(State, p);
+    public int ReliefPrice(int p) => IsReady && Valid(p) ? Unrest.ReliefPrice(State, p) : 0;
+    public bool InDebt => IsReady && Unrest.InDebt(State.Nat[Viewer]);
+
+    /// <summary>The local nation's provinces by unrest stage, and how many are sick.</summary>
+    public (int grumbling, int unrest, int revolt, int sick) UnrestCounts()
+    {
+        int g = 0, u = 0, r = 0, k = 0;
+        if (!IsReady) return (0, 0, 0, 0);
+        for (int p = 0; p < State.Owner.Length; p++)
+        {
+            if (State.Owner[p] != Viewer) continue;
+            switch (Unrest.StageOf(State, p)) { case UnrestStage.Grumbling: g++; break; case UnrestStage.Unrest: u++; break; case UnrestStage.Revolt: r++; break; }
+            if (Unrest.Sick(State, p)) k++;
+        }
+        return (g, u, r, k);
+    }
+
+    string ReliefText(ReliefError e, int p) => e switch
+    {
+        ReliefError.None => null,
+        ReliefError.NotOwned => "Хлеб раздают только в своих провинциях",
+        ReliefError.Calm => "Здесь и так спокойно: хлеб раздают, когда люди ропщут",
+        ReliefError.NoGold => $"Не хватает золота: нужно {ReliefPrice(p)}",
+        _ => "Нельзя",
+    };
+
+    public string ReliefProblem(int p) => !IsReady ? "Мир ещё не создан" : ReliefText(Unrest.CheckRelief(State, p, Viewer), p);
+
+    public void Relief(int p)
+    {
+        var why = ReliefProblem(p);
+        if (why != null) { ShowRefusal(why); return; }
+        int price = ReliefPrice(p);
+        int r = Issue(Cmd.Relief(Viewer, p));
+        if (r != 0) { ShowRefusal(ReliefText((ReliefError)r, p)); return; }
+        Notify("cheese", $"В провинции {World.PName[p]} раздали хлеб (−{price} золота): люди успокаиваются");
+    }
+
     // ------------------------------------------------------------------ wonders of the world
 
     public int Glory => IsReady ? State.Nat[Viewer].Glory : 0;
