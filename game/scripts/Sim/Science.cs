@@ -13,7 +13,7 @@ public readonly record struct ScienceParts(int Sages, int Lands, int Shrines, in
 /// Placeholder research until the tech tree (IDEAS A-2): every cycle a nation adds these points to its progress stock,
 /// and the stock decides its era (<see cref="Eras"/>). Sages give the base, land and shrines add a little, and a nation
 /// behind the leading era learns a quarter faster from its neighbours (the leader gets glory, the laggard speed).
-/// A typical leader makes ≈ 8 points a cycle — the rate the era costs are tuned for.
+/// A typical leader makes ≈ 10 points a cycle (bots build shrines too) — the rate the era costs are tuned for.
 /// </summary>
 public static class Science
 {

@@ -10,7 +10,8 @@ public sealed record EraDef(string Name, int StartYear, int Cost, int ShapePermi
 
 /// <summary>
 /// The era table (data only; a future tech tree just feeds the same progress stock). Costs are tuned so a typical
-/// leader (≈ 8 points a cycle, see <see cref="Science"/>) enters the Future after ≈ 25 h at speed 3 on «Обычная»:
+/// leader (≈ 10 points a cycle with its temples, see <see cref="Science"/>) enters the Future after ≈ 25 h at speed 3 on
+/// «Обычная»:
 /// 20 · 101 · 135 · 151 · 168 · 168 · 185 · 185 · 185 · 202 minutes per era (IDEAS §0 proportions stretched to 25 h).
 /// Start years follow IDEAS §0: Средневековье ≈ 620, Индустриальная ≈ 1855.
 /// </summary>
@@ -18,16 +19,16 @@ public static class Eras
 {
     public static readonly EraDef[] All =
     {
-        new("Первобытная",     -4000,  18_200, 479),
-        new("Древний мир",     -3090,  96_900, 496),
-        new("Античность",       -880, 129_100, 527),
-        new("Средневековье",     620, 145_200, 394),
-        new("Возрождение",      1410, 161_500, 322),
-        new("Эпоха пара",       1730, 161_500, 525),
-        new("Индустриальная",   1855, 177_600, 575),
-        new("Атомная",          1930, 177_600, 806),
-        new("Информационная",   1980, 177_600, 1027),
-        new("Космическая",      2025, 193_700, 803),
+        new("Первобытная",     -4000,  22_750, 479),
+        new("Древний мир",     -3090, 121_125, 496),
+        new("Античность",       -880, 161_375, 527),
+        new("Средневековье",     620, 181_500, 394),
+        new("Возрождение",      1410, 201_875, 322),
+        new("Эпоха пара",       1730, 201_875, 525),
+        new("Индустриальная",   1855, 222_000, 575),
+        new("Атомная",          1930, 222_000, 806),
+        new("Информационная",   1980, 222_000, 1027),
+        new("Космическая",      2025, 242_125, 803),
         new("Будущее",          2070,       0, 1000),
     };
 

@@ -43,6 +43,7 @@ public static class Program
         SaveTests.Run(w);
         RosterTests.Run(w);
         CityTests.Run(w);
+        BotTests.Run(w);
         MaterialTests.Run(w);
         TechTests.Run(w);
         NomadTests.Run(w);

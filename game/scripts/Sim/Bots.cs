@@ -1,5 +1,7 @@
 using System.Collections.Generic;
+using PaxPixelia.Core;
 using PaxPixelia.World;
+using Bld = PaxPixelia.Core.Data.Bld;
 
 namespace PaxPixelia.Sim;
 
@@ -21,21 +23,131 @@ public static class Bots
         {
             var nat = s.Nat[n];
             if (nat.Control != NationControl.Bot || count[n] == 0) continue;
-            if (!WantsToClaim(w.Seed, n, cycle, count[n])) continue;
-            if (nat.Treasury < Rules.ClaimCost * Rules.Cents) continue;
-            int q = BestClaim(w, s, n);
-            if (q < 0) { TryFoundCity(w, s, n, sink, ref changed); continue; }
-            changed ??= new List<int>();
-            if (Commands.Apply(w, s, Cmd.Claim(n, q), sink, changed) != 0) continue;
-            count[n]++;
-            if (sink == null) continue;
-            for (int h = 0; h < s.Nat.Length; h++)
-                if (s.Nat[h].Human && Rules.Borders(w, s, q, h))
-                {
-                    sink.Notify("flag", $"Провинция {w.PName[q]} у наших границ вошла в состав {Ru.Genitive(s.Nations[n].Name)}");
-                    break;
-                }
+            TryClaim(w, s, n, cycle, count, sink, ref changed);
+            if (WantsToBuild(w.Seed, n, cycle)) TryBuild(w, s, n, tally.Shrines[n], sink, ref changed);
         }
+    }
+
+    static void TryClaim(WorldData w, GameState s, int n, int cycle, int[] count, ISimSink sink, ref List<int> changed)
+    {
+        if (!WantsToClaim(w.Seed, n, cycle, count[n])) return;
+        if (s.Nat[n].Treasury < Rules.ClaimCost * Rules.Cents) return;
+        int q = BestClaim(w, s, n);
+        if (q < 0) { TryFoundCity(w, s, n, sink, ref changed); return; }
+        changed ??= new List<int>();
+        if (Commands.Apply(w, s, Cmd.Claim(n, q), sink, changed) != 0) return;
+        count[n]++;
+        if (sink == null) return;
+        for (int h = 0; h < s.Nat.Length; h++)
+            if (s.Nat[h].Human && Rules.Borders(w, s, q, h))
+            {
+                sink.Notify("flag", $"Провинция {w.PName[q]} у наших границ вошла в состав {Ru.Genitive(s.Nations[n].Name)}");
+                break;
+            }
+    }
+
+    // ------------------------------------------------------------------ building
+
+    /// <summary>A bot thinks about building once in 4 cycles on average (≈ every 2 s at speed 3).</summary>
+    public static bool WantsToBuild(int seed, int nation, int cycle) => SimRng.Chance(seed, 61, nation, cycle, 1, 4);
+
+    /// <summary>Below this store a bot wants lumber mills and quarries first (a town takes Cities.FoundMaterials).</summary>
+    public const int BotMaterialsLow = 60;
+
+    /// <summary>
+    /// A bot builds one thing: the best (province, building) its rules allow, through the very <see cref="Cmd.Build"/> a
+    /// player issues. It keeps the price of a claim in reserve and builds only while its income covers the new upkeep
+    /// with room to spare. Now and then it sends geologists to its hills instead.
+    /// </summary>
+    static void TryBuild(WorldData w, GameState s, int n, int shrines, ISimSink sink, ref List<int> changed)
+    {
+        var nat = s.Nat[n];
+        if (nat.LastTaxes - nat.LastUpkeep < Rules.UpkeepPerBuilding * 3) return;   // cannot carry another building yet
+        long spare = nat.Treasury - Rules.ClaimCost * Rules.Cents;
+        if (spare < Rules.SurveyCost * Rules.Cents) return;   // the cheapest thing a bot can order
+        if (WantsToSurvey(w.Seed, n, Clock.CycleOf(s.Tick)) && Techs.Known(nat, Techs.SurveyTech) && SurveySite(w, s, n) is var q and >= 0)
+        {
+            Commands.Apply(w, s, Cmd.Survey(n, q), sink, changed ??= new List<int>());
+            return;
+        }
+        if (spare < CheapestBuilding * Rules.Cents) return;
+        var (p, b) = BestBuild(w, s, n, shrines);
+        if (p >= 0 && Rules.BuildCost(b) * Rules.Cents <= spare) Commands.Apply(w, s, Cmd.Build(n, p, b), sink, changed ??= new List<int>());
+    }
+
+    static readonly int CheapestBuilding = CheapestCost();
+
+    static int CheapestCost()
+    {
+        int c = int.MaxValue;
+        for (int k = 0; k < Data.BldName.Length; k++) c = System.Math.Min(c, Rules.BuildCost((Bld)k));
+        return c;
+    }
+
+    /// <summary>One building turn in 5 goes to the geologists instead (when the nation knows how and has hills left).</summary>
+    public static bool WantsToSurvey(int seed, int nation, int cycle) => SimRng.Chance(seed, 64, nation, cycle, 1, 5);
+
+    /// <summary>
+    /// The building nation n wants most and where, or (-1, _). Every candidate passes <see cref="Rules.CheckBuild"/>
+    /// except for gold (the caller checks the reserve). Score: materials while the store is low (mills, quarries, a mine on
+    /// a surveyed vein), food where people press on the cap (farm, fishery, pasture, granary), a shrine where mood sags or
+    /// science wants temples (`shrines` = the nation's count), a market in a crowded province; plus a salted roll so bots differ.
+    /// </summary>
+    public static (int province, Bld building) BestBuild(WorldData w, GameState s, int n, int shrines)
+    {
+        var nat = s.Nat[n];
+        var facts = WorldFacts.Of(w);
+        bool lowMaterials = nat.Materials < BotMaterialsLow;
+        int best = -1; Bld bestB = default; long bs = 0;
+        for (int p = 0; p < w.P; p++)
+        {
+            if (s.Owner[p] != n || s.Buildings[p].Count >= s.Slots[p]) continue;
+            int crowd = -1;   // pop ‰ of capacity, counted only when a food building is on the table
+            for (int k = 0; k < Data.BldName.Length; k++)
+            {
+                var b = (Bld)k;
+                if (s.Buildings[p].Contains(b) || !facts.Allows(p, b) || !Techs.Allows(nat, b)) continue;
+                if (nat.Materials < Rules.BuildMaterials(b, nat)) continue;
+                long sc;
+                switch (b)
+                {
+                    case Bld.Lumber:
+                        sc = lowMaterials ? 900 : 150;
+                        break;
+                    case Bld.Quarry:
+                        sc = (lowMaterials ? 850 : 140) + (Rules.KnownOre(s, p) is Rules.OreCopper or Rules.OreTin or Rules.OreIron ? 600 : 0);
+                        break;
+                    case Bld.Farm: case Bld.Fishery: case Bld.Pasture: case Bld.Granary:
+                        if (crowd < 0) crowd = (int)System.Math.Min(1000, (long)s.Pop[p] * 1000 / System.Math.Max(1, Simulation.Capacity(w, s, p)));
+                        sc = 200 + crowd * 6 / 10 + (b == Bld.Farm ? facts.FertPm[p] / 4 : 0) - (b == Bld.Pasture ? 80 : 0);
+                        break;
+                    case Bld.Shrine:
+                        sc = 120 + System.Math.Max(0, 60 - s.Mood[p]) * 15 + (shrines < Science.ShrinesPerPoint * Science.ShrinesMax ? 300 : 0);
+                        break;
+                    case Bld.Market:
+                        sc = 150 + System.Math.Min(500, s.Pop[p] / 40);
+                        break;
+                    default: continue;
+                }
+                sc += SimRng.Permille(w.Seed, 62, p, n * 8 + k) / 5;
+                if (sc > bs) { bs = sc; best = p; bestB = b; }
+            }
+        }
+        return (best, bestB);
+    }
+
+    /// <summary>An unsurveyed own province that may hold ore (hills, mountains, or a known outcrop), or -1; a salted pick
+    /// among the first candidates so geologists do not always start at the lowest index.</summary>
+    public static int SurveySite(WorldData w, GameState s, int n)
+    {
+        int best = -1, bs = -1;
+        for (int p = 0; p < w.P; p++)
+        {
+            if (s.Owner[p] != n || s.OreFound[p] || !Rules.MayHaveOre(w, s, p)) continue;
+            int sc = SimRng.Permille(w.Seed, 63, p, n);
+            if (sc > bs) { bs = sc; best = p; }
+        }
+        return best;
     }
 
     /// <summary>All spheres full: a bot that can pay founds a town on its best free site — only when its land is really
