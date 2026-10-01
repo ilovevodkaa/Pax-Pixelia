@@ -44,7 +44,7 @@ public partial class TopBar : PanelContainer
     {
         MouseFilter = MouseFilterEnum.Stop;
         CustomMinimumSize = new Vector2(0, Height);
-        AddThemeStyleboxOverride("panel", new Box().Fill(Pal.Hex(0x141417)).Dither(Pal.Hex(0x222226), Pal.Hex(0x141417), Height - 2)
+        AddThemeStyleboxOverride("panel", new Box().Fill(Pal.Bar).Dither(Pal.Band, Pal.Bar, Height - 2)
             .Grain().Border(Pal.Ln2, 0, 0, 0, 2).Shadow(0, 4).Pad(0, 0, 8, 0));
 
         var row = Ui.HBox(0);
@@ -71,7 +71,7 @@ public partial class TopBar : PanelContainer
         _era = Ui.Text("Древний мир", "Kick");
         _era.Uppercase = true;
         var text = Ui.VBox(1, _name, _era).Center();
-        _nationBox = NationBox(Pal.Hex(0x141417), false);
+        _nationBox = NationBox(Pal.Bar, false);
         _nationHover = NationBox(Pal.SurfaceHover, true);
         _nation = Ui.Panel(_nationBox, Ui.HBox(12, _flag, text), MouseFilterEnum.Stop);
         _nation.MouseDefaultCursorShape = CursorShape.PointingHand;
@@ -143,7 +143,7 @@ public partial class TopBar : PanelContainer
         _pips.SpeedPicked += s => Game.I.SetSpeed(s);
         _pips.SizeFlagsVertical = SizeFlags.ShrinkEnd;
         var pipsWrap = Ui.Margin(_pips, 0, 0, 0, 12);
-        _clockBox = new Box().Fill(Pal.Hex(0x111113)).Border(Pal.Ln2, 2, 0, 2, 0).Pad(12, 0, 14, 0);
+        _clockBox = new Box().Fill(Pal.Well).Border(Pal.Ln2, 2, 0, 2, 0).Pad(12, 0, 14, 0);
         _clock = Ui.Panel(_clockBox, Ui.HBox(12, _pause, _dateSlot, pipsWrap), MouseFilterEnum.Stop);
         SizeDateSlot();
         return _clock;

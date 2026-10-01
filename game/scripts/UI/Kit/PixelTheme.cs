@@ -11,6 +11,9 @@ public static class PixelTheme
 {
     static Theme _theme;
 
+    /// <summary>Forget the built theme (an era skin changed the colours); the next Build makes a new one.</summary>
+    public static void Invalidate() => _theme = null;
+
     public static Theme Build()
     {
         if (_theme != null) return _theme;
@@ -46,7 +49,7 @@ public static class PixelTheme
         t.SetStylebox("hover", type, ButtonBox(c.HoverFill, c.HoverBorder, 4, c.AccentLeft));
         t.SetStylebox("pressed", type, ButtonBox(c.PressedFill, c.HoverBorder, 1, c.AccentLeft));
         t.SetStylebox("hover_pressed", type, ButtonBox(c.PressedFill, c.HoverBorder, 1, c.AccentLeft));
-        t.SetStylebox("disabled", type, ButtonBox(Color.FromHtml("#141416"), Color.FromHtml("#26262a"), 0));
+        t.SetStylebox("disabled", type, ButtonBox(Pal.DisabledFill, Pal.DisabledLine, 0));
         var focus = PixelKit.Box(Colors.Transparent, PixelKit.AccentLight);
         focus.DrawCenter = false;
         focus.SetExpandMarginAll(4);
@@ -62,20 +65,20 @@ public static class PixelTheme
 
     static void Buttons(Theme t)
     {
-        var pressed = Color.FromHtml("#151517");
+        var pressed = Pal.Pressed;
         ButtonType(t, "Button", new(PixelKit.Surface, PixelKit.PanelBorder, PixelKit.SurfaceHover, PixelKit.Accent, pressed, PixelKit.Text, PixelKit.AccentLight));
 
         t.SetTypeVariation("BigButton", "Button");
-        ButtonType(t, "BigButton", new(Color.FromHtml("#1a1a1d"), PixelKit.PanelBorder, PixelKit.SurfaceHover, PixelKit.AccentLight, pressed, PixelKit.Text, PixelKit.AccentLight, true));
+        ButtonType(t, "BigButton", new(PixelKit.Panel.Lerp(PixelKit.Surface, .3f), PixelKit.PanelBorder, PixelKit.SurfaceHover, PixelKit.AccentLight, pressed, PixelKit.Text, PixelKit.AccentLight, true));
         t.SetFontSize("font_size", "BigButton", 22);
         t.SetFont("font", "BigButton", PixelKit.Spaced(2));
 
         // the main button is inverted: light fill, dark text
         t.SetTypeVariation("PrimaryButton", "Button");
-        ButtonType(t, "PrimaryButton", new(PixelKit.Accent, PixelKit.AccentLight, PixelKit.AccentLight, Colors.White, Color.FromHtml("#a8a8ad"), PixelKit.Ink, PixelKit.Ink));
+        ButtonType(t, "PrimaryButton", new(PixelKit.Accent, PixelKit.AccentLight, PixelKit.AccentLight, Pal.Max, Pal.AcPressed, PixelKit.OnAccent, PixelKit.Ink));
 
         t.SetTypeVariation("GhostButton", "Button");
-        ButtonType(t, "GhostButton", new(Color.FromHtml("#131315"), Color.FromHtml("#2a2a2e"), PixelKit.Surface, PixelKit.TextDim, Color.FromHtml("#0f0f11"), PixelKit.TextDim, PixelKit.Text));
+        ButtonType(t, "GhostButton", new(Pal.GhostFill, Pal.Ln, PixelKit.Surface, PixelKit.TextDim, Pal.GhostPressed, PixelKit.TextDim, PixelKit.Text));
         t.SetFontSize("font_size", "GhostButton", 16);
     }
 
@@ -99,7 +102,7 @@ public static class PixelTheme
     {
         foreach (var type in new[] { "LineEdit", "TextEdit" })
         {
-            t.SetStylebox("normal", type, PixelKit.Padded(PixelKit.Box(Color.FromHtml("#0b0b0d"), PixelKit.PanelBorder), 14, 8));
+            t.SetStylebox("normal", type, PixelKit.Padded(PixelKit.Box(Pal.Well, PixelKit.PanelBorder), 14, 8));
             t.SetStylebox("focus", type, PixelKit.Padded(PixelKit.Box(Colors.Transparent, PixelKit.AccentLight), 14, 8));
             t.SetColor("font_color", type, PixelKit.Text);
             t.SetColor("font_placeholder_color", type, PixelKit.TextMuted);
@@ -111,7 +114,7 @@ public static class PixelTheme
 
     static void Sliders(Theme t)
     {
-        t.SetStylebox("slider", "HSlider", PixelKit.Padded(PixelKit.Box(Color.FromHtml("#0b0b0d"), PixelKit.PanelBorder), 0, 4));
+        t.SetStylebox("slider", "HSlider", PixelKit.Padded(PixelKit.Box(Pal.Well, PixelKit.PanelBorder), 0, 4));
         t.SetStylebox("grabber_area", "HSlider", PixelKit.Padded(PixelKit.Box(PixelKit.AccentDark), 0, 4));
         t.SetStylebox("grabber_area_highlight", "HSlider", PixelKit.Padded(PixelKit.Box(PixelKit.Accent), 0, 4));
         t.SetIcon("grabber", "HSlider", SquareTexture(16, PixelKit.Accent));
@@ -130,7 +133,7 @@ public static class PixelTheme
 
     static void Scrollbars(Theme t)
     {
-        t.SetStylebox("scroll", "VScrollBar", PixelKit.Padded(PixelKit.Box(Color.FromHtml("#0b0b0d")), 3, 3));
+        t.SetStylebox("scroll", "VScrollBar", PixelKit.Padded(PixelKit.Box(Pal.Well), 3, 3));
         t.SetStylebox("grabber", "VScrollBar", PixelKit.Box(PixelKit.PanelBorder));
         t.SetStylebox("grabber_highlight", "VScrollBar", PixelKit.Box(PixelKit.AccentDark));
         t.SetStylebox("grabber_pressed", "VScrollBar", PixelKit.Box(PixelKit.Accent));
@@ -149,7 +152,7 @@ public static class PixelTheme
     static ImageTexture SwitchTexture(bool on, bool dimmed)
     {
         const int w = 44, h = 24;
-        var track = on ? PixelKit.AccentDark : Color.FromHtml("#26262a");
+        var track = on ? PixelKit.AccentDark : Pal.DisabledLine;
         var knob = on ? PixelKit.AccentLight : PixelKit.TextMuted;
         if (dimmed) { track.A = .4f; knob.A = .5f; }
         var img = Image.CreateEmpty(w, h, false, Image.Format.Rgba8);

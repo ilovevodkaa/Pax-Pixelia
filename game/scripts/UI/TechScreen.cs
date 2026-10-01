@@ -30,7 +30,7 @@ public partial class TechScreen : Control
         MouseFilter = MouseFilterEnum.Stop;
         SetAnchorsPreset(LayoutPreset.FullRect);
 
-        var backdrop = Ui.Panel(new Box().Fill(Pal.Hex(0x0f0f11)).Dither(Pal.Hex(0x16161a), Pal.Hex(0x0f0f11), 120).Grain(), null, MouseFilterEnum.Stop);
+        var backdrop = Ui.Panel(new Box().Fill(Pal.Well).Dither(Pal.Bar, Pal.Well, 120).Grain(), null, MouseFilterEnum.Stop);
         AddChild(backdrop);
         backdrop.SetAnchorsPreset(LayoutPreset.FullRect);
 
@@ -146,7 +146,7 @@ public partial class TechScreen : Control
             foreach (var (e, x, w) in _s._cols)
             {
                 bool hidden = e > era + 1 || Techs.CountIn(e) == 0 && e > era;
-                if (e == era) DrawRect(new Rect2(x, 0, w, h), new Color(1, 1, 1, .025f));
+                if (e == era) DrawRect(new Rect2(x, 0, w, h), new Color(Pal.Haze, .035f));
                 DrawRect(new Rect2(x, 0, 2, h), Pal.Ln);
                 string name = hidden ? "???" : Eras.Name(e);
                 var col = e == era ? Pal.Hi : e < era ? Pal.Mu : hidden ? Pal.Mu2 : Pal.Sec;
@@ -156,7 +156,7 @@ public partial class TechScreen : Control
                 if (hidden)
                 {
                     for (float yy = Top + EraHead; yy < h; yy += 6)
-                        for (float xx = x + 4 + (yy / 6 % 2) * 3; xx < x + w - 2; xx += 6) DrawRect(new Rect2(xx, yy, 2, 2), new Color(1, 1, 1, .035f));
+                        for (float xx = x + 4 + (yy / 6 % 2) * 3; xx < x + w - 2; xx += 6) DrawRect(new Rect2(xx, yy, 2, 2), new Color(Pal.Haze, .05f));
                     DrawString(font, new Vector2(x, Top + EraHead + Techs.Lanes.Length * RowH / 2f), "?", HorizontalAlignment.Center, w, 40, Pal.Ln2);
                 }
             }
@@ -165,7 +165,7 @@ public partial class TechScreen : Control
             for (int l = 0; l < Techs.Lanes.Length; l++)
             {
                 float y = Top + EraHead + l * RowH;
-                DrawRect(new Rect2(0, y, Size.X, 1), new Color(1, 1, 1, .04f));
+                DrawRect(new Rect2(0, y, Size.X, 1), new Color(Pal.Haze, .06f));
                 DrawString(plain, new Vector2(18, y + RowH / 2f + 5), Techs.Lanes[l], HorizontalAlignment.Left, LaneW - 24, UiFonts.Small, Pal.Mu);
             }
 
@@ -186,7 +186,7 @@ public partial class TechScreen : Control
             if (fx0 < float.MaxValue)
             {
                 var r = new Rect2(fx0 - 12, fy0 - 44, fx1 - fx0 + 24, fy1 - fy0 + 56);
-                DrawRect(r, new Color(1, 1, 1, .03f));
+                DrawRect(r, new Color(Pal.Haze, .04f));
                 Dashed(r, forkSeen ? Pal.Warn : Pal.Ln2);
                 DrawString(font, r.Position + new Vector2(10, 18), forkSeen ? "ВЕЛИКАЯ РАЗВИЛКА" : "???",
                     HorizontalAlignment.Left, r.Size.X - 20, UiFonts.Small, forkSeen ? Pal.Warn : Pal.Mu2);
@@ -218,7 +218,7 @@ public partial class TechScreen : Control
                         float x0 = p0.X + 10, x1 = p1.X - 12;
                         pts = new[] { p0, new Vector2(x0, p0.Y), new Vector2(x0, gutter), new Vector2(x1, gutter), new Vector2(x1, p1.Y), p1 };
                     }
-                    DrawPolyline(pts, new Color(0, 0, 0, .5f), 4);
+                    DrawPolyline(pts, new Color(Pal.Shadow, Pal.Light ? .25f : .5f), 4);
                     DrawPolyline(pts, c, 2);
                     DrawRect(new Rect2(p1.X - 5, p1.Y - 3, 5, 6), c);   // arrow stub
                 }
@@ -306,10 +306,10 @@ public partial class TechScreen : Control
             var st = _v.State;
             Color fill = st switch
             {
-                Game.TechState.Known => Pal.Hex(0x26262b),
-                Game.TechState.Studying => Pal.Hex(0x23252a),
+                Game.TechState.Known => Pal.Surface,
+                Game.TechState.Studying => Pal.SurfaceHover,
                 Game.TechState.Open => _hover ? Pal.SurfaceHover : Pal.Surface,
-                _ => Pal.Hex(0x141416),
+                _ => Pal.Well,
             };
             Color frame = st switch
             {
@@ -327,7 +327,7 @@ public partial class TechScreen : Control
             if (st == Game.TechState.Known) DrawRect(new Rect2(0, 0, 4, Size.Y), Pal.Ac);
             if (st == Game.TechState.Hidden)
                 for (float y = 4; y < Size.Y - 4; y += 4)
-                    for (float x = 4 + (y / 4 % 2) * 2; x < Size.X - 4; x += 4) DrawRect(new Rect2(x, y, 1, 1), new Color(1, 1, 1, .05f));
+                    for (float x = 4 + (y / 4 % 2) * 2; x < Size.X - 4; x += 4) DrawRect(new Rect2(x, y, 1, 1), new Color(Pal.Haze, .07f));
             if (st is Game.TechState.Studying or Game.TechState.Open && _v.Points > 0)
             {
                 float w = (Size.X - 8) * Mathf.Clamp(_v.Points / (float)Math.Max(1, _v.Cost), 0, 1);

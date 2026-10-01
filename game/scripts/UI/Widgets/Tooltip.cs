@@ -20,8 +20,8 @@ public partial class TipCard : PanelContainer
         MouseFilter = MouseFilterEnum.Ignore;
         Visible = false;
         TopLevel = false;
-        AddThemeStyleboxOverride("panel", new Box().Fill(Pal.A(Pal.Hex(0x141416), .98f)).Border(Pal.Ln3).Shadow(4)
-            .Rule(0, 2, Pal.Hex(0x222226)).Pad(12, 9, 12, 10));
+        AddThemeStyleboxOverride("panel", new Box().Fill(Pal.A(Pal.Popup, .98f)).Border(Pal.Ln3).Shadow(4)
+            .Rule(0, 2, Pal.Band).Pad(12, 9, 12, 10));
         _v = Ui.VBox(0);
         AddChild(_v);
         AddChild(_province);

@@ -130,7 +130,7 @@ public static class UiDebug
         grid.AddThemeConstantOverride("v_separation", 6);
         foreach (var name in PixelIconArt.Art.Keys)
         {
-            var inv = Ui.Panel(St.Inverted(), Ui.Icon(name, 1, Pal.Ink, shadow: false)).MinSize(20, 20);
+            var inv = Ui.Panel(St.Inverted(), Ui.Icon(name, 1, Pal.OnAc, shadow: false)).MinSize(20, 20);
             grid.AddChild(Ui.HBox(6, Ui.Icon(name, 1, Pal.Ac), Ui.Icon(name, 2, Pal.Ac), inv, Ui.Text(name, "SmallMu").MinSize(110, 0)));
         }
         var card = Ui.Panel(St.Card().Pad(16), grid, Control.MouseFilterEnum.Stop);

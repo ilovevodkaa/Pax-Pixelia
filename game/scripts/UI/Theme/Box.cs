@@ -151,21 +151,93 @@ public static class PixelTex
         return Bands[key] = ImageTexture.CreateFromImage(img);
     }
 
-    /// <summary>64×64 tile of sparse light/dark 2px specks — the subtle «film grain» over cards.</summary>
+    static SkinTexture _kind = SkinTexture.Specks;
+    static bool _light;
+
+    /// <summary>Switch the film over the cards (an era skin's texture); the tile is rebuilt on next use.</summary>
+    public static void SetTexture(SkinTexture kind, bool light)
+    {
+        if (kind == _kind && light == _light && _grain != null) return;
+        _kind = kind; _light = light; _grain = null;
+    }
+
+    static uint Hash(int x, int y, uint salt)
+    {
+        uint h = 2166136261 ^ salt;
+        h = (h ^ (uint)(x * 73856093 ^ y * 19349663)) * 16777619;
+        h ^= h >> 13; h *= 0x5bd1e995; h ^= h >> 15;
+        return h;
+    }
+
+    /// <summary>64×64 tile laid over every card: the skin's surface (specks, stone crumbs, papyrus fibres, parchment
+    /// stains, brushed metal, scanlines). Light skins darken, dark skins mostly lighten.</summary>
     public static Texture2D Grain
     {
         get
         {
             if (_grain != null) return _grain;
             var img = Image.CreateEmpty(64, 64, false, Image.Format.Rgba8);
-            uint h = 2166136261;
-            for (int y = 0; y < 32; y++)
-            for (int x = 0; x < 32; x++)
+            var lit = _light ? new Color(1, 1, 1, .18f) : new Color(1, 1, 1, .028f);
+            var dark = _light ? new Color(.25f, .14f, .04f, .07f) : new Color(0, 0, 0, .09f);
+            switch (_kind)
             {
-                h = (h ^ (uint)(x * 73856093 ^ y * 19349663)) * 16777619;
-                uint r = (h >> 8) % 100;
-                var c = r < 7 ? new Color(1, 1, 1, .022f) : r < 16 ? new Color(0, 0, 0, .09f) : Colors.Transparent;
-                if (c.A > 0) img.FillRect(new Rect2I(x * 2, y * 2, 2, 2), c);
+                case SkinTexture.Stone:
+                    for (int y = 0; y < 16; y++)
+                    for (int x = 0; x < 16; x++)
+                    {
+                        uint r = Hash(x, y, 11) % 100;
+                        if (r < 9) img.FillRect(new Rect2I(x * 4, y * 4, 2 + (int)(r % 3), 2 + (int)(r % 2) * 2), new Color(1, 1, 1, .035f));
+                        else if (r < 24) img.FillRect(new Rect2I(x * 4 + 1, y * 4 + 1, 2 + (int)(r % 2) * 2, 2), new Color(0, 0, 0, .11f));
+                    }
+                    break;
+                case SkinTexture.Fibre:
+                    for (int y = 0; y < 64; y += 2)
+                    {
+                        int x = (int)(Hash(0, y, 21) % 64), len = 6 + (int)(Hash(1, y, 21) % 22);
+                        img.FillRect(new Rect2I(x, y, Mathf.Min(len, 64 - x), 1), Hash(2, y, 21) % 3 == 0 ? lit : dark);
+                    }
+                    for (int x = 0; x < 64; x += 16) img.FillRect(new Rect2I(x + (int)(Hash(x, 3, 22) % 8), 0, 1, 64), new Color(dark, dark.A * .6f));
+                    break;
+                case SkinTexture.Parchment:
+                    for (int y = 0; y < 32; y++)
+                    for (int x = 0; x < 32; x++)
+                    {
+                        uint r = Hash(x, y, 31) % 100;
+                        if (r < 10) img.FillRect(new Rect2I(x * 2, y * 2, 2, 2), dark);
+                        else if (r < 14) img.FillRect(new Rect2I(x * 2, y * 2, 2, 2), lit);
+                    }
+                    for (int k = 0; k < 3; k++)   // soft stains
+                    {
+                        int cx = (int)(Hash(k, 7, 32) % 64), cy = (int)(Hash(k, 8, 32) % 64), rad = 6 + (int)(Hash(k, 9, 32) % 6);
+                        for (int y = -rad; y <= rad; y += 2)
+                        for (int x = -rad; x <= rad; x += 2)
+                            if (x * x + y * y <= rad * rad && Hash(x, y, (uint)k) % 3 == 0)
+                                img.FillRect(new Rect2I((cx + x) & 63 & ~1, (cy + y) & 63 & ~1, 2, 2), new Color(dark, dark.A * .8f));
+                    }
+                    break;
+                case SkinTexture.Brushed:
+                    for (int y = 0; y < 64; y++)
+                    {
+                        uint r = Hash(0, y, 41) % 100;
+                        if (r < 30) img.FillRect(new Rect2I(0, y, 64, 1), new Color(1, 1, 1, .012f + r % 4 * .004f));
+                        else if (r < 55) img.FillRect(new Rect2I(0, y, 64, 1), new Color(0, 0, 0, .05f));
+                    }
+                    break;
+                case SkinTexture.Scanlines:
+                    for (int y = 0; y < 64; y += 3) img.FillRect(new Rect2I(0, y, 64, 1), new Color(0, 0, 0, .16f));
+                    for (int y = 0; y < 32; y++)
+                    for (int x = 0; x < 32; x++)
+                        if (Hash(x, y, 51) % 100 < 3) img.FillRect(new Rect2I(x * 2, y * 2, 2, 2), new Color(.5f, 1, 1, .03f));
+                    break;
+                default:
+                    for (int y = 0; y < 32; y++)
+                    for (int x = 0; x < 32; x++)
+                    {
+                        uint r = Hash(x, y, 1) % 100;
+                        var c = r < 7 ? lit : r < 16 ? dark : Colors.Transparent;
+                        if (c.A > 0) img.FillRect(new Rect2I(x * 2, y * 2, 2, 2), c);
+                    }
+                    break;
             }
             return _grain = ImageTexture.CreateFromImage(img);
         }

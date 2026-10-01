@@ -40,6 +40,9 @@ public partial class Hud : CanvasLayer
     internal Control ForcedTip;
     internal ProvincePanel Panel => _panel;
     internal Leaderboard Lead => _lead;
+    /// <summary>Set before a rebuilt HUD enters the tree (a new era skin): the chronicle cards and the selection it keeps.</summary>
+    internal (List<(string icon, string text, string year)> Notes, int Selected)? Carry;
+    internal (List<(string icon, string text, string year)> Notes, int Selected) TakeCarry() => (_notes.Snapshot(), Game.I.Selected);
     internal TechScreen Tech => _tech;
     internal void DebugToggleTech() => ToggleTech();
     internal ChapterCard Loading => _loading;
@@ -162,6 +165,18 @@ public partial class Hud : CanvasLayer
         _legend.Refresh();
         _panel.Close();
         _notes.Clear();
+        if (Carry is { } carry)
+        {
+            // the same game in a new skin: keep the chronicle and what the player was looking at
+            Carry = null;
+            _notes.Restore(carry.Notes);
+            _lead.Refresh();
+            _tech.Refresh();
+            _top.SetResearchIdle(Game.I.ResearchIdle);
+            _tipDirty = true;
+            if (carry.Selected >= 0) Callable.From(() => Game.I.Select(carry.Selected)).CallDeferred();
+            return;
+        }
         _lead.Refresh();
         _tech.Refresh();
         _top.SetResearchIdle(Game.I.ResearchIdle);

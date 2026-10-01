@@ -36,6 +36,24 @@ public partial class Notifications : Control
         _queue.Enqueue((icon, text, year));
     }
 
+    /// <summary>What the stack shows and what waits (oldest first): carried into a rebuilt HUD (a new era skin).</summary>
+    public List<(string icon, string text, string year)> Snapshot()
+    {
+        var list = new List<(string, string, string)>();
+        for (int i = _notes.Count - 1; i >= 0; i--) if (!_notes[i].Dying) list.Add(_notes[i].Data);
+        list.AddRange(_queue);
+        return list;
+    }
+
+    /// <summary>Put carried notes back: the newest few appear at once, as they were.</summary>
+    public void Restore(List<(string icon, string text, string year)> notes)
+    {
+        foreach (var n in notes) _queue.Enqueue(n);
+        while (_queue.Count > MaxQueued) _queue.Dequeue();
+        while (_queue.Count > 0) Show(_queue.Dequeue());
+        foreach (var n in _notes) n.Modulate = Colors.White;
+    }
+
     public void Clear()
     {
         foreach (var c in GetChildren()) c.QueueFree();
@@ -99,6 +117,7 @@ public partial class Notifications : Control
     sealed partial class Note : PanelContainer
     {
         public bool Dying;
+        public (string icon, string text, string year) Data;
         public event System.Action Clicked;
         readonly TextureRect _x;
         readonly Box _normal = St.Card().Pad(8, 8, 8, 9);
@@ -107,6 +126,7 @@ public partial class Notifications : Control
         public Note() : this("info-circle", "", "") { }
         public Note(string icon, string text, string year)
         {
+            Data = (icon, text, year);
             MouseFilter = MouseFilterEnum.Stop;
             MouseDefaultCursorShape = CursorShape.PointingHand;
             AddThemeStyleboxOverride("panel", _normal);

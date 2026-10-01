@@ -21,12 +21,12 @@ public partial class EventWindow : PanelContainer
     {
         Visible = false;
         MouseFilter = MouseFilterEnum.Stop;
-        AddThemeStyleboxOverride("panel", new Box().Fill(Pal.A(Pal.Hex(0x141416), .98f)).Border(Pal.Ln3).Shadow(4).Pad(2));
+        AddThemeStyleboxOverride("panel", new Box().Fill(Pal.A(Pal.Popup, .98f)).Border(Pal.Ln3).Shadow(4).Pad(2));
         AnchorLeft = AnchorRight = .5f;
         OffsetTop = TopBar.Height + 70;
         GrowHorizontal = GrowDirection.Both;
 
-        _icon = Ui.Icon("feather", 2, Pal.Ink, shadow: false);
+        _icon = Ui.Icon("feather", 2, Pal.OnAc, shadow: false);
         _icon.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
         _icon.SizeFlagsVertical = SizeFlags.ShrinkBegin;
         var block = Ui.Panel(new Box().Fill(Pal.Ac).Pad(9), _icon);

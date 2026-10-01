@@ -11,26 +11,38 @@ namespace PaxPixelia.UI;
 public static class PixelKit
 {
     // ---- palette ----
-    public static readonly Color Bg = Color.FromHtml("#0e0e10");
-    public static readonly Color Panel = Color.FromHtml("#17171a");
-    public static readonly Color PanelBorder = Color.FromHtml("#3a3a40");
-    public static readonly Color Surface = Color.FromHtml("#202024");
-    public static readonly Color SurfaceHover = Color.FromHtml("#2c2c31");
-    public static readonly Color Text = Color.FromHtml("#d8d8da");
-    public static readonly Color TextDim = Color.FromHtml("#8f8f94");
-    public static readonly Color TextMuted = Color.FromHtml("#5c5c62");
+    public static Color Bg = Color.FromHtml("#0e0e10");
+    public static Color Panel = Color.FromHtml("#17171a");
+    public static Color PanelBorder = Color.FromHtml("#3a3a40");
+    public static Color Surface = Color.FromHtml("#202024");
+    public static Color SurfaceHover = Color.FromHtml("#2c2c31");
+    public static Color Text = Color.FromHtml("#d8d8da");
+    public static Color TextDim = Color.FromHtml("#8f8f94");
+    public static Color TextMuted = Color.FromHtml("#5c5c62");
     /// <summary>Main accent: light gray — important things stand out by brightness, not colour.</summary>
-    public static readonly Color Accent = Color.FromHtml("#c8c8cc");
-    public static readonly Color AccentLight = Color.FromHtml("#f0f0f2");
-    public static readonly Color AccentDark = Color.FromHtml("#6b6b70");
-    public static readonly Color Secondary = Color.FromHtml("#a3a3a8");
-    public static readonly Color Ink = Color.FromHtml("#0b0b0c");
+    public static Color Accent = Color.FromHtml("#c8c8cc");
+    public static Color AccentLight = Color.FromHtml("#f0f0f2");
+    public static Color AccentDark = Color.FromHtml("#6b6b70");
+    public static Color Secondary = Color.FromHtml("#a3a3a8");
+    public static Color Ink = Color.FromHtml("#0b0b0c");
     // statuses: barely tinted grays so they don't cut the eye
-    public static readonly Color Good = Color.FromHtml("#8aa88a");
-    public static readonly Color Bad = Color.FromHtml("#b07070");
-    public static readonly Color Info = Color.FromHtml("#8a93a8");
-    public static readonly Color Warn = Color.FromHtml("#bdbdb4");
-    public static readonly Color Shadow = new(0, 0, 0, 0.7f);
+    public static Color Good = Color.FromHtml("#8aa88a");
+    public static Color Bad = Color.FromHtml("#b07070");
+    public static Color Info = Color.FromHtml("#8a93a8");
+    public static Color Warn = Color.FromHtml("#bdbdb4");
+    public static Color Shadow = new(0, 0, 0, 0.7f);
+    /// <summary>Text and icons on an Accent fill (the inverted PrimaryButton): dark ink, or the card colour when the
+    /// accent itself is dark (the light papyrus and parchment skins).</summary>
+    public static Color OnAccent = Color.FromHtml("#0b0b0c");
+
+    /// <summary>Take the colours of an era skin (<see cref="EraSkin.Apply"/> rebuilds the themes afterwards).</summary>
+    public static void ApplySkin(EraSkin k)
+    {
+        Bg = k.Ink.Lerp(k.Well, .5f); Panel = k.Card; PanelBorder = k.Ln2; Surface = k.Surface; SurfaceHover = k.SurfaceHover;
+        Text = k.Tx; TextDim = k.Mu; TextMuted = k.Mu2; Accent = k.Ac; AccentLight = k.Hi; AccentDark = k.Ln3; Secondary = k.Sec;
+        Ink = k.Ink; Good = k.Ok; Bad = k.Bad; Info = k.Info; Warn = k.Warn; Shadow = k.Shadow;
+        OnAccent = k.Light ? k.Card : k.Ink;
+    }
     public static readonly Vector2 ShadowOffset = new(4, 4);
 
     /// <summary>Optional UI sound hook: (name, pitch) — "hover", "click". Set by the audio module when it exists.</summary>

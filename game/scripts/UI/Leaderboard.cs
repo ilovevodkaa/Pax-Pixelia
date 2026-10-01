@@ -121,7 +121,7 @@ public partial class Leaderboard : Control
             {
                 float half = 2 + i * 2, y = i * 2;
                 DrawRect(new Rect2(W / 2f - half, y, half * 2, 2), Pal.Ln2);
-                if (half > 2) DrawRect(new Rect2(W / 2f - half + 2, y, half * 2 - 4, 2), Pal.Hex(0x1f1f23));
+                if (half > 2) DrawRect(new Rect2(W / 2f - half + 2, y, half * 2 - 4, 2), Pal.Card);
             }
         }
     }

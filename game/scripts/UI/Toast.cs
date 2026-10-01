@@ -25,8 +25,8 @@ public partial class Toast : PanelContainer
         // Pass + accept only the wheel: clicks and motion fall through to the map (a pick toast must not hide the
         // provinces under it), while a wheel notch over the slip does not zoom the map
         MouseFilter = MouseFilterEnum.Pass;
-        AddThemeStyleboxOverride("panel", new Box().Fill(Pal.A(Pal.Hex(0x141416), .98f)).Border(Pal.Ln3).Shadow(4).Pad(2));
-        _icon = Ui.Icon("info-circle", 2, Pal.Ink, shadow: false);
+        AddThemeStyleboxOverride("panel", new Box().Fill(Pal.A(Pal.Popup, .98f)).Border(Pal.Ln3).Shadow(4).Pad(2));
+        _icon = Ui.Icon("info-circle", 2, Pal.OnAc, shadow: false);
         _icon.SizeFlagsHorizontal = SizeFlags.ShrinkCenter;
         _block = Ui.Panel(_graphite, _icon).MinSize(44, 40);
         _text = Ui.Text("", "Strong");
@@ -51,7 +51,7 @@ public partial class Toast : PanelContainer
             _text.CustomMinimumSize = Vector2.Zero;
         }
         _icon.Texture = Icons.Get(kind switch { ToastKind.Pick => "crosshair", ToastKind.Error => "alert-triangle", _ => "info-circle" }, 2, false);
-        _icon.SelfModulate = kind == ToastKind.Error ? Pal.Hex(0xe0b0b0) : Pal.Ink;
+        _icon.SelfModulate = kind == ToastKind.Error ? Pal.BadText : Pal.OnAc;
         _block.AddThemeStyleboxOverride("panel", kind == ToastKind.Error ? _red : _graphite);
         _left = seconds;
         if (!Visible) _age = 0;

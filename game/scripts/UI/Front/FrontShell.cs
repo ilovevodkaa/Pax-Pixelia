@@ -68,6 +68,7 @@ public partial class FrontShell : Control
 
     public override void _Ready()
     {
+        EraSkin.Apply(EraSkin.Graphite);   // the menus keep their own look; the game's HUD wears the era skins
         if (ShouldBypass(OS.GetCmdlineUserArgs()))
         {
             _bypassed = true;

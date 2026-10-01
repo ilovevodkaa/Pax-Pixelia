@@ -43,7 +43,7 @@ public partial class PauseMenu : Control
         Theme = PixelTheme.Build();
         TextureFilter = TextureFilterEnum.Nearest;
         Visible = false;
-        _shade = new ColorRect { Color = new Color(0.02f, 0.02f, 0.025f, 0.78f), MouseFilter = MouseFilterEnum.Ignore };
+        _shade = new ColorRect { Color = Pal.Light ? new Color(Pal.Ink, .55f) : new Color(Pal.Ink, .8f), MouseFilter = MouseFilterEnum.Ignore };
         _shade.SetAnchorsPreset(LayoutPreset.FullRect);
         AddChild(_shade);
         _center = new CenterContainer { MouseFilter = MouseFilterEnum.Ignore };

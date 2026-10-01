@@ -29,8 +29,12 @@ public partial class Main : Node
         AddChild(Map);
         Camera = new MapCamera { Name = "MapCamera" };
         AddChild(Camera);
+        EraSkin.Apply(EraSkin.ForGroup(0));   // the HUD wears its era's skin (a loaded save may switch it at WorldReady)
+        _skinGroup = 0;
         Hud = new Hud { Name = "Hud" };
         AddChild(Hud);
+        Game.I.EraChanged += OnEraChanged;
+        Game.I.WorldReady += OnSkinWorldReady;
         if (Cli.Has("selftest")) AddChild(new SelfTest(this));
         if (Cli.Has("perf")) AddChild(new PerfProbe(this));
         if (Cli.Has("qa")) AddChild(new QaTest(this));
@@ -70,6 +74,39 @@ public partial class Main : Node
             if (Cli.Has("quit")) GetTree().Quit();
         }
         else if (Cli.Has("quit")) GetTree().Quit();
+    }
+
+    int _skinGroup = -1;
+
+    void OnEraChanged(int era) => Callable.From(() => SyncSkin(carry: true)).CallDeferred();   // the same game goes on
+    void OnSkinWorldReady() => Callable.From(() => SyncSkin(carry: false)).CallDeferred();     // a new world or a save
+
+    /// <summary>The era group changed (a new era, a loaded save): the interface takes the group's skin — Костёр,
+    /// Глина, Перо, Латунь, Сигнал — and is rebuilt in the same place of the tree (input order unchanged).</summary>
+    void SyncSkin(bool carry)
+    {
+        if (!IsInsideTree() || Game.I == null || !Game.I.IsReady) return;
+        int g = EraSkin.Group(Game.I.EraIndex);
+        if (g == _skinGroup) return;
+        _skinGroup = g;
+        EraSkin.Apply(EraSkin.ForGroup(g));
+        if (Hud == null) return;
+        int at = Hud.GetIndex();
+        var old = Hud;
+        var kept = carry ? old.TakeCarry() : ((System.Collections.Generic.List<(string, string, string)>, int)?)null;
+        RemoveChild(old);
+        old.QueueFree();
+        Hud = new Hud { Name = "Hud", Carry = kept };
+        AddChild(Hud);
+        MoveChild(Hud, at);
+        GD.Print($"skin: {EraSkin.Current.Name} for {Game.I.EraName}");
+    }
+
+    public override void _ExitTree()
+    {
+        if (Game.I == null) return;
+        Game.I.EraChanged -= OnEraChanged;
+        Game.I.WorldReady -= OnSkinWorldReady;
     }
 
     /// <summary>A save chosen in the menu could not be loaded: back to the title, which shows the reason.</summary>

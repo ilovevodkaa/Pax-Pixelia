@@ -40,6 +40,9 @@ public static class UiTheme
 {
     static Theme _theme;
 
+    /// <summary>Forget the built theme (an era skin changed the colours).</summary>
+    public static void Invalidate() => _theme = null;
+
     public static Theme Build()
     {
         if (_theme != null) return _theme;
@@ -72,32 +75,32 @@ public static class UiTheme
         LabelRole(t, "Big", UiFonts.Spaced(6), UiFonts.Huge, Pal.Hi, shadow: 6);
 
         // ---- buttons ----
-        var disabled = Btn(Pal.Hex(0x141416), Pal.Hex(0x26262a), 0);
+        var disabled = Btn(Pal.DisabledFill, Pal.DisabledLine, 0);
         Skin(t, "Button", Btn(Pal.Surface, Pal.Ln2, 3), Btn(Pal.SurfaceHover, Pal.Ac, 3), Btn(Pal.Pressed, Pal.Ac, 0), disabled,
             Pal.Tx, Pal.Hi, UiFonts.Semi, UiFonts.Body, 12);
-        Skin(t, "Pri", Btn(Pal.Ac, Pal.Hi, 3), Btn(Pal.Hi, Colors.White, 3), Btn(Pal.Hex(0xa8a8ad), Colors.White, 0), disabled,
-            Pal.Ink, Pal.Ink, UiFonts.Semi, UiFonts.Body, 12);
-        Skin(t, "On", Btn(Pal.Ac, Pal.Hi, 3), Btn(Pal.Hi, Colors.White, 3), Btn(Pal.Hex(0xa8a8ad), Colors.White, 0), disabled,
-            Pal.Ink, Pal.Ink, UiFonts.Semi, UiFonts.Body, 12);
+        Skin(t, "Pri", Btn(Pal.Ac, Pal.Hi, 3), Btn(Pal.Hi, Pal.Max, 3), Btn(Pal.AcPressed, Pal.Max, 0), disabled,
+            Pal.OnAc, Pal.OnAc, UiFonts.Semi, UiFonts.Body, 12);
+        Skin(t, "On", Btn(Pal.Ac, Pal.Hi, 3), Btn(Pal.Hi, Pal.Max, 3), Btn(Pal.AcPressed, Pal.Max, 0), disabled,
+            Pal.OnAc, Pal.OnAc, UiFonts.Semi, UiFonts.Body, 12);
         Skin(t, "Sm", Btn(Pal.Surface, Pal.Ln2, 2), Btn(Pal.SurfaceHover, Pal.Ac, 2), Btn(Pal.Pressed, Pal.Ac, 0), disabled,
             Pal.Tx, Pal.Hi, UiFonts.Medium, UiFonts.Small, 9);
         Skin(t, "Menu", Btn(Pal.Surface, Pal.Ln, 0), Btn(Pal.SurfaceHover, Pal.Ln3, 0, accent: true), Btn(Pal.Pressed, Pal.Ac, 0), disabled,
             Pal.Tx, Pal.Hi, UiFonts.Medium, UiFonts.Small, 8);
-        Skin(t, "Ghost", Btn(Pal.Hex(0x131315), Pal.Hex(0x2a2a2e), 2), Btn(Pal.Surface, Pal.Mu, 2), Btn(Pal.Hex(0x0f0f11), Pal.Mu, 0), disabled,
+        Skin(t, "Ghost", Btn(Pal.GhostFill, Pal.Ln, 2), Btn(Pal.Surface, Pal.Mu, 2), Btn(Pal.GhostPressed, Pal.Mu, 0), disabled,
             Pal.Mu, Pal.Tx, UiFonts.Medium, UiFonts.Small, 9);
         // icon buttons of the strips: quiet until hovered; the active one is inverted
         Skin(t, "Ib", Btn(Colors.Transparent, Colors.Transparent, 0), Btn(Pal.Surface, Pal.Ln2, 0), Btn(Pal.Pressed, Pal.Ac, 0), disabled,
             Pal.Sec, Pal.Hi, UiFonts.Medium, UiFonts.Small, 0);
-        Skin(t, "IbOn", Btn(Pal.Ac, Pal.Hi, 2), Btn(Pal.Hi, Colors.White, 2), Btn(Pal.Hex(0xa8a8ad), Colors.White, 0), disabled,
-            Pal.Ink, Pal.Ink, UiFonts.Medium, UiFonts.Small, 0);
+        Skin(t, "IbOn", Btn(Pal.Ac, Pal.Hi, 2), Btn(Pal.Hi, Pal.Max, 2), Btn(Pal.AcPressed, Pal.Max, 0), disabled,
+            Pal.OnAc, Pal.OnAc, UiFonts.Medium, UiFonts.Small, 0);
         // the top bar's square screen buttons (Seg*) and the zoom group (ZL/ZR) share one framed skin
         foreach (var name in new[] { "Seg", "SegStart", "SegEnd", "ZL", "ZR", "Pause" })
             Skin(t, name, Btn(Pal.Surface, Pal.Ln2, 2), Btn(Pal.SurfaceHover, Pal.Ac, 2), Btn(Pal.Pressed, Pal.Ac, 0), disabled,
                 Pal.Tx, Pal.Hi, UiFonts.Semi, UiFonts.Small, 0);
-        Skin(t, "SegEndOn", Btn(Pal.Ac, Pal.Hi, 2), Btn(Pal.Hi, Colors.White, 2), Btn(Pal.Hex(0xa8a8ad), Colors.White, 0), disabled,
-            Pal.Ink, Pal.Ink, UiFonts.Semi, UiFonts.Small, 0);
-        Skin(t, "PauseRed", Btn(Pal.BadFill, Pal.Bad, 2), Btn(Pal.Hex(0x3a2728), Pal.Hex(0xd08a8a), 2), Btn(Pal.Hex(0x241819), Pal.Bad, 0), disabled,
-            Pal.Hex(0xe0b0b0), Pal.Hex(0xf0c8c8), UiFonts.Semi, UiFonts.Small, 0);
+        Skin(t, "SegEndOn", Btn(Pal.Ac, Pal.Hi, 2), Btn(Pal.Hi, Pal.Max, 2), Btn(Pal.AcPressed, Pal.Max, 0), disabled,
+            Pal.OnAc, Pal.OnAc, UiFonts.Semi, UiFonts.Small, 0);
+        Skin(t, "PauseRed", Btn(Pal.BadFill, Pal.Bad, 2), Btn(Pal.BadHover, Pal.BadTextHover, 2), Btn(Pal.BadPressed, Pal.Bad, 0), disabled,
+            Pal.BadText, Pal.BadTextHover, UiFonts.Semi, UiFonts.Small, 0);
         Skin(t, "X", Btn(Colors.Transparent, Colors.Transparent, 0), Btn(Pal.Surface, Pal.Ln3, 0), Btn(Pal.Pressed, Pal.Ac, 0), disabled,
             Pal.Mu, Pal.Hi, UiFonts.Medium, UiFonts.Small, 0);
         Skin(t, "Session", Btn(Colors.Transparent, Colors.Transparent, 0), Btn(Pal.Surface, Pal.Ln2, 0), Btn(Pal.Pressed, Pal.Ln3, 0), disabled,

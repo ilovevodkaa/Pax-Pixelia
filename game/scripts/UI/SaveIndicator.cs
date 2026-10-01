@@ -19,7 +19,7 @@ public partial class SaveIndicator : PanelContainer
         Name = "SaveIndicator";
         MouseFilter = MouseFilterEnum.Ignore;
         Visible = false;
-        AddThemeStyleboxOverride("panel", new Box().Fill(Pal.A(Pal.Hex(0x141416), .94f)).Border(Pal.Ln2).Shadow(3).Pad(10, 6));
+        AddThemeStyleboxOverride("panel", new Box().Fill(Pal.A(Pal.Popup, .94f)).Border(Pal.Ln2).Shadow(3).Pad(10, 6));
         _text = Ui.Text("Сохранено").Colored(Pal.Mu);
         AddChild(Ui.HBox(8, Ui.Icon("device-floppy", 1, Pal.Mu, shadow: false), _text));
     }
