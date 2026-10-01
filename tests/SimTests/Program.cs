@@ -55,6 +55,7 @@ public static class Program
         LeaderFaithTests.Run(w);
         TechTests.Run(w);
         NomadTests.Run(w);
+        ScoutOrderTests.Run(w);
         RumorTests.Run(w);
         BlitzTests.Run();
         ClimateTests.Run(w);

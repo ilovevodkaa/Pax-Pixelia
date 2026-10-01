@@ -283,6 +283,9 @@ public partial class MapView : Node2D
         _sprites.UpdateView(); _names.UpdateView(); _labels.QueueRedraw(); _scouts.QueueRedraw(); _rumors.QueueRedraw();
     }
 
+    /// <summary>The player's unit (scout party, tribe) drawn under a screen point, or none.</summary>
+    public UnitRef UnitAt(Vector2 screen) => _scouts?.UnitAt(screen) ?? default;
+
     /// <summary>Province id under a world position (x is wrapped), or -1 outside the world.</summary>
     public int ProvinceAt(Vector2 world)
     {

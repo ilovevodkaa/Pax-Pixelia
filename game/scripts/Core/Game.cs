@@ -60,6 +60,7 @@ public partial class Game : Node
     public override void _Ready()
     {
         AttachSimulation();   // Sim/GameActions.cs
+        AttachUnits();        // Core/Game.Units.cs
         AttachSaves();        // Core/Save/Game.Save.cs: autosave, playtime, the save on closing the window
     }
 
@@ -83,7 +84,7 @@ public partial class Game : Node
         ResetSaveInfo();
         _replay = null;   // a replay asked for by PrepareReplay is taken when the state is ready
         World = null; State = null; Seed = setup.Seed;
-        Hovered = -1; Selected = -1;
+        Hovered = -1; Selected = -1; SelectedUnit = default;
         ResetClock();
         // Progress marshals to the main thread; drop reports of a superseded run or ones arriving after WorldReady
         var progress = new Progress<string>(s => { if (gen == _generation && World == null) GenerationProgress?.Invoke(s); });
@@ -137,7 +138,7 @@ public partial class Game : Node
         _genCancel?.Cancel();
         World = null; State = null;
         ResetSaveInfo();
-        Hovered = -1; Selected = -1;
+        Hovered = -1; Selected = -1; SelectedUnit = default;
         Mode = MapMode.Political;
         ResetClock();
         GameEnded?.Invoke();

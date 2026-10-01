@@ -127,6 +127,7 @@ public static class ReplayTests
             (40, s => ClaimBest(w, s, 0)),
             (40, s => Cmd.Unpause(0)),
             (41, s => Cmd.ScoutAuto(0)),
+            (52, s => s.Scouts.FirstOrDefault(x => x.Nation == 0) is { } sc ? Cmd.ScoutMove(0, sc.Id, s.NationCapital[0]) : default),   // recalled mid-walk
             (60, s => Cmd.Research(0, Techs.Index("gathering"))),   // study, then switch mid-way: points stay with the first
             (200, s => Cmd.Research(0, Techs.Index("stone_tools"))),
             (299, s => Cmd.CheatTech(0, Techs.Index("stone_tools"))),   // the studied one learned by cheat: its points go to the pool

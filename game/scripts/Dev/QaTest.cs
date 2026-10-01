@@ -378,6 +378,8 @@ public partial class QaTest : Node
         G.BeginScoutTargeting();
         Check("third party refused (auto, manual, targeting)", auto && !third && !third2 && !G.IsTargeting && s.Scouts.Count == 2 && ErrorSince(t0, "в пути"), ToastsSince(t0));
 
+        await UnitOrderTests();
+
         // pause freezes the scouts
         await Seconds(.5);
         G.SetPaused(true);
@@ -1257,6 +1259,55 @@ public partial class QaTest : Node
                 if (d < maxDist && d > best) { best = d; target = q; }
             }
         return target;
+    }
+
+    /// <summary>RTS orders with real mouse events: a left click on a walking party picks it, a right click on the map
+    /// turns it there (a journaled ScoutMove), Esc drops the pick, a right click with nothing picked orders nothing.</summary>
+    async Task UnitOrderTests()
+    {
+        var w = G.World; var s = G.State;
+        if (s.Scouts.Count == 0) { Fail("unit orders", "no party walking"); return; }
+        G.SetPaused(true); await Frames(2);
+        var party = s.Scouts[0];
+        int at = Scouts.Current(party), sel = G.Selected;
+        G.JumpCamera(new Vector2(w.PCX[at], w.PCY[at])); await Seconds(.7);
+        // the figure: search the overlay's hit boxes around the party's province
+        var c = ScreenOf(at);
+        Vector2? fig = null;
+        for (int r = 0; r <= 80 && fig == null; r += 4)
+            for (int dx = -r; dx <= r && fig == null; dx += 4)
+                foreach (int dy in new[] { -r, r })
+                    if (Map.UnitAt(c + new Vector2(dx, dy)) == new UnitRef(UnitSel.Scout, party.Id)) { fig = c + new Vector2(dx, dy); break; }
+        if (fig == null) { Fail("unit orders: the party's figure is clickable", $"none near {c}"); G.SetPaused(false); return; }
+        Motion(fig.Value); await Frames(2);
+        ClickAt(fig.Value); await Frames(3);
+        Check("left click on a walking party picks it", G.SelectedUnit == new UnitRef(UnitSel.Scout, party.Id), $"{G.SelectedUnit}");
+        Check("picking a party keeps the province panel", G.Selected == sel, $"selected {sel} → {G.Selected}");
+        // land of the party's continent on the left part of the screen (clear of the panel and the bars), under the
+        // clouds or not: a party may walk into the unknown
+        var view = GetViewport().GetVisibleRect().Size;
+        int dest = -1;
+        for (int q = 0; q < w.P && dest < 0; q++)
+        {
+            if (q == at || w.PLand[q] != 1 || !w.SameBody(q, at)) continue;
+            var qp = ScreenOf(q);
+            if (qp.X > 60 && qp.X < view.X * .55f && qp.Y > 120 && qp.Y < view.Y - 200 && qp.DistanceTo(fig.Value) > 60) dest = q;
+        }
+        if (dest < 0) { Fail("unit orders: a target on screen", "no land of the party's continent on screen"); G.DeselectUnit(); G.SetPaused(false); return; }
+        var dp = ScreenOf(dest);
+        Motion(dp); await Frames(3);
+        await Shot("unit_order_preview");
+        int j0 = G.Journal.Count;
+        MouseButtonAt(dp, MouseButton.Right, true); MouseButtonAt(dp, MouseButton.Right, false); await Frames(3);
+        int hit = Map.ProvinceAt(Map.View.ToWorld(dp));
+        Check("right click turns the picked party there (journaled)", Scouts.Target(party) == hit && G.Journal.Skip(j0).Any(x => x.Type == CmdType.ScoutMove) && G.SelectedUnit.Any,
+            $"target {Scouts.Target(party)} vs {hit}");
+        PressKey(Key.Escape); await Frames(3);
+        Check("Esc drops the picked unit first, the panel stays", !G.SelectedUnit.Any && G.Selected == sel);
+        int j1 = G.Journal.Count;
+        MouseButtonAt(dp, MouseButton.Right, true); MouseButtonAt(dp, MouseButton.Right, false); await Frames(3);
+        Check("right click with nothing picked orders nothing", G.Journal.Count == j1 && Scouts.Target(party) == hit);
+        G.SetPaused(false);
     }
 
     Vector2 ScreenOf(int p)

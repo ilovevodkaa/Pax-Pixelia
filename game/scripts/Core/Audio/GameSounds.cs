@@ -206,7 +206,7 @@ public partial class GameSounds : Node
                 CmdType.Claim => "claim",
                 CmdType.Build => "build",
                 CmdType.Survey => (uint)c.A < (uint)_g.State.Ore.Length && _g.State.Ore[c.A] >= 0 ? "ore" : "survey",
-                CmdType.ScoutTo or CmdType.ScoutAuto => "scouts_out",
+                CmdType.ScoutTo or CmdType.ScoutAuto or CmdType.ScoutMove => "scouts_out",
                 CmdType.CheatGold => "coins",
                 _ => null,
             };

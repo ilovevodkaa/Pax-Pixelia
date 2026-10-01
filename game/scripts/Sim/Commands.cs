@@ -36,6 +36,8 @@ public enum CmdType : byte
     Excavate,
     // adopt dogma A for the nation's faith
     Dogma,
+    // turn the nation's scout party A (its Scout.Id) to province B
+    ScoutMove,
 }
 
 /// <summary>
@@ -65,6 +67,7 @@ public readonly record struct Cmd(int Tick, byte Nation, ushort Seq, CmdType Typ
     public static Cmd Relief(int n, int province) => new(0, (byte)n, 0, CmdType.Relief, province);
     public static Cmd Gift(int n, int to) => new(0, (byte)n, 0, CmdType.Gift, to);
     public static Cmd Dogma(int n, int dogma) => new(0, (byte)n, 0, CmdType.Dogma, dogma);
+    public static Cmd ScoutMove(int n, int scoutId, int province) => new(0, (byte)n, 0, CmdType.ScoutMove, scoutId, province);
     public static Cmd Pact(int n, int with, bool on) => new(0, (byte)n, 0, CmdType.Pact, with, on ? 1 : 0);
     public static Cmd DemandTribute(int n, int from) => new(0, (byte)n, 0, CmdType.DemandTribute, from);
     public static Cmd AnswerDemand(int n, bool pay) => new(0, (byte)n, 0, CmdType.AnswerDemand, pay ? 1 : 0);
@@ -137,6 +140,8 @@ public static class Commands
                 return (int)Scouts.Send(w, s, n, c.A, sink, out _);
             case CmdType.ScoutAuto:
                 return (int)Scouts.Send(w, s, n, -1, sink, out _);
+            case CmdType.ScoutMove:
+                return (int)Scouts.Redirect(w, s, n, c.A, c.B);
             case CmdType.Pause: s.Paused = true; return 0;
             case CmdType.Unpause: s.Paused = false; return 0;
             case CmdType.SetSpeed: s.Speed = IntMath.Clamp(c.A, Clock.MinSpeed, Clock.MaxSpeed); return 0;

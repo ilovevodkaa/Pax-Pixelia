@@ -636,7 +636,25 @@ public partial class ProvincePanel : PanelContainer
             for (int i = 0; i < n; i++)
             {
                 var text = Ui.Text("", "Strong"); var meta = Ui.Text("", "SmallMu");
-                _scoutRows.AddChild(Kit.Row("walk", null, textLabel: text, metaLabel: meta));
+                var row = Kit.Row("walk", null, textLabel: text, metaLabel: meta);
+                // a click on the row picks the party (the row index is read at click time: rows follow the list order)
+                int index = i;
+                row.MouseFilter = MouseFilterEnum.Stop;
+                row.MouseDefaultCursorShape = CursorShape.PointingHand;
+                row.GuiInput += e =>
+                {
+                    if (e is not InputEventMouseButton { ButtonIndex: MouseButton.Left, Pressed: true }) return;
+                    row.AcceptEvent();
+                    var list = Game.I.State?.Scouts;
+                    if (list == null || index >= list.Count) return;
+                    var sc = list[index];
+                    Game.I.SelectUnit(new UnitRef(UnitSel.Scout, sc.Id));
+                    var wd = Game.I.World;
+                    int at = Scouts.Current(sc);
+                    Game.I.JumpCamera(new Vector2(wd.PCX[at] + .5f, wd.PCY[at] + .5f));
+                };
+                row.Tip("Разведчики", "Щёлкните, чтобы выбрать отряд, затем ПКМ по карте — куда ему идти.");
+                _scoutRows.AddChild(row);
                 _scoutRowLabels.Add((text, meta));
             }
         }
@@ -647,8 +665,11 @@ public partial class ProvincePanel : PanelContainer
             if (sc.Path == null || sc.Path.Length == 0) continue;
             int target = sc.Path[^1], left = Math.Max(0, sc.Path.Length - 1 - sc.Step);
             var (text, meta) = _scoutRowLabels[i];
+            bool picked = Game.I.SelectedUnit == new UnitRef(UnitSel.Scout, sc.Id);
             text.Text = sc.Auto ? "Свободный поиск" : "Цель: " + (FogOf(target) > 0 ? w.PName[target] : "неизведанные земли");
-            meta.Text = sc.Auto ? $"разведано {Game.I.ScoutFound(sc)}" : $"ещё {left} {Fmt.Plural(left, "провинция", "провинции", "провинций")}";
+            meta.Text = picked ? "выбраны · ПКМ — куда"
+                : sc.Auto ? $"разведано {Game.I.ScoutFound(sc)}" : $"ещё {left} {Fmt.Plural(left, "провинция", "провинции", "провинций")}";
+            if (picked) text.Colored(Pal.Hi); else text.RemoveThemeColorOverride("font_color");
         }
 
         bool targeting = Game.I.IsTargeting;

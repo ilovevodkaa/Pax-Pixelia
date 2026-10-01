@@ -49,14 +49,26 @@ public partial class ProvinceTipView : VBoxContainer
         bool land = w.PLand[p] == 1, picking = g.IsTargeting;
 
         _stale.Visible = f == 1;
-        _pick.Visible = picking;
+        _pick.Visible = picking || g.SelectedUnit.Any;
+        if (!picking && g.SelectedUnit.Any)
+        {
+            // a picked unit: what a right click here would do
+            string why = g.OrderProblem(p);
+            bool tribe = g.SelectedUnit.Kind == UnitSel.Tribe;
+            _pickIcon.Texture = Icons.Get(why == null ? "map-pin" : "ban");
+            _pickIcon.SelfModulate = why == null ? Pal.Ac : Pal.Bad;
+            _pickText.Text = why ?? (tribe ? (p == g.Camp && g.Me.CampPath != null ? "ПКМ — остановить род" : "ПКМ — вести род сюда")
+                                           : "ПКМ — отправить разведчиков сюда");
+            _pickText.Colored(why == null ? Pal.Hi : Pal.Bad);
+        }
         if (picking)
         {
             // under the clouds even land and sea are unknown: every unexplored province looks like a valid pick
             bool ok = land || f == 0;
             _pickIcon.Texture = Icons.Get(ok ? "map-pin" : "ban");
             _pickIcon.SelfModulate = ok ? Pal.Ac : Pal.Bad;
-            _pickText.Text = ok ? "Отправить разведчиков сюда" : "Разведчики ходят только по суше";
+            _pickText.Text = g.TargetingTribe ? (ok ? "Вести род сюда" : "Племя не ходит по морю")
+                : ok ? "Отправить разведчиков сюда" : "Разведчики ходят только по суше";
             _pickText.Colored(ok ? Pal.Hi : Pal.Bad);
         }
 

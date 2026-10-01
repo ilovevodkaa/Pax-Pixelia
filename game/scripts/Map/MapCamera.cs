@@ -10,6 +10,8 @@ namespace PaxPixelia.Map;
 /// horizontal wrap (centre x kept in [0, W)), vertical clamp below the top bar. Only map input is handled here
 /// (_UnhandledInput), so UI controls keep theirs; the wheel over a UI card never zooms the map under it.
 /// Hover → Game.Hover, click → Game.Select or Game.SendScout while scout targeting, Esc → cancel / deselect.
+/// Units (RTS style): a left click on the player's scout party or tribe picks it (Game.SelectUnit), a right click on a
+/// province orders the picked unit there (Game.OrderUnit); a right click while aiming still only cancels the aim.
 /// Publishes Game.CameraRect / ZoomLevel (+ CameraMoved) and serves JumpCamera / RequestZoom.
 /// Not a Camera2D: it drives MapView's world transform directly, so the screen-space overlays stay in sync.
 /// </summary>
@@ -55,6 +57,7 @@ public partial class MapCamera : Node
         g.CameraJumpRequested += OnJump;
         g.ZoomRequested += OnZoomRequested;
         g.TargetingChanged += OnTargeting;
+        g.UnitSelected += RefreshCursor;
         GetViewport().SizeChanged += OnResized;
         GetWindow().MouseExited += OnMouseLeftWindow;
         if (g.IsReady) OnWorldReady();
@@ -70,6 +73,7 @@ public partial class MapCamera : Node
         g.CameraJumpRequested -= OnJump;
         g.ZoomRequested -= OnZoomRequested;
         g.TargetingChanged -= OnTargeting;
+        g.UnitSelected -= RefreshCursor;
     }
 
     void OnWorldReady()
@@ -192,7 +196,7 @@ public partial class MapCamera : Node
         }
         if (moved) ApplyView(false);
         // the pointer left the map for a UI control (motion no longer reaches _UnhandledInput): drop our hover once
-        if (_wasOnMap && !_mouseOnMap && !_dragging) Game.I.Hover(-1);
+        if (_wasOnMap && !_mouseOnMap && !_dragging) { Game.I.Hover(-1); RefreshCursor(); }
         else if (moved && _mouseOnMap && !_dragging) UpdateHover();
         _wasOnMap = _mouseOnMap;
     }
@@ -280,7 +284,7 @@ public partial class MapCamera : Node
                 if (_pressed && !_dragging && mm.Position.DistanceTo(_pressPos) > DragThreshold)
                 {
                     _dragging = true;
-                    Input.SetDefaultCursorShape(Input.CursorShape.Drag);
+                    RefreshCursor();
                 }
                 if (_dragging) DragTo(mm.Position);
                 else UpdateHover();
@@ -308,7 +312,14 @@ public partial class MapCamera : Node
                 }
                 else if (mb.ButtonIndex == MouseButton.Right && mb.Pressed && Game.I.IsTargeting)
                 {
-                    Game.I.CancelScoutTargeting();
+                    Game.I.CancelScoutTargeting();   // aiming first: a right click only cancels it
+                    GetViewport().SetInputAsHandled();
+                }
+                else if (mb.ButtonIndex == MouseButton.Right && mb.Pressed && Game.I.SelectedUnit.Any)
+                {
+                    int p = ProvinceAtScreen(mb.Position);
+                    if (p >= 0) Game.I.OrderUnit(p);
+                    RefreshCursor();
                     GetViewport().SetInputAsHandled();
                 }
                 break;
@@ -349,20 +360,55 @@ public partial class MapCamera : Node
 
     void EndDrag()
     {
-        if (_dragging) Input.SetDefaultCursorShape(Game.I.IsTargeting ? Input.CursorShape.Cross : Input.CursorShape.Arrow);
         _pressed = _dragging = false;
+        RefreshCursor();
     }
 
     void Click(Vector2 screen)
     {
         int p = ProvinceAtScreen(screen);
-        if (Game.I.IsTargeting) { if (p >= 0) Game.I.PickTarget(p); }
-        else Game.I.Select(p);
+        if (Game.I.IsTargeting) { if (p >= 0) Game.I.PickTarget(p); return; }
+        var u = MapView.Current?.UnitAt(screen) ?? default;
+        if (u.Any)
+        {
+            bool again = u == Game.I.SelectedUnit;
+            Game.I.SelectUnit(u);
+            if (u.Kind == UnitSel.Tribe) Game.I.Select(Game.I.Camp);   // the camp's panel is the tribe's card
+            if (!again) Game.I.ShowToast(u.Kind == UnitSel.Tribe ? "Род выбран · ПКМ по карте — куда идти · Esc — снять выбор"
+                                                                 : "Разведчики выбраны · ПКМ по карте — куда идти · Esc — снять выбор");
+            return;
+        }
+        Game.I.DeselectUnit();
+        Game.I.Select(p);
     }
 
-    void UpdateHover() => Game.I.Hover(ProvinceAtScreen(_mouse));
+    void UpdateHover()
+    {
+        Game.I.Hover(ProvinceAtScreen(_mouse));
+        RefreshCursor();
+    }
+
+    Input.CursorShape _cursor = Input.CursorShape.Arrow;
+
+    /// <summary>One place decides the map cursor: drag, aim, a unit under the mouse, where a picked unit can go.</summary>
+    void RefreshCursor()
+    {
+        var g = Game.I;
+        var c = Input.CursorShape.Arrow;
+        if (_dragging) c = Input.CursorShape.Drag;
+        else if (g.IsTargeting) c = Input.CursorShape.Cross;
+        else if (_mouseOnMap && g.IsReady && (MapView.Current?.UnitAt(_mouse).Any ?? false)) c = Input.CursorShape.PointingHand;
+        else if (_mouseOnMap && g.SelectedUnit.Any && g.Hovered >= 0)
+        {
+            g.PreviewOrder(g.Hovered, out bool ok);
+            c = ok ? Input.CursorShape.Cross : Input.CursorShape.Forbidden;
+        }
+        if (c == _cursor) return;
+        _cursor = c;
+        Input.SetDefaultCursorShape(c);
+    }
 
     int ProvinceAtScreen(Vector2 screen) => MapView.Current?.ProvinceAt(ScreenToWorld(screen)) ?? -1;
 
-    void OnTargeting(bool on) => Input.SetDefaultCursorShape(on ? Input.CursorShape.Cross : Input.CursorShape.Arrow);
+    void OnTargeting(bool on) => RefreshCursor();
 }

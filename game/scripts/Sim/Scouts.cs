@@ -4,7 +4,7 @@ using PaxPixelia.World;
 
 namespace PaxPixelia.Sim;
 
-public enum ScoutError { None, Max, Sea, Here, Far, NoTargets }
+public enum ScoutError { None, Max, Sea, Here, Far, NoTargets, NoParty }   // append only: values travel as command results
 
 /// <summary>What one tick of scout movement did (the UI refreshes its scout box only when something happened).</summary>
 public readonly record struct ScoutTick(int Steps, int Finished)
@@ -76,6 +76,52 @@ public static class Scouts
         };
         s.Scouts.Add(scout);
         scout.Found += FogOfWar.RefreshNation(w, s, n, sink);
+        return ScoutError.None;
+    }
+
+    /// <summary>Nation n's party by its stable id, or null (ids survive saves; list indices do not).</summary>
+    public static GameState.Scout Find(GameState s, int n, int id)
+    {
+        foreach (var sc in s.Scouts) if (sc.Id == id && sc.Nation == n) return sc;
+        return null;
+    }
+
+    /// <summary>
+    /// Why party id of nation n cannot turn to target now; on success the new path. A party in the middle of a hop
+    /// first finishes it (path = [here, next, …]), so it never jumps back and its vision never moves; standing still,
+    /// it sets out from where it stands. A target under the clouds is fine, as for a party sent from the capital.
+    /// </summary>
+    public static ScoutError CheckRedirect(WorldData w, GameState s, int n, int id, int target, out int[] path)
+    {
+        path = null;
+        var sc = Find(s, n, id);
+        if (sc == null || sc.Path == null || sc.Path.Length == 0) return ScoutError.NoParty;
+        if ((uint)target >= (uint)w.P || w.PLand[target] != 1) return ScoutError.Sea;
+        int cur = Current(sc);
+        bool hop = sc.Sub > 0 && sc.Step + 1 < sc.Path.Length;
+        int from = hop ? sc.Path[sc.Step + 1] : cur;
+        if (!hop && target == cur) return ScoutError.Here;
+        var bfs = SimScratch.For(w, s).A;
+        bfs.RunLand(w, stackalloc int[] { from });
+        var route = bfs.Trace(target);
+        if (route == null) return ScoutError.Far;
+        if (!hop) { path = route; return ScoutError.None; }
+        path = new int[route.Length + 1];
+        path[0] = cur;
+        route.CopyTo(path, 1);
+        return ScoutError.None;
+    }
+
+    /// <summary>Turn nation n's party id to target (an auto party becomes a sent one and comes back on arrival).</summary>
+    public static ScoutError Redirect(WorldData w, GameState s, int n, int id, int target)
+    {
+        var err = CheckRedirect(w, s, n, id, target, out var path);
+        if (err != ScoutError.None) return err;
+        var sc = Find(s, n, id);
+        sc.Path = path;
+        sc.Step = 0;   // Path[0] is where it stands: Current, and so its vision, stay put; Sub keeps the hop under way
+        sc.Auto = false;
+        sc.MaxSteps = int.MaxValue;
         return ScoutError.None;
     }
 

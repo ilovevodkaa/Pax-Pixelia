@@ -10,7 +10,8 @@ namespace PaxPixelia.UI;
 /// «Mr. President» look), built in code: top bar, notifications, map-mode strip + minimap, province panel, leaderboard,
 /// toast, tooltip, chapter card (the loading screen) and the pause menu.
 /// Talks to the rest of the game only through <see cref="Game.I"/> events and actions.
-/// Keyboard: Space pause, 1–5 speed, Esc cancels scout targeting → closes the leaderboard → closes the panel → pause menu.
+/// Keyboard: Space pause, 1–5 speed, Esc cancels scout targeting → drops the picked unit → closes the leaderboard →
+/// closes the panel → pause menu.
 /// </summary>
 public partial class Hud : CanvasLayer
 {
@@ -165,6 +166,7 @@ public partial class Hud : CanvasLayer
             g.ScoutsChanged += OnScoutsChanged;
             g.ResearchChanged += OnResearchChanged;
             g.TribeChanged += OnTribeChanged;
+            g.UnitSelected += OnUnitSelected;
         }
         else
         {
@@ -175,6 +177,7 @@ public partial class Hud : CanvasLayer
             g.ScoutsChanged -= OnScoutsChanged;
             g.ResearchChanged -= OnResearchChanged;
             g.TribeChanged -= OnTribeChanged;
+            g.UnitSelected -= OnUnitSelected;
         }
     }
 
@@ -292,6 +295,13 @@ public partial class Hud : CanvasLayer
         bool paused = !Game.I.State.Paused;
         Game.I.SetPaused(paused);
         if (paused) Game.I.ShowToast("Пауза. В сетевой игре все видят, кто её поставил.");
+    }
+
+    /// <summary>A unit was picked or dropped: the hover tip tells what a right click would do, the scout rows mark the pick.</summary>
+    void OnUnitSelected()
+    {
+        _tipDirty = true;
+        _panel.OnScoutsChanged();
     }
 
     void ToggleFog()
@@ -444,6 +454,7 @@ public partial class Hud : CanvasLayer
             case Key.Escape:
                 if (_tech.Visible) ToggleTech();
                 else if (Game.I.IsTargeting) Game.I.CancelScoutTargeting();
+                else if (Game.I.SelectedUnit.Any) Game.I.DeselectUnit();
                 else if (_lead.Visible) ToggleLeaderboard();
                 else if (_policy.Visible) TogglePolicy();
                 else if (_wonders.Visible) ToggleWonders();

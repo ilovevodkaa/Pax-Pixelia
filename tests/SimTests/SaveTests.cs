@@ -129,6 +129,7 @@ public static class SaveTests
             (40, s => ClaimBest(w, s)),
             (40, s => ClaimBest(w, s)),
             (41, s => Cmd.ScoutAuto(0)),
+            (52, s => s.Scouts.LastOrDefault(x => x.Nation == 0) is { } sc ? Cmd.ScoutMove(0, sc.Id, s.NationCapital[0]) : default),   // a recalled party at the save points
             (60, s => Cmd.Research(0, Techs.Index("hunting"))),   // a study under way at the save points
             (299, s => Cmd.CheatTech(0, Techs.SurveyTech)),
             (299, s => Cmd.CheatTech(0, 4)),
