@@ -110,6 +110,7 @@ public static class Scouts
             sc.Progress = sc.Sub / (float)SubSteps; // pax-allow: render-only
             if (!done) continue;
             s.Scouts.RemoveAt(i--); finished++;
+            Character.OnScoutsBack(s, sc.Nation);
             batch.Add(s, FogOfWar.Recompute(w, s, sc.Nation), sink);   // its vision leaves with it
             if (s.Nat[sc.Nation].Human) sink?.Notify("map-2", ReturnText(w, sc));
         }

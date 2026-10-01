@@ -46,6 +46,13 @@ public sealed class NationState
     public int TribePop;                // people of the tribe, they found the capital
     public int Legends;                 // bit l: Nomads.Legends[l] collected
     public int Myth = -1;               // the legend that became the nation's myth at the founding
+    // ---- the character of the people (Character.cs) ----
+    public int[] CharA, CharB;          // per scale: deeds towards the left / right pole (units × 1000, decaying)
+    public sbyte[] CharLevel;           // per scale: −2 left essence … 2 right essence
+    public short[] CharHeld;            // per scale: cycles the essence has held (hardens at Character.HardenCycles)
+    public int CharTraits;              // bit t: Character.Traits[t] earned; from bit Character.HardenedBit: hardened poles
+    public int FirstTechs;              // technologies this nation learned first in the world
+    public int[] CharFx;                // derived: the bonuses of the above per TechFx (Character.Refresh), never saved
     public NationFog Fog;
 
     public bool Human => Control == NationControl.Human;

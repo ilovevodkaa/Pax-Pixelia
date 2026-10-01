@@ -162,7 +162,9 @@ public partial class TopBar : PanelContainer
         _nation.Tip(t =>
         {
             var n = Game.I.Nations[GameState.LocalPlayer];
-            t.Title(n.Name).Line($"{n.Gov} · {Game.I.EraName}").Mu("Нажмите, чтобы показать столицу");
+            t.Title(n.Name).Line($"{n.Gov} · {Game.I.EraName}");
+            if (Game.I.IsReady) CharacterTip.Fill(t, Game.I.State.Nat[GameState.LocalPlayer]);
+            t.Mu("Нажмите, чтобы показать столицу");
         });
         _res[0].Root.Tip(t =>
         {

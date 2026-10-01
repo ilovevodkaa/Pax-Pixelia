@@ -296,6 +296,7 @@ public static class Nomads
         foreach (int q in w.Adj[p]) if (w.PLand[q] == 1 && s.Owner[q] < 0 && !Cities.IsCity(s, q)) Take(q);
         nat.Materials += nat.Supplies / 2;
         nat.Myth = myth >= 0 && HasLegend(nat, myth) ? myth : -1;
+        if (nat.Myth >= 0) Character.OnMyth(s, n, nat.Myth);
         nat.Camp = -1; nat.CampPath = null; nat.CampStep = 0; nat.CampSub = 0;
         nat.TribePop = 0;
         if (s.City != null) Cities.Reassign(w, s, n);

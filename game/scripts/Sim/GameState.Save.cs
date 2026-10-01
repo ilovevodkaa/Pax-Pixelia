@@ -22,7 +22,7 @@ namespace PaxPixelia.Sim;
 public sealed partial class GameState
 {
     /// <summary>Layout version of the snapshot (the save file carries it; older layouts are read field by field).</summary>
-    public const int SnapshotVersion = 5;   // 2: materials · 3: technologies · 4: the nomad phase · 5: techs past 64
+    public const int SnapshotVersion = 6;   // 2: materials · 3: technologies · 4: the nomad phase · 5: techs past 64 · 6: character
 
     const int MaxNations = 255;
 
@@ -103,6 +103,16 @@ public sealed partial class GameState
 
         // ---- the event deck ----
         WriteEvents(w, Events);
+
+        // ---- the character of each people (6) ----
+        w.Write(Character.Count);
+        for (int n = 0; n < nN; n++)
+        {
+            var x = Nat[n];
+            if (x.CharA == null) Character.Init(x);
+            for (int k = 0; k < Character.Count; k++) { w.Write(x.CharA[k]); w.Write(x.CharB[k]); w.Write(x.CharLevel[k]); w.Write(x.CharHeld[k]); }
+            w.Write(x.CharTraits); w.Write(x.FirstTechs);
+        }
     }
 
     /// <summary>
@@ -229,6 +239,26 @@ public sealed partial class GameState
         }
 
         ReadEvents(r, s, world, content, jokePercent);
+
+        foreach (var x in s.Nat) Character.Init(x);   // before 6: no character yet, deeds start from here
+        if (version >= 6)
+        {
+            int scales = r.ReadInt32();
+            Require(scales >= 0 && scales <= 64, "character");
+            foreach (var x in s.Nat)
+            {
+                for (int k = 0; k < scales; k++)
+                {
+                    int a = r.ReadInt32(), b = r.ReadInt32(); sbyte lvl = r.ReadSByte(); short held = r.ReadInt16();
+                    Require(a >= 0 && b >= 0 && lvl >= -2 && lvl <= 2 && held >= 0, "character");
+                    if (k >= Character.Count) continue;   // a newer build's extra scale
+                    x.CharA[k] = a; x.CharB[k] = b; x.CharLevel[k] = lvl; x.CharHeld[k] = held;
+                }
+                x.CharTraits = r.ReadInt32(); x.FirstTechs = r.ReadInt32();
+                Require(x.FirstTechs >= 0, "character");
+                Character.Refresh(x);
+            }
+        }
         return s;
     }
 

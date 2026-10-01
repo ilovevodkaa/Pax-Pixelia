@@ -84,6 +84,7 @@ public static class Commands
                 var e = Rules.CheckClaim(w, s, c.A, n);
                 if (e != ClaimError.None) return (int)e;
                 Rules.Claim(w, s, c.A, n);
+                Character.OnClaim(w, s, c.A, n);
                 Changed(w, s, c.A, sink, batch, fog: true);
                 return 0;
             }
@@ -92,6 +93,7 @@ public static class Commands
                 var e = Rules.CheckBuild(w, s, c.A, (Bld)c.B, n);
                 if (e != BuildError.None) return (int)e;
                 Rules.Build(s, c.A, (Bld)c.B, n);
+                Character.OnBuild(s, n, (Bld)c.B);
                 Simulation.SyncQueue(s, n);   // building the capital's current project by hand moves its queue on
                 Changed(w, s, c.A, sink, batch, fog: false);
                 return 0;
@@ -101,6 +103,7 @@ public static class Commands
                 var e = Rules.CheckSurvey(s, c.A, n);
                 if (e != SurveyError.None) return (int)e;
                 Rules.Survey(s, c.A, n);
+                Character.OnSurvey(s, n);
                 Changed(w, s, c.A, sink, batch, fog: false);
                 return 0;
             }
@@ -119,6 +122,7 @@ public static class Commands
                 var e = Cities.Check(w, s, c.A, n);
                 if (e != FoundError.None) return (int)e;
                 Cities.Found(w, s, c.A, n);
+                Character.OnFound(s, n);
                 Changed(w, s, c.A, sink, batch, fog: true);
                 return 0;
             }

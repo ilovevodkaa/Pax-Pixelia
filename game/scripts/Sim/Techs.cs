@@ -281,7 +281,7 @@ public static class Techs
     /// <summary>Sum of one effect over the nation's known technologies.</summary>
     public static int Sum(NationState nat, TechFx fx)
     {
-        int s = 0;
+        int s = Character.Fx(nat, fx);   // the character of the people adds its bonuses as technology effects
         for (int t = 0; t < All.Length; t++)
         {
             if (!Known(nat, t)) continue;

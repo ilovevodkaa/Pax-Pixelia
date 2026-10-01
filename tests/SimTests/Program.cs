@@ -44,6 +44,7 @@ public static class Program
         RosterTests.Run(w);
         CityTests.Run(w);
         BotTests.Run(w);
+        CharacterTests.Run(w);
         MaterialTests.Run(w);
         TechTests.Run(w);
         NomadTests.Run(w);

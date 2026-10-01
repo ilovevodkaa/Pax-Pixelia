@@ -67,6 +67,11 @@ public sealed partial class GameState
             nat.Add(x.Researching); nat.Add(x.TechPool);
             foreach (long v in x.TechPts) nat.Add(v);
             nat.Add(x.Camp); nat.Add(x.CampStep); nat.Add(x.CampSub); nat.Add(x.Supplies); nat.Add(x.TribePop); nat.Add(x.Legends); nat.Add(x.Myth);
+            if (!Character.IsBlank(x))   // a blank character hashes as the layouts before it did
+            {
+                for (int k = 0; k < x.CharA.Length; k++) { nat.Add(x.CharA[k]); nat.Add(x.CharB[k]); nat.Add(x.CharLevel[k]); nat.Add(x.CharHeld[k]); }
+                nat.Add(x.CharTraits); nat.Add(x.FirstTechs);
+            }
             nat.Add(x.CampPath?.Length ?? -1);
             if (x.CampPath != null) foreach (int p in x.CampPath) nat.Add(p);
             nat.Add(NationCapital[n]);

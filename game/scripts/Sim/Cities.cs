@@ -208,6 +208,7 @@ public static class Cities
             s.Growth[c] = 0;
             s.SphereNoted[c] = false;
             Join(s, q, n, c);
+            Character.OnClaim(w, s, q, n);
             cnt[c]++;
             (changed ??= new List<int>()).Add(q);
             if (s.IsHuman(n))

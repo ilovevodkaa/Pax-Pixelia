@@ -129,11 +129,27 @@ public static class Bots
                         break;
                     default: continue;
                 }
-                sc += SimRng.Permille(w.Seed, 62, p, n * 8 + k) / 5;
+                sc += SimRng.Permille(w.Seed, 62, p, n * 8 + k) / 5 + Taste(nat, b);
                 if (sc > bs) { bs = sc; best = p; bestB = b; }
             }
         }
         return (best, bestB);
+    }
+
+    /// <summary>A bot builds what suits its people: +150 per level of the scale pole the building feeds (CONTENT §10.1),
+    /// so the first push of a myth grows into a character instead of every bot ending up alike.</summary>
+    static int Taste(NationState nat, Bld b)
+    {
+        var (scale, right) = b switch
+        {
+            Bld.Farm or Bld.Pasture or Bld.Fishery => (Character.Agri, false),
+            Bld.Market => (Character.Agri, true),
+            Bld.Granary => (Character.Commune, false),
+            Bld.Shrine => (Character.Faith, false),
+            _ => (Character.Openness, false),   // mills and quarries: a people that makes do with its own
+        };
+        int lvl = Character.Level(nat, scale);
+        return lvl != 0 && lvl > 0 == right ? 150 * System.Math.Abs(lvl) : 0;
     }
 
     /// <summary>An unsurveyed own province that may hold ore (hills, mountains, or a known outcrop), or -1; a salted pick
