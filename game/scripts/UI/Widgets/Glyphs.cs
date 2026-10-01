@@ -55,6 +55,10 @@ public partial class SpeedPips : Control
 
     public void SetSpeed(int s) { if (s == _speed) return; _speed = s; QueueRedraw(); }
 
+    /// <summary>«Умное время» runs the clock faster: the pips above the player's speed glow in the accent.</summary>
+    public bool Hurry { get => _hurry; set { if (value == _hurry) return; _hurry = value; QueueRedraw(); } }
+    bool _hurry;
+
     public override void _GuiInput(InputEvent e)
     {
         if (e is InputEventMouseMotion mm)
@@ -77,7 +81,7 @@ public partial class SpeedPips : Control
         for (int i = 0; i < 5; i++)
         {
             int h = 4 + 2 * i;
-            var c = i < _speed ? Pal.Hi : i <= _hover ? Pal.Ln3 : Pal.Ln2;
+            var c = i < _speed ? Pal.Hi : _hurry ? Pal.Ac : i <= _hover ? Pal.Ln3 : Pal.Ln2;
             DrawRect(new Rect2(i * (Bar + Gap), y0 + Tall - h, Bar, h), c);
         }
     }

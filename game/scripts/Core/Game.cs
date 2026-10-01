@@ -155,7 +155,7 @@ public partial class Game : Node
     int ValidOrNone(int p) => World != null && (uint)p < (uint)World.P ? p : -1;
     public void RaiseProvincesChanged(IReadOnlyList<int> ps) => ProvincesChanged?.Invoke(ps);
     public void RaiseFogChanged(IReadOnlyList<int> ps) { MarkRumorsDirty(); FogChanged?.Invoke(ps); }
-    public void Notify(string icon, string text) => Notified?.Invoke(icon, text);
+    public void Notify(string icon, string text) { Calm(); Notified?.Invoke(icon, text); }   // news: the smart clock slows down
     public void ShowToast(string text, float seconds = 3.8f, ToastKind kind = ToastKind.Info) => Toast?.Invoke(text, seconds, kind);
     /// <summary>A refused action: red toast with the reason.</summary>
     public void ShowRefusal(string text) => ShowToast(text, 3.8f, ToastKind.Error);
@@ -203,7 +203,7 @@ public partial class Game : Node
         if (!IsReady) return;
         if (!State.Paused && !BlitzOver)
         {
-            int n = _pump.Advance((long)(delta * TickPump.MicrosPerSecond), Clock.TicksPerSecond[State.Speed]);
+            int n = _pump.Advance((long)(delta * TickPump.MicrosPerSecond), Clock.TicksPerSecond[ClockSpeed(delta)]);
             if (n > 0) RunTicks(n);
         }
         InterpolateScouts();

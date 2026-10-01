@@ -165,6 +165,9 @@ public partial class SettingsScreen : FrontScreen
         Row("Меньше анимации", OnOff, S.ReducedMotion ? 1 : 0,
             "Без интро и переливов, шторки короче. Карта и время живут как обычно.",
             i => S.Set(Settings.Ui, "reduced_motion", i == 1));
+        Row("Умное время", OnOff, S.Get<bool>(Settings.Ui, "smart_time") ? 1 : 0,
+            "Когда в мире тихо — ни вестей, ни выбора, исследование идёт — время само бежит на скорости 5. Любая новость или щелчок возвращают вашу скорость.",
+            i => S.Set(Settings.Ui, "smart_time", i == 1));
         Row("Статус в Discord", OnOff, S.Get<bool>(Settings.Ui, "discord") ? 1 : 0,
             "Друзья в Discord видят «Играет в Pax Pixelia»: державу, эпоху и чем она занята. Нужен запущенный Discord.",
             i => S.Set(Settings.Ui, "discord", i == 1));

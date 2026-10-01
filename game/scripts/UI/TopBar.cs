@@ -256,7 +256,12 @@ public partial class TopBar : PanelContainer
             t.Mu("Пробел — пауза, 1–5 — скорость");
         });
         _pause.Tip(t => t.Title(Game.I.IsReady && Game.I.State.Paused ? "Продолжить" : "Пауза").Mu("Пробел"));
-        _pips.Tip(t => t.Title("Скорость " + (Game.I.IsReady ? Game.I.State.Speed : 2) + " из 5").Mu("Клавиши 1–5"));
+        _pips.Tip(t =>
+        {
+            t.Title("Скорость " + (Game.I.IsReady ? Game.I.State.Speed : 2) + " из 5");
+            if (Game.I.Hurrying) t.Line("Умное время: в мире тихо, время бежит на скорости 5");
+            t.Mu("Клавиши 1–5");
+        });
         _session.Tip(t =>
         {
             if (Game.I.IsBlitz)
@@ -425,6 +430,7 @@ public partial class TopBar : PanelContainer
 
     public override void _Process(double delta)
     {
+        _pips.Hurry = Game.I.IsReady && Game.I.Hurrying;
         if (Game.I.IsBlitz)
         {
             // the blitz counts down its game time (at speed 3) instead of the session's real time

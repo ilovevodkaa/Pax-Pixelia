@@ -28,7 +28,7 @@ public partial class Settings : Node
     {
         (Video, "mode", 0), (Video, "resolution", "1600x900"), (Video, "vsync", true), (Video, "fps", 0),
         (Audio, "master", 80), (Audio, "music", 70), (Audio, "sfx", 80), (Audio, "background", false),
-        (Ui, "scale", 0), (Ui, "reduced_motion", false), (Ui, "discord", true),
+        (Ui, "scale", 0), (Ui, "reduced_motion", false), (Ui, "discord", true), (Ui, "smart_time", true),
     };
 
     // int / bool / string only: plain C# values compare by value (Variant does not)

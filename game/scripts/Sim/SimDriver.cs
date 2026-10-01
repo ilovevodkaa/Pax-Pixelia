@@ -13,6 +13,7 @@ namespace PaxPixelia.Sim;
 ///   --autoclaim=N      claim N border provinces      --speed=N     game speed 1..5 (--pause is part of the setup)
 ///   --autoscout[=N]    send N (default 1) auto parties        --scout-to=P | x,y   send a party to province P / world pixel
 ///   --simlog           echo chronicle entries and toasts to stdout
+///   --research=ID      start studying a technology (e.g. gathering)
 ///   --simdebug         raw fog + scout overlay (developer aid); --simdebug-zoom=Z also sets the camera zoom
 /// </summary>
 public partial class SimDriver : Node
@@ -64,6 +65,7 @@ public partial class SimDriver : Node
         }
 
         if (Cli.Has("speed")) g.SetSpeed(Cli.Int("speed", 2));
+        if (Cli.Str("research") is { } study && Techs.Index(study) is var t and >= 0) g.Issue(Cmd.Research(g.Viewer, t));
 
         var to = Cli.Str("scout-to");
         if (to != null)
