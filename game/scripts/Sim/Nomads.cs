@@ -6,7 +6,7 @@ using Bld = PaxPixelia.Core.Data.Bld;
 namespace PaxPixelia.Sim;
 
 public enum SettleError { None, Settled, NotLand, Owned, TooClose }
-public enum TribeMoveError { None, Settled, Sea, Here, Far, Unexplored }
+public enum TribeMoveError { None, Settled, Sea, Here, Far, Unexplored, Elders }
 
 /// <summary>A legend the tribe picks up on its way; at the founding one becomes the nation's myth (a lasting bonus).</summary>
 public sealed record LegendDef(string Name, string Where, string Myth, string Line);
@@ -26,6 +26,8 @@ public static class Nomads
     /// forced founding (5 min).</summary>
     public const int StepTicks = 24, SupplyTicks = 16, UrgeTicks = 3 * 60 * 8, AutoTicks = 5 * 60 * 8;
     public const int StartSupplies = 100, MaxLegends = 3, InitialSight = 4, CampSight = 2, NearRadius = 3;
+    /// <summary>With no free site near the camp, the elders and the bots look this many land steps away.</summary>
+    public const int FarRadius = 12;
     /// <summary>Bots settle between these ticks (1 and 2 minutes at speed 3).</summary>
     public const int BotSettleMin = 60 * 8, BotSettleMax = 120 * 8;
 
@@ -106,7 +108,7 @@ public static class Nomads
                 else if (s.Tick >= BotSettleMax && nat.CampPath == null)
                 {
                     // the spot got taken (a neighbour settled next door): the best free site nearby, or walk there
-                    int site = BestSites(w, s, n, 1) is { Count: > 0 } b ? b[0] : -1;
+                    int site = FallbackSite(w, s, n);
                     if (site == nat.Camp) Found(w, s, n, BestMyth(nat), sink, ref changed);
                     else if (site >= 0) MoveTo(w, s, n, site);
                 }
@@ -117,13 +119,13 @@ public static class Nomads
                 sink?.Notify("alert-triangle", "Старейшины требуют осесть: род устал идти. Через две минуты они выберут место сами");
             if (s.Tick >= AutoTicks && nat.CampPath == null)
             {
-                int site = CheckSettle(w, s, n, nat.Camp) == SettleError.None ? nat.Camp : BestSites(w, s, n, 1) is { Count: > 0 } b ? b[0] : -1;
+                int site = CheckSettle(w, s, n, nat.Camp) == SettleError.None ? nat.Camp : FallbackSite(w, s, n);
                 if (site == nat.Camp)
                 {
                     if (nat.Human) sink?.Notify("alert-triangle", "Старейшины не стали ждать и развели очаг на месте стоянки");
                     Found(w, s, n, BestMyth(nat), sink, ref changed);
                 }
-                else if (site >= 0) MoveTo(w, s, n, site);   // walk to the nearest good site and settle there
+                else if (site >= 0) MoveTo(w, s, n, site, elders: true);   // walk to the nearest good site and settle there
             }
         }
     }
@@ -172,11 +174,13 @@ public static class Nomads
 
     // ------------------------------------------------------------------ moving
 
-    public static TribeMoveError CheckMove(WorldData w, GameState s, int n, int target, out int[] path)
+    /// <param name="elders">The elders lead the walk (after <see cref="AutoTicks"/> the player no longer can).</param>
+    public static TribeMoveError CheckMove(WorldData w, GameState s, int n, int target, out int[] path, bool elders = false)
     {
         path = null;
         var nat = s.Nat[n];
         if (nat.Camp < 0) return TribeMoveError.Settled;
+        if (nat.Human && !elders && s.Tick >= AutoTicks) return TribeMoveError.Elders;   // no walking away from the founding
         if (target < 0 || target >= w.P || w.PLand[target] != 1) return TribeMoveError.Sea;
         if (nat.Fog is { } f && !f.Explored[target]) return TribeMoveError.Unexplored;
         if (target == nat.Camp) return TribeMoveError.Here;
@@ -186,9 +190,9 @@ public static class Nomads
         return path == null ? TribeMoveError.Far : TribeMoveError.None;
     }
 
-    public static TribeMoveError MoveTo(WorldData w, GameState s, int n, int target)
+    public static TribeMoveError MoveTo(WorldData w, GameState s, int n, int target, bool elders = false)
     {
-        var e = CheckMove(w, s, n, target, out var path);
+        var e = CheckMove(w, s, n, target, out var path, elders);
         if (e != TribeMoveError.None) return e;
         var nat = s.Nat[n];
         nat.CampPath = path; nat.CampStep = 0; nat.CampSub = 0;
@@ -232,8 +236,13 @@ public static class Nomads
         return new SiteParts(fert, w.PRiver[p] != 0 ? 15 : 0, w.PCoast[p] != 0 ? 10 : 0, variety, hills * 10, room ? 5 : 0);
     }
 
-    /// <summary>The best sites to settle within <see cref="NearRadius"/> steps of the camp (best first, ties by id).</summary>
-    public static List<int> BestSites(WorldData w, GameState s, int n, int count)
+    /// <summary>Where the elders (or a bot whose spot was taken) go: the best site near the camp, else the best one up to
+    /// <see cref="FarRadius"/> steps away; -1 when the land around is all taken.</summary>
+    public static int FallbackSite(WorldData w, GameState s, int n) =>
+        BestSites(w, s, n, 1) is { Count: > 0 } near ? near[0] : BestSites(w, s, n, 1, FarRadius) is { Count: > 0 } far ? far[0] : -1;
+
+    /// <summary>The best sites to settle within <paramref name="radius"/> steps of the camp (best first, ties by id).</summary>
+    public static List<int> BestSites(WorldData w, GameState s, int n, int count, int radius = NearRadius)
     {
         var list = new List<int>();
         var nat = s.Nat[n];
@@ -244,7 +253,7 @@ public static class Nomads
         for (int k = 0; k < bfs.Count; k++)
         {
             int p = bfs.Queue[k];
-            if (bfs.Dist[p] > NearRadius) break;
+            if (bfs.Dist[p] > radius) break;
             if (nat.Fog is { } f && !f.Explored[p]) continue;
             if (CheckSettle(w, s, n, p) != SettleError.None) continue;
             cand.Add((SiteScore(w, s, n, p), p));

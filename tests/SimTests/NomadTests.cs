@@ -106,6 +106,30 @@ public static class NomadTests
         for (int k = 0; k < Clock.TicksFor(120); k++) Simulation.Step(w, b, null);
         Check(Enumerable.Range(0, b.Nat.Length).All(n => b.Owner.Count(o => o == n) >= 1), "every nation holds land and grows from there");
 
+        {
+            Section("nomads: no free site near the camp");
+            var tt = Fresh(w);
+            var tn = tt.Nat[Me];
+            var nb = SimScratch.For(w, tt).B;
+            nb.RunLand(w, new[] { tn.Camp });
+            for (int k = 0; k < nb.Count && nb.Dist[nb.Queue[k]] <= Nomads.NearRadius; k++) tt.Owner[nb.Queue[k]] = 1;   // a neighbour holds it all
+            Check(Nomads.BestSites(w, tt, Me, 1).Count == 0, "every province within 3 steps is taken");
+            int farSite = Nomads.FallbackSite(w, tt, Me);
+            Check(farSite >= 0 && Nomads.CheckSettle(w, tt, Me, farSite) == SettleError.None, $"the elders look further: {(farSite >= 0 ? w.PName[farSite] : "nothing")}");
+            for (int k = 0; k < w.P; k++) if (tt.Owner[k] == 1 && tt.CapitalOf[k] < 0) tt.Owner[k] = -1;
+
+            var uu = Fresh(w);
+            while (uu.Tick < Nomads.AutoTicks - 1) Simulation.Step(w, uu, null);
+            int walkTo = Nomads.BestSites(w, uu, Me, 3).LastOrDefault(-1);
+            if (uu.Nat[Me].Camp >= 0 && walkTo >= 0 && walkTo != uu.Nat[Me].Camp)
+            {
+                Simulation.Step(w, uu, null);
+                Check(Nomads.MoveTo(w, uu, Me, walkTo) == TribeMoveError.Elders, "after the elders' deadline the player can no longer lead the tribe away");
+            }
+            for (int k = 0; k < 120 * 8 && uu.Nat[Me].Camp >= 0; k++) Simulation.Step(w, uu, null);
+            Check(uu.Nat[Me].Camp < 0, "the elders found the capital themselves");
+        }
+
         Section("nomads: determinism and a save mid-walk");
         var x = Fresh(w); var y = Fresh(w);
         int far = Nomads.BestSites(w, x, Me, 3).LastOrDefault(-1);

@@ -62,7 +62,12 @@ public partial class Main : Node
         else
         {
             if (pending == null && Cli.Has("load")) GD.PushWarning("--load: no save to load, starting a new game");
-            await Game.I.NewGame(pending?.Setup ?? SetupFromCli(), pending?.World);
+            var r = await Game.I.NewGame(pending?.Setup ?? SetupFromCli(), pending?.World);
+            if (!r.Ok && !r.Superseded)
+            {
+                GD.PushError($"new game failed: {r.Error}");
+                if (pending != null) { BackToMenu(r.Error); return; }
+            }
         }
 
         var shot = Cli.Str("shot");
@@ -111,7 +116,8 @@ public partial class Main : Node
         Game.I.WorldReady -= OnSkinWorldReady;
     }
 
-    /// <summary>A save chosen in the menu could not be loaded: back to the title, which shows the reason.</summary>
+    /// <summary>The game chosen in the menu could not start (a save that does not load, a world that cannot be made): back
+    /// to the title, which shows the reason.</summary>
     void BackToMenu(string error)
     {
         Game.I.EndGame();

@@ -348,6 +348,7 @@ public partial class Game : ISimSink
         TribeMoveError.Here => "Род уже здесь",
         TribeMoveError.Far => "Туда нет пути по суше",
         TribeMoveError.Unexplored => "Сначала разведайте эти земли",
+        TribeMoveError.Elders => "Старейшины больше не хотят идти: пора основать столицу",
         _ => "Туда не пройти",
     };
 

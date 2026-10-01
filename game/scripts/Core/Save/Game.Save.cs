@@ -151,10 +151,11 @@ public partial class Game
         var data = CaptureSave(kind, name);
         if (data == null) return SaveResult.Fail("Партия ещё не началась");
         var png = SaveThumb.CaptureNow().SavePngToBuffer();
-        path ??= SaveStore.PathFor(kind);
         try
         {
-            int bytes = SaveStore.WriteFile(path, data.Value.Header, data.Value.Body, png);
+            int bytes;
+            if (path != null) bytes = SaveStore.WriteFile(path, data.Value.Header, data.Value.Body, png);
+            else (path, bytes) = SaveStore.WriteSlot(kind, null, data.Value.Header, data.Value.Body, png);
             return Finish(kind, path, data.Value.Header, bytes, sw.ElapsedMilliseconds, sw.ElapsedMilliseconds, _generation);
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
@@ -179,11 +180,13 @@ public partial class Game
         long waited = sw.ElapsedMilliseconds;
         var t = Stopwatch.StartNew();
         var png = img?.SavePngToBuffer();
-        path ??= SaveStore.PathFor(kind, keep);
         var (h, body) = data.Value;
         try
         {
-            int bytes = await Task.Run(() => SaveStore.WriteFile(path, h, body, png));
+            // the slot is picked when the file is written (under the store's lock), not before the thumbnail's frame
+            int bytes;
+            if (path != null) bytes = await Task.Run(() => SaveStore.WriteFile(path, h, body, png));
+            else (path, bytes) = await Task.Run(() => SaveStore.WriteSlot(kind, keep, h, body, png));
             // own work: the snapshot, the thumbnail's read-back and PNG, the file (the frame waited for is not work)
             return Finish(kind, path, h, bytes, captureMs + t.ElapsedMilliseconds, sw.ElapsedMilliseconds, gen, waited - captureMs);
         }

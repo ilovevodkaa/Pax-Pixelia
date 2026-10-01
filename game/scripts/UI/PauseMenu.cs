@@ -230,7 +230,14 @@ public partial class PauseMenu : Control
         _leaving = true;
         var g = Game.I;
         var r = await g.AutoSave.SaveOnLeave(keep: e.Path);
-        if (!r.Ok) GD.PushWarning($"save: the running game was not saved before loading: {r.Error}");
+        if (!r.Ok)
+        {
+            // as on leaving: the running game is only dropped with the player's yes (a load can still fail after it)
+            GD.PushWarning($"save: the running game was not saved before loading: {r.Error}");
+            int again = await PxConfirm.Ask(this, "Не удалось сохранить", $"{r.Error}. Загрузить без сохранения текущей партии?",
+                new[] { "Загрузить", "Отмена" }, focus: 1, danger: 0);
+            if (again != 0) { _leaving = false; return; }
+        }
         var world = g.World is { } w && w.Seed == e.Header.Seed && w.W == e.Header.WorldW && w.H == e.Header.WorldH ? w : null;
         await Leave(() =>
         {

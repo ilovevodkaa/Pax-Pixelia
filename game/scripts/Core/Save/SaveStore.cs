@@ -187,6 +187,19 @@ public static class SaveStore
         lock (WriteLock) return WriteLocked(path, header, body, thumbPng);   // a worker's write and the Alt+F4 save never interleave
     }
 
+    /// <summary>
+    /// Write a captured save to its kind's slot (<see cref="PathFor"/>), chosen under the write lock: two saves at once (the
+    /// calendar autosave and the one on leaving) never pick the same free autosave slot. Returns the path and the size.
+    /// </summary>
+    public static (string Path, int Bytes) WriteSlot(SaveKind kind, string keep, SaveHeader header, SaveBody body, byte[] thumbPng)
+    {
+        lock (WriteLock)
+        {
+            var path = PathFor(kind, keep);
+            return (path, WriteLocked(path, header, body, thumbPng));
+        }
+    }
+
     static readonly object WriteLock = new();
 
     static int WriteLocked(string path, SaveHeader header, SaveBody body, byte[] thumbPng)

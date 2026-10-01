@@ -26,7 +26,9 @@ public readonly struct FogDelta
 public static class FogOfWar
 {
     public const int OwnRange = 2, CapitalRange = 3, RouteRange = 1, ScoutRange = 2, InitialRange = 6;
-    public const int MaxRange = InitialRange;
+    /// <summary>Longest range a source may have: above the start's sight and a scout with every bonus (2 + myth + 3 techs = 6),
+    /// with room for later ones (a range past it would be cut off silently).</summary>
+    public const int MaxRange = 8;
     public const int SeaCost = 2;
     /// <summary>Unexplored islands of at most this many provinces, fully enclosed by explored ones, are filled in.</summary>
     public const int PocketMax = 3;
