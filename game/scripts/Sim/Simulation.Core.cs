@@ -36,7 +36,9 @@ public static partial class Simulation
     public sealed record Project(string Name, string DoneText, Bld? Building);
 
     /// <summary>Each capital builds these in turn, each once: building projects already standing in the capital are skipped,
-    /// the others (walls, road) are one-off. When everything is done the queue stands idle (ProjectIndex = -1).</summary>
+    /// and so are buildings its knowledge does not open yet (pottery, barter…: they join the queue once learned); the
+    /// others (walls, road) are one-off. With nothing to build the queue stands idle (ProjectIndex = -1) and looks again
+    /// every cycle.</summary>
     public static readonly Project[] Projects =
     {
         new("Амбар", "В столице построен амбар", Bld.Granary),
@@ -229,7 +231,7 @@ public static partial class Simulation
             if (nat.Human && sink != null && reached > nat.Era && e == nat.Era && Eras.EraOf(before, s.Pace) <= nat.Era)
             {
                 int left = Techs.Required(nat.Era) - Techs.KnownIn(nat, nat.Era);
-                sink.Notify("atom", $"Род готов к эпохе «{Eras.Name(nat.Era + 1)}», но знаний мало: изучите ещё {left} {Ru.Plural(left, "технологию", "технологии", "технологий")}");
+                sink.Notify("atom", $"{(nat.Era == 0 ? "Род готов" : "Держава готова")} к эпохе «{Eras.Name(nat.Era + 1)}», но знаний мало: изучите ещё {left} {Ru.Plural(left, "технологию", "технологии", "технологий")}");
             }
             if (e <= nat.Era) continue;
             nat.Era = (byte)e;
@@ -308,12 +310,9 @@ public static partial class Simulation
         int cap = s.NationCapital[n];
         if (pr.Building is Bld b)
         {
-            if (cap >= 0)
-            {
-                if (s.Buildings[cap].Count >= s.Slots[cap]) s.Slots[cap]++;   // the project brings its own plot
-                s.Buildings[cap].Add(b);
-                (changed ??= new List<int>()).Add(cap);
-            }
+            if (s.Buildings[cap].Count >= s.Slots[cap]) s.Slots[cap]++;   // the project brings its own plot
+            s.Buildings[cap].Add(b);
+            (changed ??= new List<int>()).Add(cap);
         }
         else nat.ProjectsDone |= 1 << nat.ProjectIndex;
         if (nat.Human) sink?.Notify("hammer", pr.DoneText);
@@ -322,14 +321,24 @@ public static partial class Simulation
     }
 
     /// <summary>
-    /// If nation n's current project already stands in its capital (built by hand), move on to the next project quietly,
-    /// keeping the progress made so far.
+    /// If nation n's current project already stands in its capital (built by hand) or is not open to its knowledge (an
+    /// older save), move on to the next project quietly, keeping the progress made so far. An idle queue takes up a
+    /// project a new technology has opened.
     /// </summary>
     public static void SyncQueue(GameState s, int n)
     {
         var nat = s.Nat[n];
+        if (nat.ProjectIndex < 0) nat.ProjectIndex = NextProject(s, n, Projects.Length - 1);
+        else if (!Available(s, n, nat.ProjectIndex)) Advance(s, n);
+    }
+
+    /// <summary>Is the capital idle only because some building project waits for a technology?</summary>
+    public static bool QueueWaitsForKnowledge(GameState s, int n)
+    {
         int cap = s.NationCapital[n];
-        if (nat.ProjectIndex >= 0 && cap >= 0 && Projects[nat.ProjectIndex].Building is Bld b && s.Buildings[cap].Contains(b)) Advance(s, n);
+        foreach (var pr in Projects)
+            if (pr.Building is Bld b && !(cap >= 0 && s.Buildings[cap].Contains(b)) && !Techs.Allows(s.Nat[n], b)) return true;
+        return false;
     }
 
     static void Advance(GameState s, int n)
@@ -339,17 +348,23 @@ public static partial class Simulation
         if (nat.ProjectIndex < 0) nat.QueuePct = 0;
     }
 
-    /// <summary>The next project after `from` that nation n still has to do, or -1 when its capital has everything.</summary>
+    /// <summary>The next project after `from` that nation n can do now, or -1 when there is none.</summary>
     static int NextProject(GameState s, int n, int from)
     {
-        int cap = s.NationCapital[n];
         for (int k = 1; k <= Projects.Length; k++)
         {
             int i = ((from < 0 ? Projects.Length - 1 : from) + k) % Projects.Length;
-            bool done = Projects[i].Building is Bld b ? cap >= 0 && s.Buildings[cap].Contains(b) : (s.Nat[n].ProjectsDone & (1 << i)) != 0;
-            if (!done) return i;
+            if (Available(s, n, i)) return i;
         }
         return -1;
+    }
+
+    /// <summary>Project i is still to do and nation n's knowledge allows it.</summary>
+    static bool Available(GameState s, int n, int i)
+    {
+        if (Projects[i].Building is not Bld b) return (s.Nat[n].ProjectsDone & (1 << i)) == 0;
+        int cap = s.NationCapital[n];
+        return !(cap >= 0 && s.Buildings[cap].Contains(b)) && Techs.Allows(s.Nat[n], b);
     }
 
     /// <summary>World-wrapped distance between province anchors in whole pixels.</summary>

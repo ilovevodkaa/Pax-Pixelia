@@ -499,9 +499,10 @@ public partial class ProvincePanel : PanelContainer
             var prog = flow.Add(new Progress(), 7);
             void SyncQueue()
             {
-                bool idle = s.ProjectIndex < 0;   // everything the capital can build is built
+                bool idle = s.ProjectIndex < 0;   // everything the capital can build now is built
                 pct.Text = idle ? "" : s.QueuePct + "%";
-                name.Text = idle ? "Все работы в столице завершены" : s.QueueName;
+                name.Text = !idle ? s.QueueName
+                    : Simulation.QueueWaitsForKnowledge(s, GameState.LocalPlayer) ? "Новые работы откроют знания" : "Все работы в столице завершены";
                 prog.Visible = !idle;
                 prog.Value = s.QueuePct / 100f;
             }

@@ -78,7 +78,33 @@ public static class SaveTests
         FieldAudit();
         WorldHashes(w);
         Refusals(w);
+        OlderLayout(w);
         Timings(w);
+    }
+
+    /// <summary>A snapshot of the previous layout (Fixtures/state_v4.bin.gz: seed 1337, tick 4007, written by the v4 build)
+    /// still loads: it reads, keeps its hash, passes the load check and comes back in the current layout.</summary>
+    static void OlderLayout(WorldData w)
+    {
+        Section("saves: a snapshot of the previous layout (v4) still loads");
+        const ulong V4Hash = 0xEBCCB9BAE5ADF10F;
+        if (w.Seed != 1337) { Info("skipped: the v4 fixture is of seed 1337"); return; }
+        var path = Path.Combine(LintTests.GameDir(), "..", "tests", "SimTests", "Fixtures", "state_v4.bin.gz");
+        byte[] old;
+        using (var f = File.OpenRead(path))
+        using (var z = new System.IO.Compression.GZipStream(f, System.IO.Compression.CompressionMode.Decompress))
+        using (var ms = new MemoryStream()) { z.CopyTo(ms); old = ms.ToArray(); }
+        Check(BitConverter.ToInt32(old, 0) == 4 && GameState.SnapshotVersion > 4, $"the fixture is a v4 snapshot ({old.Length} B), the build writes v{GameState.SnapshotVersion}");
+        var s = SaveFile.Restore(old, w, TestContent.Db, 100);
+        Check(s.Tick == 4007 && s.Hash().All == V4Hash, $"it reads with the hash it was saved with ({s.Hash()})");
+        var header = new SaveHeader { StateHash = V4Hash, ContentHash = SaveFile.ContentSignature(TestContent.Db), SnapshotVersion = 4 };
+        Check(SaveFile.Consistent(header, old, s), "the load check accepts it (the rewritten snapshot is v5, not byte-equal)");
+        var now = SaveFile.Snapshot(s);
+        Check(!SaveFile.Consistent(new SaveHeader { StateHash = V4Hash ^ 1, ContentHash = header.ContentHash }, now, s), "a current-layout snapshot with a wrong hash is still refused");
+        Check(Techs.Known(s.Nat[0], Techs.Root) && Techs.KnownCount(s.Nat[0]) >= 1 && s.Nat[0].TechsDone.Length == Techs.Words, "its technologies come back as words");
+        for (int t = 0; t < 400; t++) Simulation.Step(w, s, null);
+        var again = SaveFile.Restore(SaveFile.Snapshot(s), w, TestContent.Db, 100);
+        Check(again.Hash().Equals(s.Hash()), "played on and saved in the current layout, it round-trips");
     }
 
     // ------------------------------------------------------------------ the scripted game

@@ -116,7 +116,7 @@ public static class MaterialTests
     {
         var s = NationGen.CreateInitialState(w);
         s.Nat[Me].Control = NationControl.Human;
-        s.Nat[Me].TechsDone = (1L << 6) - 1;   // the first era's buildings are known; no later bonuses (discounts, taxes) in the numbers
+        for (int t = 0; t < Techs.Count; t++) Techs.Set(s.Nat[Me], t, t < 6);   // the first era's buildings are known; no later bonuses (discounts, taxes) in the numbers
         Simulation.Begin(w, s);
         return s;
     }

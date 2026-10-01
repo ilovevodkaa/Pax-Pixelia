@@ -162,10 +162,12 @@ public static class ScenarioTests
         Section("buildings (commands)");
         int bp = Enumerable.Range(0, w.P).Where(p => s.Owner[p] == Me && s.Buildings[p].Count < s.Slots[p]).OrderBy(p => p).FirstOrDefault(-1);
         Check(bp >= 0, "an own province with a free plot");
-        if (s.Nat[Me].TechsDone == Techs.RootMask)
+        if (Techs.OnlyRoot(s.Nat[Me]))
         {
             Check(Rules.BuildOptions(w, s, bp, Me).Count == 0 && Rules.LockedOptions(w, s, bp, Me).Count > 0, "nothing to build before the first technology (the menu shows them locked)");
-            Check(Commands.Apply(w, s, Cmd.CheatTech(Me, -1), rec) == 0 && s.Nat[Me].TechsDone == Techs.AllMask, "debug: every technology learned");
+            Check(Commands.Apply(w, s, Cmd.CheatTech(Me, -1), rec) == 0 && Techs.KnownCount(s.Nat[Me]) == Techs.Count - 2
+                  && Enumerable.Range(0, Techs.Count).All(t => Techs.Known(s.Nat[Me], t) || Techs.ForkClosed(s.Nat[Me], t)),
+                  "debug: every technology learned, one path of the Great Fork");
         }
         var opts = Rules.BuildOptions(w, s, bp, Me);
         Check(opts.Count > 0 && opts.All(b => !s.Buildings[bp].Contains(b)), $"options offered: {string.Join(", ", opts.Select(b => Data.BldName[(int)b]))}");

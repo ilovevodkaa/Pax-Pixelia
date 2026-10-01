@@ -17,7 +17,7 @@ public static class TechTests
         Section("technologies: the start");
         var s = Fresh(w);
         var nat = s.Nat[Me];
-        Check(nat.TechsDone == Techs.RootMask && nat.Researching == -1 && nat.TechPts.Length == Techs.Count, $"a tribe knows only the fire, the root of all {Techs.Count} technologies");
+        Check(Techs.OnlyRoot(nat) && nat.Researching == -1 && nat.TechPts.Length == Techs.Count, $"a tribe knows only the fire, the root of all {Techs.Count} technologies");
         Check(Techs.CountIn(0) >= 12 && Techs.Required(0) < Techs.CountIn(0), $"Первобытная: {Techs.CountIn(0)} technologies, {Techs.Required(0)} needed for the next era");
         Check(Enumerable.Range(0, Techs.Count).Where(t => t != Techs.Root).All(t => Techs.Requires(t).Length > 0), "every technology but the root grows from another: one tree");
         Check(Enumerable.Range(0, Techs.Count).Count(t => Techs.Open(nat, t)) is >= 3 and <= 5, "from the fire a few first steps open, not everything");
@@ -95,13 +95,13 @@ public static class TechTests
         Section("technologies: effects");
         var fx = Fresh(w);
         var xn = fx.Nat[Me];
-        xn.TechsDone = Techs.AllMask & ~(1L << Techs.Index("masonry"));
+        for (int t = 0; t < Techs.Count; t++) Techs.Set(xn, t, t != Techs.Index("masonry"));   // every bit, all fork paths too
         int full = Rules.BuildMaterials(Bld.Shrine, xn);
         Techs.Learn(xn, Techs.Index("masonry"));
         Check(Rules.BuildMaterials(Bld.Shrine, xn) < full, $"«Каменное строительство»: a shrine takes {full} → {Rules.BuildMaterials(Bld.Shrine, xn)} materials");
         int cap = fx.NationCapital[Me];
         long tax0 = Rules.ProvinceTax(fx, cap);
-        xn.TechsDone &= ~(1L << Techs.Index("chief_law"));
+        Techs.Set(xn, Techs.Index("chief_law"), false);
         Check(Rules.ProvinceTax(fx, cap) < tax0, "«Закон вождя» raises the taxes");
 
         Section("technologies: bots and the whole first era");
@@ -111,10 +111,23 @@ public static class TechTests
         Check(first.All(t => t >= 0) && first.Distinct().Count() > 1, $"bots pick their first study themselves, and not all the same ({first.Distinct().Count()} different)");
         for (int k = 0; k < Clock.TicksFor(30 * 60); k++) Simulation.Step(w, b, null);
         var bots = Enumerable.Range(1, b.Nat.Length - 1).Select(n => b.Nat[n]).ToList();
-        Check(bots.All(x => x.TechsDone != 0), "every bot studies by itself");
+        Check(bots.All(x => Techs.KnownCount(x) > 1), "every bot studies by itself");
         int e1 = bots.Count(x => x.Era >= 1);
         Check(e1 == bots.Count, $"after 30 min at speed 3 {e1} of {bots.Count} bots are in Древний мир");
         Check(b.Nat[Me].Era == 0 && b.Nat[Me].TechPool > 0, "a player who never chose stays in Первобытная with the science banked");
+
+        Section("technologies: the capital's queue waits for knowledge");
+        var q = Fresh(w);
+        int qc = q.NationCapital[Me];
+        Cycles(w, q, 300);   // 2.5 min at speed 3: every project the first era allows is done
+        var qn = q.Nat[Me];
+        Check(!Techs.Known(qn, Techs.Index("pottery")) && !q.Buildings[qc].Contains(Bld.Granary) && !q.Buildings[qc].Contains(Bld.Market),
+            $"no granary or market without pottery and barter (capital: {string.Join(", ", q.Buildings[qc])})");
+        Check(qn.ProjectIndex < 0 || Simulation.Projects[qn.ProjectIndex].Building is not Bld pb || Techs.Allows(qn, pb), "the queue never stands on a locked building");
+        Check(Simulation.QueueWaitsForKnowledge(q, Me), "the panel can tell «waiting for knowledge» from «all done»");
+        Techs.Learn(qn, Techs.Index("pottery"));
+        Cycles(w, q, 40);
+        Check(q.Buildings[qc].Contains(Bld.Granary), "pottery learned: the granary joins the queue and gets built");
 
         Section("technologies: the debug era jump grants what came before");
         var j = Fresh(w);

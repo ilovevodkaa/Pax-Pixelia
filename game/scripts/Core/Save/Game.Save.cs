@@ -244,11 +244,8 @@ public partial class Game
                 ((IProgress<string>)progress).Report("Державы и границы…");
                 if (w.P != h.Provinces || WorldHash.Of(w) != h.WorldHash) throw new SaveException(SaveError.WorldMismatch);
                 var st = SaveFile.Restore(body.State, w, Content, h.JokePercent);
-                // same content pack → the state must come out exactly as saved: its hash and, stricter, its snapshot
-                // written again (a serializer slip or an edited file otherwise). A changed pack remaps the deck.
-                if (h.ContentHash == SaveFile.ContentSignature(st.Events?.Db)
-                    && (st.Hash().All != h.StateHash || !SaveFile.Snapshot(st).AsSpan().SequenceEqual(body.State)))
-                    throw new SaveException(SaveError.Corrupt, "состояние не сошлось");
+                // same layout and content pack → the state must come out exactly as saved (SaveFile.Consistent)
+                if (!SaveFile.Consistent(h, body.State, st)) throw new SaveException(SaveError.Corrupt, "состояние не сошлось");
                 return (w, st, g);
             }, cancel.Token);
         }

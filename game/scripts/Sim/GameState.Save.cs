@@ -22,7 +22,7 @@ namespace PaxPixelia.Sim;
 public sealed partial class GameState
 {
     /// <summary>Layout version of the snapshot (the save file carries it; older layouts are read field by field).</summary>
-    public const int SnapshotVersion = 4;   // 2: materials · 3: technologies · 4: the nomad phase
+    public const int SnapshotVersion = 5;   // 2: materials · 3: technologies · 4: the nomad phase · 5: techs past 64
 
     const int MaxNations = 255;
 
@@ -50,7 +50,9 @@ public sealed partial class GameState
             w.Write(x.Progress); w.Write(x.ScienceRate); w.Write(x.Era);
             w.Write(x.ProjectIndex); w.Write(x.QueuePct); w.Write(x.ProjectsDone); w.Write(x.EventCount);
             w.Write(x.Materials); w.Write(x.LastMaterials);
-            w.Write(x.TechsDone); w.Write(x.Researching); w.Write(x.TechPool);
+            w.Write(x.TechsDone.Length);
+            foreach (ulong v in x.TechsDone) w.Write(v);
+            w.Write(x.Researching); w.Write(x.TechPool);
             w.Write(x.TechPts.Length);
             foreach (long v in x.TechPts) w.Write(v);
             w.Write(x.Camp); w.Write(x.CampStep); w.Write(x.CampSub); w.Write(x.Supplies); w.Write(x.TribePop); w.Write(x.Legends); w.Write(x.Myth);
@@ -140,15 +142,19 @@ public sealed partial class GameState
             x.TechPts = new long[Techs.Count];
             if (version >= 3)
             {
-                x.TechsDone = r.ReadInt64(); x.Researching = r.ReadInt32(); x.TechPool = r.ReadInt64();
+                x.TechsDone = new ulong[Techs.Words];
+                int words = version >= 5 ? r.ReadInt32() : 1;   // before 5: one long
+                Require(words >= 0 && words <= 64, "technologies");
+                for (int i = 0; i < words; i++) { ulong v = r.ReadUInt64(); if (i < x.TechsDone.Length) x.TechsDone[i] = v; }
+                x.Researching = r.ReadInt32(); x.TechPool = r.ReadInt64();
                 int k = r.ReadInt32();
                 Require(k >= 0 && k <= 4096, "technologies");
                 for (int t = 0; t < k; t++) { long v = r.ReadInt64(); if (t < x.TechPts.Length) x.TechPts[t] = v; }   // a longer tree in a newer build: extra ids dropped
-                x.TechsDone &= Techs.AllMask;
-                x.TechsDone |= Techs.RootMask;   // «Огонь» is known by everyone (saves from before the root)
+                Techs.Trim(x.TechsDone);
+                Techs.Set(x, Techs.Root, true);   // «Огонь» is known by everyone (saves from before the root)
                 Require(x.Researching >= -1 && x.Researching < Techs.Count && x.TechPool >= 0, "research");
             }
-            else { x.TechsDone = Techs.RootMask; Techs.GrantBefore(x, x.Era + 1); }   // an older save: everything up to its era counts as known
+            else { x.TechsDone = Techs.RootOnly(); Techs.GrantBefore(x, x.Era + 1); }   // an older save: everything up to its era counts as known
             if (version >= 4)
             {
                 x.Camp = r.ReadInt32(); x.CampStep = r.ReadInt32(); x.CampSub = r.ReadInt32(); x.Supplies = r.ReadInt32();

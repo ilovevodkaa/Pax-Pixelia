@@ -219,6 +219,18 @@ public static class SaveFile
         }
     }
 
+    /// <summary>
+    /// Does a state restored from a STAT chunk add up? Written by this snapshot layout with the same content pack, it must
+    /// hash as the header says and write back byte for byte (a serializer slip or an edited file otherwise). A save of an
+    /// older layout (or another pack, which remaps the deck) only has to read: writing it again gives the new layout.
+    /// </summary>
+    public static bool Consistent(SaveHeader header, byte[] state, GameState restored)
+    {
+        bool sameLayout = state.Length >= 4 && System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(state) == GameState.SnapshotVersion;
+        if (!sameLayout || header.ContentHash != ContentSignature(restored.Events?.Db)) return true;
+        return restored.Hash().All == header.StateHash && Snapshot(restored).AsSpan().SequenceEqual(state);
+    }
+
     // ------------------------------------------------------------------ read
 
     /// <summary>Only the header (fast: the list of saves and «ПРОДОЛЖИТЬ»).</summary>

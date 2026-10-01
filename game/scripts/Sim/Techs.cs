@@ -31,7 +31,8 @@ public sealed record TechDef(string Id, string Name, int Era, int Lane, int Orde
 /// (<see cref="Eras"/>); the same points also go to the one technology a nation studies. A nation leaves an era only
 /// with <see cref="Required"/> of its technologies known, so the eras are earned, not waited out. A technology opens
 /// when its prerequisites are known and its era has come; of a fork (the Great Fork of Древний мир) only one can ever
-/// be learned. Techs are kept as a bit set (NationState.TechsDone) and per-tech points (NationState.TechPts); points
+/// be learned. Techs are kept as a bit set of 64-bit words (NationState.TechsDone, any number of technologies) and
+/// per-tech points (NationState.TechPts); points
 /// made while nothing is chosen wait in NationState.TechPool and go to the next choice, so a slow click loses nothing.
 /// Ids never move (saves keep the bit set; new technologies are appended): the tree's shape is Lane/Order. The root
 /// «Огонь» is known by everyone from the start.
@@ -182,13 +183,61 @@ public static class Techs
 
     /// <summary>The root of the tree («Огонь»): every nation knows it from the start.</summary>
     public static readonly int Root = Array.FindIndex(All, d => d.Id == "fire");
-    public static long RootMask => 1L << Root;
 
     /// <summary>The technology that opens geologists (Кремень).</summary>
     public const int SurveyTech = 2;
 
     public static int Count => All.Length;
-    public static long AllMask => (1L << All.Length) - 1;
+
+    // ---------------------------------------------------------------- the bit set (NationState.TechsDone)
+
+    /// <summary>64-bit words of a nation's bit set: bit t of word t / 64 is Techs.All[t].</summary>
+    public static int Words => (All.Length + 63) / 64;
+
+    /// <summary>The bit set of a new nation: only the root is known.</summary>
+    public static ulong[] RootOnly()
+    {
+        var set = new ulong[Words];
+        set[Root >> 6] |= 1UL << (Root & 63);
+        return set;
+    }
+
+    /// <summary>Set or clear bit t (debug, saves and tests; the rules learn through <see cref="Learn"/>).</summary>
+    internal static void Set(NationState nat, int t, bool on)
+    {
+        if (on) nat.TechsDone[t >> 6] |= 1UL << (t & 63);
+        else nat.TechsDone[t >> 6] &= ~(1UL << (t & 63));
+    }
+
+    /// <summary>Drops bits past the last technology (a save from a build with a longer tree).</summary>
+    internal static void Trim(ulong[] set)
+    {
+        int tail = All.Length & 63;
+        if (tail != 0) set[^1] &= (1UL << tail) - 1;
+    }
+
+    /// <summary>Does the nation know nothing but the root?</summary>
+    public static bool OnlyRoot(NationState nat)
+    {
+        for (int t = 0; t < All.Length; t++) if (Known(nat, t) != (t == Root)) return false;
+        return true;
+    }
+
+    /// <summary>How many technologies the nation knows.</summary>
+    public static int KnownCount(NationState nat)
+    {
+        int k = 0;
+        foreach (ulong v in nat.TechsDone) k += System.Numerics.BitOperations.PopCount(v);
+        return k;
+    }
+
+    /// <summary>A number that changes whenever the bit set does (the UI's «research changed» check).</summary>
+    public static ulong Signature(NationState nat)
+    {
+        ulong h = 14695981039346656037UL;
+        foreach (ulong v in nat.TechsDone) h = (h ^ v) * 1099511628211UL;
+        return h;
+    }
 
     static readonly int[][] Prereq = BuildPrereq();
 
@@ -210,7 +259,7 @@ public static class Techs
 
     public static int Cost(int t, int pace) => (int)Math.Max(1, (long)All[t].Cost * Eras.ClampPace(pace) / 1000);
 
-    public static bool Known(NationState nat, int t) => (uint)t < (uint)All.Length && (nat.TechsDone & (1L << t)) != 0;
+    public static bool Known(NationState nat, int t) => (uint)t < (uint)All.Length && (nat.TechsDone[t >> 6] & (1UL << (t & 63))) != 0;
 
     /// <summary>The technology that opens building b, or -1 when b needs none.</summary>
     public static int For(Bld b)
@@ -232,11 +281,10 @@ public static class Techs
     /// <summary>Sum of one effect over the nation's known technologies.</summary>
     public static int Sum(NationState nat, TechFx fx)
     {
-        if (nat.TechsDone == 0) return 0;
         int s = 0;
         for (int t = 0; t < All.Length; t++)
         {
-            if ((nat.TechsDone & (1L << t)) == 0) continue;
+            if (!Known(nat, t)) continue;
             foreach (var (f, a) in All[t].Fx) if (f == fx) s += a;
         }
         return s;
@@ -301,7 +349,7 @@ public static class Techs
 
     internal static void Learn(NationState nat, int t)
     {
-        nat.TechsDone |= 1L << t;
+        Set(nat, t, true);
         nat.TechPts[t] = 0;
         if (nat.Researching == t) nat.Researching = -1;
         // the other paths of a fork close: their points are lost with them

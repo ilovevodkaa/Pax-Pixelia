@@ -19,7 +19,7 @@ public enum CmdType : byte
     Choose,
     // found a town at A (settlers from the nearest city)
     FoundCity,
-    // study technology A (Techs.All index); debug: learn technology A (-1 = every one)
+    // study technology A (Techs.All index); debug: learn technology A (-1 = every one, one path of each fork)
     Research, CheatTech,
     // the tribe: walk to A (-1 = stop), found the capital on the camp with legend A as the myth (-1 = none)
     TribeTo, Settle,
@@ -147,7 +147,7 @@ public static class Commands
             {
                 var nat = s.Nat[n];
                 if (c.A >= 0 && c.A < Techs.Count) Techs.Learn(nat, c.A);
-                else if (c.A < 0) for (int t = 0; t < Techs.Count; t++) Techs.Learn(nat, t);
+                else if (c.A < 0) { for (int t = 0; t < Techs.Count; t++) if (!Techs.ForkClosed(nat, t)) Techs.Learn(nat, t); }   // of a fork its first open path
                 else return BadCommand;
                 return 0;
             }

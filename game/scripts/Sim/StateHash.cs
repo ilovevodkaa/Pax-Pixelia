@@ -63,7 +63,8 @@ public sealed partial class GameState
             nat.Add(x.Progress); nat.Add(x.ScienceRate); nat.Add(x.Era);
             nat.Add(x.ProjectIndex); nat.Add(x.QueuePct); nat.Add(x.ProjectsDone); nat.Add(x.EventCount);
             nat.Add(x.Materials); nat.Add(x.LastMaterials);
-            nat.Add(x.TechsDone); nat.Add(x.Researching); nat.Add(x.TechPool);
+            foreach (ulong v in x.TechsDone) nat.Add(v);   // one word per 64 technologies (the hash of a one-word set is the old long's)
+            nat.Add(x.Researching); nat.Add(x.TechPool);
             foreach (long v in x.TechPts) nat.Add(v);
             nat.Add(x.Camp); nat.Add(x.CampStep); nat.Add(x.CampSub); nat.Add(x.Supplies); nat.Add(x.TribePop); nat.Add(x.Legends); nat.Add(x.Myth);
             nat.Add(x.CampPath?.Length ?? -1);
