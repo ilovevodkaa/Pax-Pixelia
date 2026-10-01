@@ -80,6 +80,11 @@ public sealed partial class GameState
         }
         if (!Firsts.IsBlank(this))   // no first taken yet hashes as the layouts before them did
             for (int f = 0; f < FirstHolder.Length; f++) { nat.Add(FirstHolder[f]); nat.Add(FirstCycle[f]); }
+        if (!Wonders.IsBlank(this))  // no glory, no wonder: hashes as before wonders
+        {
+            foreach (var x in Nat) { nat.Add(x.Glory); nat.Add(x.Wonder); nat.Add(x.WonderGold); nat.Add(x.WonderMats); }
+            for (int k = 0; k < WonderOwner.Length; k++) { nat.Add(WonderOwner[k]); nat.Add(WonderFlag[k]); }
+        }
 
         var prov = new Fnv(); var bld = new Fnv();
         for (int p = 0; p < Owner.Length; p++)

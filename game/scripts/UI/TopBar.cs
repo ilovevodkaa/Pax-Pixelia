@@ -19,6 +19,7 @@ public partial class TopBar : PanelContainer
     public event Action LeaderboardToggled;
     public event Action TechToggled;
     public event Action PolicyToggled;
+    public event Action WondersToggled;
     public Button TechButton => _screenBtns[0];
     public event Action PauseClicked;
 
@@ -28,7 +29,7 @@ public partial class TopBar : PanelContainer
     Box _nationBox, _nationHover;
     readonly Res[] _res = new Res[5];
     HBoxContainer _screens;
-    readonly Button[] _screenBtns = new Button[6];
+    readonly Button[] _screenBtns = new Button[7];
     PanelContainer _clock;
     Box _clockBox;
     Label _month, _year;
@@ -140,7 +141,20 @@ public partial class TopBar : PanelContainer
         Trophy = Ui.IconButton("trophy", "Ib", 36, 34, 2, () => LeaderboardToggled?.Invoke());
         Trophy.MouseFilter = MouseFilterEnum.Stop;
         Trophy.Tip("Таблица лидеров", null, "Чужие державы появляются в ней после встречи");
-        _screenBtns[5] = Trophy;
+        WondersButton = Ui.IconButton("diamond", "Ib", 36, 34, 2, () => WondersToggled?.Invoke());
+        WondersButton.MouseFilter = MouseFilterEnum.Stop;
+        WondersButton.Tip(t =>
+        {
+            t.Title("Чудеса света").Mu("Каждое чудо стоит в мире одно: кто достроил первым, тот и владеет");
+            var g = Game.I;
+            if (!g.IsReady) return;
+            t.Kv("Слава", g.Glory.ToString(), Pal.Hi);
+            int wd = g.BuildingWonder;
+            t.Kv("Строится", wd >= 0 ? $"{Wonders.All[wd].Name} · {g.WonderProgressPermille / 10}%" : "ничего", wd >= 0 ? Pal.Ok : Pal.Warn);
+        });
+        _screenBtns[5] = WondersButton;
+        _screens.AddChild(WondersButton);
+        _screenBtns[6] = Trophy;
         _screens.AddChild(Trophy);
         _screens.SizeFlagsVertical = SizeFlags.ShrinkCenter;
         return _screens;
@@ -348,6 +362,13 @@ public partial class TopBar : PanelContainer
     }
 
     public Button PolicyButton => _screenBtns[1];
+    public Button WondersButton { get; private set; }
+
+    public void SetWondersOpen(bool open)
+    {
+        WondersButton.ThemeTypeVariation = open ? "IbOn" : "Ib";
+        WondersButton.Icon = Icons.Get("diamond", 2, !open);
+    }
 
     public void SetPolicyOpen(bool open)
     {

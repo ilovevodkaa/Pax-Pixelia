@@ -192,7 +192,9 @@ public partial class SfxProbe : Node
         // the sounds with a material follow the era group: the pause latch of Глина now
         await Seconds(.3);
         bool was = G.State.Paused;
-        await Expect("era skin: pause sounds of its era group", () => G.SetPaused(!was), was ? "unpause" : "pause");
+        // checked on pausing: a running world may chime in with its own news right after an unpause (rumours, firsts)
+        if (was) { G.SetPaused(false); await Settle(); }
+        await Expect("era skin: pause sounds of its era group", () => G.SetPaused(true), "pause");
         var latch = _played.LastOrDefault(x => x.Key is "pause" or "unpause");
         Check("era skin: the file is the group's own", latch.File != null && latch.File.Contains($"skin/g{SoundBank.EraGroup(era)}_"), latch.File ?? "none");
         G.SetPaused(was);

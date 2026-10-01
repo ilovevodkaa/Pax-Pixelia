@@ -48,6 +48,7 @@ public static class Program
         FirstsTests.Run(w);
         MaterialTests.Run(w);
         PolicyTests.Run(w);
+        WonderTests.Run(w);
         TechTests.Run(w);
         NomadTests.Run(w);
         RumorTests.Run(w);

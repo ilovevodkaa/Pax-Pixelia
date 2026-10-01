@@ -26,6 +26,8 @@ public static class Bots
             TryClaim(w, s, n, cycle, count, sink, ref changed);
             if (WantsToBuild(w.Seed, n, cycle)) TryBuild(w, s, n, tally.Shrines[n], sink, ref changed);
             if (WantsEdicts(w.Seed, n, cycle)) ChooseEdicts(w, s, n, tally.OverPct[n], sink);
+            Wonders.BotChoose(w, s, n, cycle);
+            Wonders.BotInvest(w, s, n, cycle);
         }
     }
 

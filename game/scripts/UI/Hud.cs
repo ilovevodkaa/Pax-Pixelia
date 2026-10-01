@@ -24,6 +24,7 @@ public partial class Hud : CanvasLayer
     Leaderboard _lead;
     TechScreen _tech;
     PolicyCard _policy;
+    WondersCard _wonders;
     Toast _toast;
     TipCard _tip;
     ChapterCard _loading;
@@ -33,8 +34,8 @@ public partial class Hud : CanvasLayer
     int _tipProvince = -1;
     bool _tipDirty;
     // heavy refreshes are coalesced: fog/ownership events may arrive every tick at speed 5
-    bool _miniDirty, _leadDirty, _liveDirty, _techDirty, _policyDirty;
-    double _miniCooldown, _leadCooldown, _liveCooldown, _miniHeld, _policyCooldown;
+    bool _miniDirty, _leadDirty, _liveDirty, _techDirty, _policyDirty, _wondersDirty;
+    double _miniCooldown, _leadCooldown, _liveCooldown, _miniHeld, _policyCooldown, _wondersCooldown;
 
     /// <summary>Debug hooks (UiDebug): a fixed mouse position for screenshots and the control whose tip is forced.</summary>
     internal Vector2? FakeMouse;
@@ -59,6 +60,8 @@ public partial class Hud : CanvasLayer
     internal void DebugToggleLead() => ToggleLeaderboard();
     internal void DebugTogglePolicy() => TogglePolicy();
     internal PolicyCard Policy => _policy;
+    internal void DebugToggleWonders() => ToggleWonders();
+    internal WondersCard WondersView => _wonders;
 
     public override void _Ready()
     {
@@ -77,6 +80,7 @@ public partial class Hud : CanvasLayer
         _top.LeaderboardToggled += ToggleLeaderboard;
         _top.TechToggled += ToggleTech;
         _top.PolicyToggled += TogglePolicy;
+        _top.WondersToggled += ToggleWonders;
         _top.PauseClicked += TogglePause;
         _root.AddChild(_top);
 
@@ -99,6 +103,8 @@ public partial class Hud : CanvasLayer
         _root.AddChild(_lead);
         _policy = new PolicyCard();
         _root.AddChild(_policy);
+        _wonders = new WondersCard();
+        _root.AddChild(_wonders);
         _tech = new TechScreen { Hud = this };
         _root.AddChild(_tech);
         _events = new EventWindow();
@@ -227,7 +233,7 @@ public partial class Hud : CanvasLayer
     void OnCycleTick()
     {
         _top.OnCycleTick();
-        _liveDirty = _leadDirty = _techDirty = _policyDirty = true;   // top bar + panel live values, coalesced in _Process
+        _liveDirty = _leadDirty = _techDirty = _policyDirty = _wondersDirty = true;   // top bar + panel live values, coalesced in _Process
     }
 
     /// <summary>The date moves every tick (months/days): the clock follows at once, the heavier live values
@@ -280,10 +286,29 @@ public partial class Hud : CanvasLayer
         _tipDirty = true;
     }
 
+    /// <summary>The drop-down cards and the tech screen exclude each other: opening one closes the others.</summary>
+    void CloseOthers(Control keep)
+    {
+        if (keep != _tech && _tech.Visible) ToggleTech();
+        if (keep != _lead && _lead.Visible) ToggleLeaderboard();
+        if (keep != _policy && _policy.Visible) TogglePolicy();
+        if (keep != _wonders && _wonders.Visible) ToggleWonders();
+    }
+
+    void ToggleWonders()
+    {
+        if (!Game.I.IsReady && !_wonders.Visible) return;
+        if (!_wonders.Visible) CloseOthers(_wonders);
+        bool open = _wonders.Toggle();
+        _top.SetWondersOpen(open);
+        if (open) { _wondersCooldown = .5; PlaceWonders(); }
+    }
+
+    void PlaceWonders() => _wonders.Place(_top.WondersButton.GetGlobalRect(), _root.Size);
+
     void ToggleLeaderboard()
     {
-        if (_tech.Visible && !_lead.Visible) ToggleTech();
-        if (_policy.Visible && !_lead.Visible) TogglePolicy();
+        if (!_lead.Visible) CloseOthers(_lead);
         bool open = _lead.Toggle();
         _top.SetLeaderboardOpen(open);
         if (open) { _leadCooldown = 1; PlaceLeaderboard(); }
@@ -294,8 +319,7 @@ public partial class Hud : CanvasLayer
     void TogglePolicy()
     {
         if (!Game.I.IsReady && !_policy.Visible) return;
-        if (_tech.Visible && !_policy.Visible) ToggleTech();
-        if (_lead.Visible && !_policy.Visible) ToggleLeaderboard();
+        if (!_policy.Visible) CloseOthers(_policy);
         bool open = _policy.Toggle();
         _top.SetPolicyOpen(open);
         if (open) { _policyCooldown = .5; PlacePolicy(); }
@@ -305,8 +329,7 @@ public partial class Hud : CanvasLayer
 
     void ToggleTech()
     {
-        if (_lead.Visible && !_tech.Visible) ToggleLeaderboard();
-        if (_policy.Visible && !_tech.Visible) TogglePolicy();
+        if (!_tech.Visible) CloseOthers(_tech);
         if (!Game.I.IsReady && !_tech.Visible) return;
         bool open = _tech.Toggle();
         _top.SetTechOpen(open);
@@ -350,6 +373,7 @@ public partial class Hud : CanvasLayer
         _panel.Close();
         if (_lead.Visible) ToggleLeaderboard();
         if (_policy.Visible) TogglePolicy();
+        if (_wonders.Visible) ToggleWonders();
         if (_tech.Visible) ToggleTech();
         _toast.HideNow();
         _loading.ShowNow();
@@ -380,6 +404,7 @@ public partial class Hud : CanvasLayer
                 else if (Game.I.IsTargeting) Game.I.CancelScoutTargeting();
                 else if (_lead.Visible) ToggleLeaderboard();
                 else if (_policy.Visible) TogglePolicy();
+                else if (_wonders.Visible) ToggleWonders();
                 else if (_panel.Visible) Game.I.Select(-1);
                 else if (Game.I.IsReady && !_loading.Visible) PauseMenu.Open();
                 else return;
@@ -402,6 +427,7 @@ public partial class Hud : CanvasLayer
         _panel.SetViewport(size);
         if (_lead.Visible) Callable.From(PlaceLeaderboard).CallDeferred();
         if (_policy.Visible) Callable.From(PlacePolicy).CallDeferred();
+        if (_wonders.Visible) Callable.From(PlaceWonders).CallDeferred();
     }
 
     // ---------------- tooltip ----------------
@@ -414,6 +440,12 @@ public partial class Hud : CanvasLayer
         // while a capture fill runs on the map the minimap keeps its old colours and snaps when it ends (at most 1.2 s late)
         if (_miniDirty && Game.I.CaptureFillsRunning && _miniHeld < 1.2) _miniHeld += delta;
         else if (_miniDirty && _miniCooldown <= 0) { _miniDirty = false; _miniHeld = 0; _miniCooldown = .25; _mini.View.Recolor(); }
+        if (_wonders.Visible)
+        {
+            _wondersCooldown -= delta;
+            if (_wondersDirty && _wondersCooldown <= 0) { _wondersDirty = false; _wondersCooldown = .5; _wonders.Refresh(); }
+            PlaceWonders();
+        }
         if (_policy.Visible)
         {
             _policyCooldown -= delta;

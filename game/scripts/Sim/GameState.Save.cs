@@ -22,7 +22,7 @@ namespace PaxPixelia.Sim;
 public sealed partial class GameState
 {
     /// <summary>Layout version of the snapshot (the save file carries it; older layouts are read field by field).</summary>
-    public const int SnapshotVersion = 8;   // 2: materials · 3: technologies · 4: the nomad phase · 5: techs past 64 · 6: character · 7: edicts · 8: world firsts
+    public const int SnapshotVersion = 9;   // 2: materials · 3: technologies · 4: the nomad phase · 5: techs past 64 · 6: character · 7: edicts · 8: world firsts · 9: wonders and glory
 
     const int MaxNations = 255;
 
@@ -119,6 +119,12 @@ public sealed partial class GameState
         Sim.Firsts.Init(this);
         w.Write(FirstHolder.Length);
         for (int f = 0; f < FirstHolder.Length; f++) { w.Write(FirstHolder[f]); w.Write(FirstCycle[f]); }
+
+        // ---- wonders and glory (9) ----
+        Sim.Wonders.Init(this);
+        foreach (var x in Nat) { w.Write(x.Glory); w.Write(x.Wonder); w.Write(x.WonderGold); w.Write(x.WonderMats); }
+        w.Write(WonderOwner.Length);
+        for (int k = 0; k < WonderOwner.Length; k++) { w.Write(WonderOwner[k]); w.Write(WonderFlag[k]); }
     }
 
     /// <summary>
@@ -284,6 +290,26 @@ public sealed partial class GameState
             }
         }
         Sim.Firsts.Sync(s);
+
+        Sim.Wonders.Init(s);
+        if (version >= 9)
+        {
+            foreach (var x in s.Nat)
+            {
+                x.Glory = r.ReadInt32(); x.Wonder = r.ReadInt32(); x.WonderGold = r.ReadInt64(); x.WonderMats = r.ReadInt64();
+                Require(x.Glory >= 0 && x.Wonder >= -1 && x.WonderGold >= 0 && x.WonderMats >= 0, "wonders");
+                if (x.Wonder >= Sim.Wonders.Count) { x.Wonder = -1; x.WonderGold = 0; x.WonderMats = 0; }   // an older build's list: start over
+            }
+            int wonders = r.ReadInt32();
+            Require(wonders >= 0 && wonders <= 1024, "wonders");
+            for (int k = 0; k < wonders; k++)
+            {
+                sbyte o = r.ReadSByte(); byte f = r.ReadByte();
+                Require(o >= -1 && o < nN, "wonders");
+                if (k < s.WonderOwner.Length) { s.WonderOwner[k] = o; s.WonderFlag[k] = f; }
+            }
+        }
+        Sim.Wonders.Refresh(s);
         return s;
     }
 

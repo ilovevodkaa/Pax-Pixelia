@@ -162,6 +162,81 @@ public partial class Game : ISimSink
         Notify("building-bank", on ? $"Издан указ «{d.Name}»: {d.Effect.ToLowerInvariant()}" : $"Указ «{d.Name}» отменён");
     }
 
+    // ------------------------------------------------------------------ wonders of the world
+
+    public int Glory => IsReady ? State.Nat[Viewer].Glory : 0;
+    /// <summary>The wonder under construction, -1 = none.</summary>
+    public int BuildingWonder => IsReady ? State.Nat[Viewer].Wonder : -1;
+    public int WonderProgressPermille => IsReady ? Wonders.ProgressPermille(State.Nat[Viewer]) : 0;
+    public (long gold, long mats) WonderPaid => IsReady ? (State.Nat[Viewer].WonderGold / Rules.Cents, State.Nat[Viewer].WonderMats) : (0, 0);
+
+    /// <summary>Who owns wonder w as the viewer may know it: «вы», the nation's name, «далёкий народ», or null while free.</summary>
+    public string WonderOwnerText(int w)
+    {
+        if (!IsReady) return null;
+        int o = State.WonderOwner[w];
+        if (o < 0) return null;
+        if (o == Viewer) return "вы";
+        return Rules.Met(State, Viewer, o) ? Nations[o].Name : "далёкий народ";
+    }
+
+    /// <summary>Other nations building wonder w now: how many, and the names of those the viewer has met.</summary>
+    public (int count, List<string> known) WonderRivals(int w)
+    {
+        var names = new List<string>();
+        int k = 0;
+        if (!IsReady) return (0, names);
+        for (int n = 0; n < State.Nat.Length; n++)
+        {
+            if (n == Viewer || State.Nat[n].Wonder != w) continue;
+            k++;
+            if (Rules.Met(State, Viewer, n)) names.Add(Nations[n].Name);
+        }
+        return (k, names);
+    }
+
+    static string WonderText(WonderError e) => e switch
+    {
+        WonderError.None => null,
+        WonderError.Taken => "Это чудо уже возвёл другой народ",
+        WonderError.TooEarly => "Это чудо откроется в другую эпоху",
+        WonderError.Busy => "Столица уже строит чудо: одно за раз",
+        WonderError.NoCapital => "Чудо строят в столице, а её ещё нет",
+        WonderError.NotBuilding => "Чудо сейчас не строится",
+        WonderError.Nothing => "Нечего вложить: казна и склад пусты",
+        _ => "Нельзя",
+    };
+
+    public string WonderStartProblem(int w) => !IsReady ? "Мир ещё не создан" : WonderText(Wonders.CheckStart(State, Viewer, w));
+
+    public void StartWonder(int w)
+    {
+        var why = WonderStartProblem(w);
+        if (why != null) { ShowRefusal(why); return; }
+        int r = Issue(Cmd.WonderStart(Viewer, w));
+        if (r != 0) { ShowRefusal(WonderText((WonderError)r)); return; }
+        Notify("diamond", $"Заложено чудо света «{Wonders.All[w].Name}»: {Wonders.AutoPct}% дохода и материалов идёт на стройку");
+    }
+
+    public void InvestWonder()
+    {
+        if (!IsReady) return;
+        var nat = State.Nat[Viewer];
+        long g0 = nat.Treasury, m0 = nat.Materials;
+        int r = Issue(Cmd.WonderInvest(Viewer));
+        if (r != 0) { ShowRefusal(WonderText((WonderError)r)); return; }
+        Notify("diamond", $"В стройку вложено {(g0 - nat.Treasury) / Rules.Cents} золота и {m0 - nat.Materials} материалов");
+    }
+
+    public void StopWonder()
+    {
+        if (!IsReady || State.Nat[Viewer].Wonder < 0) return;
+        string name = Wonders.All[State.Nat[Viewer].Wonder].Name;
+        int r = Issue(Cmd.WonderStart(Viewer, -1));
+        if (r != 0) { ShowRefusal(WonderText((WonderError)r)); return; }
+        Notify("diamond", $"Стройка «{name}» брошена: половина вложенного вернулась");
+    }
+
     // ------------------------------------------------------------------ buildings & geology
 
     public IReadOnlyList<Data.Bld> BuildOptions(int p) => IsReady ? Rules.BuildOptions(World, State, p, Viewer) : Array.Empty<Data.Bld>();

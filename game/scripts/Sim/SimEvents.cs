@@ -246,7 +246,8 @@ public sealed class SimEvents
                     ForProvinces(n, province, p => _s.Pop[p] = (int)Math.Clamp(_s.Pop[p] + (long)_s.Pop[p] * amount / 1000, 10, int.MaxValue));
                     break;
             }
-            // Stability, Culture, Faith, Legacy, Food: no such system yet
+            if (what == Resource.Legacy) nat.Glory = Math.Max(0, nat.Glory + amount);   // «наследие» is glory
+            // Stability, Culture, Faith, Food: no such system yet
         }
 
         void ForProvinces(int n, int province, Action<int> f)

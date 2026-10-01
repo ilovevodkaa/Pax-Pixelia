@@ -55,6 +55,11 @@ public sealed class NationState
     public int FirstTechs;              // technologies this nation learned first in the world
     public int[] CharFx;                // derived: the bonuses of the above and of the world firsts per TechFx (Character.Refresh), never saved
     public int Firsts;                  // derived: bit f = this nation holds Firsts.All[f] (from GameState.FirstHolder)
+    // ---- glory and the wonder under construction (Wonders.cs) ----
+    public int Glory;                   // wonders, world firsts, the chronicle's «наследие»: counts in the leaderboard
+    public int Wonder = -1;             // Wonders.All index being built in the capital, -1 = none
+    public long WonderGold, WonderMats; // put into it so far (gold in hundredths, materials whole)
+    public int[] WonderFx;              // derived: bonuses of the wonders this nation owns per TechFx (Wonders.Refresh), never saved
     public NationFog Fog;
 
     public bool Human => Control == NationControl.Human;
@@ -99,6 +104,10 @@ public sealed partial class GameState
     // ---- world firsts (Firsts.cs): who took each, and in which rules cycle ----
     public short[] FirstHolder;             // per first: nation index or -1 while open
     public int[] FirstCycle;
+
+    // ---- wonders of the world (Wonders.cs): one of each in the world ----
+    public sbyte[] WonderOwner;             // per wonder: nation index or -1 while nobody has finished it
+    public byte[] WonderFlag;               // per wonder: Wonders.Cracked, Wonders.FacadesFell
 
     /// <summary>false = observer mode: a view switch only, the fog is still computed underneath.</summary>
     public bool FogEnabled = true;

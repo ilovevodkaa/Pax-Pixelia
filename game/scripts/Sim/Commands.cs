@@ -25,6 +25,8 @@ public enum CmdType : byte
     TribeTo, Settle,
     // put edict A in force (B = 1) or repeal it (B = 0)
     Edict,
+    // lay wonder A in the capital (-1 = give the one under way up); pour A gold and B materials into it (-1 = all there is)
+    WonderStart, WonderInvest,
 }
 
 /// <summary>
@@ -50,6 +52,8 @@ public readonly record struct Cmd(int Tick, byte Nation, ushort Seq, CmdType Typ
     public static Cmd TribeTo(int n, int province) => new(0, (byte)n, 0, CmdType.TribeTo, province);
     public static Cmd Settle(int n, int myth) => new(0, (byte)n, 0, CmdType.Settle, myth);
     public static Cmd Edict(int n, int edict, bool on) => new(0, (byte)n, 0, CmdType.Edict, edict, on ? 1 : 0);
+    public static Cmd WonderStart(int n, int wonder) => new(0, (byte)n, 0, CmdType.WonderStart, wonder);
+    public static Cmd WonderInvest(int n, int gold = -1, int mats = -1) => new(0, (byte)n, 0, CmdType.WonderInvest, gold, mats);
 
     public bool IsSession => Type is CmdType.Pause or CmdType.Unpause or CmdType.SetSpeed;
 
@@ -160,6 +164,22 @@ public static class Commands
                 else return BadCommand;
                 return 0;
             }
+            case CmdType.WonderStart:
+            {
+                if (c.A < 0)
+                {
+                    if (s.Nat[n].Wonder < 0) return (int)WonderError.NotBuilding;
+                    Wonders.Stop(s, n);
+                    return 0;
+                }
+                var e = Wonders.CheckStart(s, n, c.A);
+                if (e != WonderError.None) return (int)e;
+                Wonders.Start(s, n, c.A);
+                return 0;
+            }
+            case CmdType.WonderInvest:
+                if (s.Nat[n].Wonder < 0) return (int)WonderError.NotBuilding;
+                return Wonders.Invest(s, n, c.A, c.B) ? 0 : (int)WonderError.Nothing;
             case CmdType.Edict:
             {
                 var e = Policy.CheckSet(s.Nat[n], c.A, c.B != 0);

@@ -17,7 +17,9 @@ public sealed record FirstDef(string Name, string Deed, string Effect, string Ic
 /// </summary>
 public static class Firsts
 {
-    public const int Hearth = 0, NewTown = 1, Mine = 2, Gold = 3, ThreePeoples = 4, Writing = 5, GreatFork = 6, GreatCity = 7, Realm = 8;
+    public const int Hearth = 0, NewTown = 1, Mine = 2, Gold = 3, ThreePeoples = 4, Writing = 5, GreatFork = 6, GreatCity = 7, Realm = 8, FirstWonder = 9;
+    /// <summary>Glory every world first brings besides its bonus (Wonders: glory counts in the leaderboard).</summary>
+    public const int FirstGlory = 15;
     public const int CheckCycles = 4;
     public const int GreatCityPeople = 250_000, RealmProvinces = 50, Peoples = 3;
 
@@ -41,6 +43,8 @@ public static class Firsts
             Character.Agri, false, 5),
         new("Держава пятидесяти земель", "собирает 50 провинций", "Налоги +3%", "flag", new[] { (TechFx.TaxPermille, 30) },
             Character.Commune, false, 5),
+        new("Чудо света", "возводит чудо света", "Довольство +2", "diamond", new[] { (TechFx.Mood, 2) },
+            Character.Faith, false, 5),
     };
 
     public static int Count => All.Length;
@@ -104,6 +108,11 @@ public static class Firsts
     {
         if (Holder(s, Writing) < 0 && Techs.All[t].Id == "writing") Award(w, s, Writing, n, sink);
         if (Holder(s, GreatFork) < 0 && Techs.All[t].Fork >= 0) Award(w, s, GreatFork, n, sink);
+    }
+
+    public static void OnWonder(WorldData w, GameState s, int n, ISimSink sink)
+    {
+        if (Holder(s, FirstWonder) < 0) Award(w, s, FirstWonder, n, sink);
     }
 
     // ------------------------------------------------------------------ standing deeds
@@ -177,6 +186,7 @@ public static class Firsts
         s.FirstCycle[f] = Clock.CycleOf(s.Tick);
         s.Nat[n].Firsts |= 1 << f;
         if (d.Push > 0) Character.Deed(s, n, d.Scale, d.Right, d.Push);
+        s.Nat[n].Glory += FirstGlory;
         Character.Refresh(s.Nat[n]);
         if (sink == null) return;
         for (int h = 0; h < s.Nat.Length; h++)

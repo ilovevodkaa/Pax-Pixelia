@@ -224,14 +224,14 @@ public static class Rules
 
     // ---------------------------------------------------------------- leaderboard
 
-    /// <summary>score = population / 800 + provinces × 9 (mockup formula).</summary>
+    /// <summary>score = population / 800 + provinces × 9 (mockup formula) + glory × 5 (wonders, world firsts, legacy).</summary>
     public static int[] Scores(GameState s)
     {
         int nN = s.NationCapital.Length;
         var pop = new long[nN]; var cnt = new int[nN];
         for (int p = 0; p < s.Owner.Length; p++) { int o = s.Owner[p]; if (o >= 0 && o < nN) { pop[o] += s.Pop[p]; cnt[o]++; } }
         var sc = new int[nN];
-        for (int n = 0; n < nN; n++) sc[n] = (int)((pop[n] + 400) / 800) + cnt[n] * 9;
+        for (int n = 0; n < nN; n++) sc[n] = (int)((pop[n] + 400) / 800) + cnt[n] * 9 + (n < s.Nat.Length ? s.Nat[n].Glory * Wonders.GloryScore : 0);
         return sc;
     }
 
