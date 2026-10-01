@@ -28,7 +28,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="*.cs" />
-    <Compile Include="$(GameDir)/scripts/Core/Data.cs;$(GameDir)/scripts/Core/Noise.cs;$(GameDir)/scripts/Core/GameSetup.cs;$(GameDir)/scripts/Core/Flags/FlagSpec.cs;$(GameDir)/scripts/Core/Flags/FlagPatterns.cs;$(GameDir)/scripts/Core/Nations/NationDesign.cs;$(GameDir)/scripts/Core/Nations/NationRoster.cs;$(GameDir)/scripts/Core/Nations/NationNames.cs;$(GameDir)/scripts/Core/Nations/NationPalette.cs;$(GameDir)/scripts/Core/Nations/ColorMath.cs" Link="Game/Core/%(Filename)%(Extension)" />
+    <Compile Include="$(GameDir)/scripts/Core/Data.cs;$(GameDir)/scripts/Core/Noise.cs;$(GameDir)/scripts/Core/GameSetup.cs;$(GameDir)/scripts/Core/GameStart.cs;$(GameDir)/scripts/Core/Blitz.cs;$(GameDir)/scripts/Core/SeedText.cs;$(GameDir)/scripts/Core/Flags/FlagSpec.cs;$(GameDir)/scripts/Core/Flags/FlagPatterns.cs;$(GameDir)/scripts/Core/Nations/NationDesign.cs;$(GameDir)/scripts/Core/Nations/NationRoster.cs;$(GameDir)/scripts/Core/Nations/NationNames.cs;$(GameDir)/scripts/Core/Nations/NationPalette.cs;$(GameDir)/scripts/Core/Nations/ColorMath.cs" Link="Game/Core/%(Filename)%(Extension)" />
     <!-- saves: the file format and the world hash (the rest of Core/Save is Godot-side) -->
     <Compile Include="$(GameDir)/scripts/Core/Save/SaveFile.cs;$(GameDir)/scripts/Core/Save/WorldHash.cs" Link="Game/Core/Save/%(Filename)%(Extension)" />
     <!-- the event deck: engine-free except its res:// reader -->

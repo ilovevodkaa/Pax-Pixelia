@@ -25,7 +25,7 @@ public partial class Game : Node
     // the setup / calendar / era contract lives in Game.Contract.cs.
     public static Game I { get; private set; }
 
-    public const int WorldWidth = 2560, WorldHeight = 1440;
+    public const int WorldWidth = GameStart.WorldWidth, WorldHeight = GameStart.WorldHeight;
 
     public WorldData World { get; private set; }
     public GameState State { get; private set; }
@@ -90,20 +90,12 @@ public partial class Game : Node
         WorldData world; GameState state;
         try
         {
-            var roster = NationRoster.Build(setup);
             (world, state) = await Task.Run(() =>
             {
                 var w = pregenerated ?? WorldGen.Generate(setup.Seed, WorldWidth, WorldHeight, s => ((IProgress<string>)progress).Report(s), cancel.Token);
                 cancel.Token.ThrowIfCancellationRequested();
                 ((IProgress<string>)progress).Report("Державы и границы…");
-                var st = NationGen.CreateInitialState(w, roster);
-                st.Pace = Eras.ClampPace(setup.PacePermille);
-                st.FogEnabled = setup.Fog;
-                st.Paused = setup.StartPaused;
-                if (setup.Nomad) Nomads.Start(w, st);
-                Simulation.Begin(w, st);
-                AttachEvents(w, st, setup);
-                return (w, st);
+                return (w, GameStart.Create(w, setup, Content));   // the same start a blitz replay makes
             }, cancel.Token);
         }
         catch (OperationCanceledException) when (gen != _generation) { return LoadResult.Dropped; }
@@ -127,6 +119,7 @@ public partial class Game : Node
         RaiseDateChanged();
         if (State.Nat[Viewer].Camp >= 0)   // the first line of the chronicle (CONTENT §8, Первобытная)
             Notify("history", "Огонь горит. Род цел. Идём. Найдите место для очага и основайте столицу");
+        AnnounceBlitz();
         return LoadResult.Done;
     }
 
@@ -195,6 +188,7 @@ public partial class Game : Node
     public int Issue(Cmd c)
     {
         if (!IsReady) return Commands.BadCommand;
+        if (BlitzOver && !c.IsSession) { ShowRefusal("Блиц окончен: время вышло"); return Commands.BadCommand; }
         long day = State.Day256 / Calendar.DayUnit;
         _commands.Submit(State, c);
         int r = _commands.Flush(World, State, this);
@@ -207,7 +201,7 @@ public partial class Game : Node
     public override void _Process(double delta)
     {
         if (!IsReady) return;
-        if (!State.Paused)
+        if (!State.Paused && !BlitzOver)
         {
             int n = _pump.Advance((long)(delta * TickPump.MicrosPerSecond), Clock.TicksPerSecond[State.Speed]);
             if (n > 0) RunTicks(n);
@@ -218,7 +212,7 @@ public partial class Game : Node
     /// <summary>Run ticks now (the clock, fast-forward and tests) and raise the frame's events once.</summary>
     public TickReport RunTicks(int ticks)
     {
-        if (!IsReady || ticks <= 0) return default;
+        if (!IsReady || (ticks = BlitzCap(ticks)) <= 0) return default;
         var r = _commands.Run(World, State, ticks, this);
         if (r.ScoutSteps > 0 || r.ScoutsFinished > 0) RaiseScoutsChanged();
         if (r.Tribes) RaiseTribeChanged();
@@ -227,6 +221,7 @@ public partial class Game : Node
         if (r.MonthChanged) MonthTick?.Invoke();
         if (r.YearChanged) YearTick?.Invoke();
         if (r.DayChanged) RaiseDateChanged();
+        CheckBlitzEnd();
         return r;
     }
 

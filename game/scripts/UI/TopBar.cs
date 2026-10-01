@@ -227,7 +227,16 @@ public partial class TopBar : PanelContainer
         });
         _pause.Tip(t => t.Title(Game.I.IsReady && Game.I.State.Paused ? "Продолжить" : "Пауза").Mu("Пробел"));
         _pips.Tip(t => t.Title("Скорость " + (Game.I.IsReady ? Game.I.State.Speed : 2) + " из 5").Mu("Клавиши 1–5"));
-        _session.Tip("Сколько ты уже играешь", null, "Нажми — совет придворных");
+        _session.Tip(t =>
+        {
+            if (Game.I.IsBlitz)
+            {
+                t.Title("Блиц недели").Line(Game.I.BlitzOver ? "Время вышло: партия подсчитана" : "Сколько игрового времени осталось на скорости 3");
+                t.Mu("На скорости 5 время идёт впятеро быстрее");
+                return;
+            }
+            t.Title("Сколько ты уже играешь").Mu("Нажми — совет придворных");
+        });
     }
 
     // ---------------- refresh ----------------
@@ -375,8 +384,17 @@ public partial class TopBar : PanelContainer
     public int SessionMinuteOffset { get; set; }
     public int SessionMinutes => (int)(Time.GetTicksMsec() / 60000) + SessionMinuteOffset;
 
+    long _blitzShown = -1;
+
     public override void _Process(double delta)
     {
+        if (Game.I.IsBlitz)
+        {
+            // the blitz counts down its game time (at speed 3) instead of the session's real time
+            long left = (Game.I.BlitzTicksLeft + 7) / Clock.TicksPerSecond[Clock.ReferenceSpeed];
+            if (left != _blitzShown) { _blitzShown = left; ((TextButton)_session).Caption = $"{left / 60}:{left % 60:00}"; }
+            return;
+        }
         int m = SessionMinutes;
         if (m == _lastMinute) return;
         bool first = _lastMinute < 0;
@@ -385,7 +403,11 @@ public partial class TopBar : PanelContainer
         if (!first && m > 0 && m % 60 == 0) Game.I.ShowToast(SessionJokes.For(m), 6);
     }
 
-    void OnSessionClick() => Game.I.ShowToast(SessionJokes.For(SessionMinutes), 5);
+    void OnSessionClick()
+    {
+        if (Game.I.IsBlitz) Game.I.ShowToast(Game.I.BlitzOver ? "Блиц окончен" : $"Блиц: осталось {Fmt.Duration((int)(Game.I.BlitzTicksLeft / 480))} игрового времени", 4);
+        else Game.I.ShowToast(SessionJokes.For(SessionMinutes), 5);
+    }
 
     /// <summary>One resource cell: 26px pixel icon · spaced CAPTION over value + delta, 2px divider on the right.</summary>
     sealed class Res

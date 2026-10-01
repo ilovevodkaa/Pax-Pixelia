@@ -127,10 +127,17 @@ public partial class Main : Node
     }
 
     /// <summary>
-    /// The game the command line asks for: --seed=N, --nations=2..16, --nofog, --pace=quick|normal|epic|‰, --pause, --nomad.
+    /// The game the command line asks for: --seed=N, --nations=2..16, --nofog, --pace=quick|normal|epic|‰, --pause, --nomad,
+    /// --blitz[=YYYY-WW] (the week's blitz; with --ticks=19200 it runs to its end).
     /// </summary>
     public static GameSetup SetupFromCli()
     {
+        // --blitz[=2026-40]: the week's blitz (this week by default) with the default nation
+        if (Cli.Has("blitz"))
+        {
+            var week = Cli.Str("blitz") is { Length: 7 } w && w[4] == '-' ? w : Blitz.WeekId(DateTime.UtcNow);
+            return Blitz.WeekSetup(week, null) with { StartPaused = Cli.Has("pause") };
+        }
         int seed = Cli.Int("seed", DefaultSeed);
         int pace = Cli.Str("pace") switch
         {

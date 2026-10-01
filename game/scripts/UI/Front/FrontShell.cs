@@ -183,6 +183,7 @@ public partial class FrontShell : Control
         "credits" => new CreditsScreen(),
         "licenses" => new LicensesScreen(),
         "mpstub" => new MpStubScreen(),
+        "blitz" => new BlitzScreen(),
         _ => null,
     };
 

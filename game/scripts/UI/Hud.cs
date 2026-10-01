@@ -103,6 +103,7 @@ public partial class Hud : CanvasLayer
         _root.AddChild(_tech);
         _events = new EventWindow();
         _root.AddChild(_events);
+        _root.AddChild(new BlitzCard());   // «Блиц недели»: the score when the time is up
         _toast = new Toast();
         _root.AddChild(_toast);
         _tip = new TipCard();

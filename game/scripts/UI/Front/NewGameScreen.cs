@@ -107,7 +107,11 @@ public partial class NewGameScreen : FrontScreen
         _start.AddThemeFontSizeOverride("font_size", 22);
         _start.Pressed += Start;
         _start.FocusEntered += () => ShowHint("Два нажатия от титула до карты: мир уже готов, народ — ваш последний.");
-        AddChild(SetupUi.Row(12, back, SetupUi.Spacer(), _start));
+        var blitz = PixelKit.Button("Блиц недели", "GhostButton");
+        blitz.CustomMinimumSize = new Vector2(200, 46);
+        blitz.Pressed += () => Shell.OpenScreen("blitz");
+        blitz.FocusEntered += () => ShowHint("Один мир на всю неделю для всех: 40 минут игрового времени, очки и таблица с друзьями.");
+        AddChild(SetupUi.Row(12, back, blitz, SetupUi.Spacer(), _start));
 
         _debounce = new Timer { OneShot = true, WaitTime = .4 };
         _debounce.Timeout += RegenerateFromField;

@@ -19,5 +19,8 @@ public sealed record GameSetup(
     public int JokePercent { get; init; } = 100;
     /// <summary>Start as wandering tribes (the nomad phase «Тропа племени»); false = settled nations with borders (tests, CLI).</summary>
     public bool Nomad { get; init; } = true;
+    /// <summary>Блиц (Core/Blitz.cs): the game ends after this many ticks and is scored; 0 = an ordinary game.</summary>
+    public long BlitzTicks { get; init; }
+    public bool IsBlitz => BlitzTicks > 0;
     public static GameSetup Default(int seed) => new(seed, seed.ToString(), 16, true, PaceNormal, false, null);
 }

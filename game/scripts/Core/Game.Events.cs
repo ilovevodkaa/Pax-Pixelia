@@ -30,12 +30,6 @@ public partial class Game
         catch (Exception e) { GD.PushError($"content: the event pack failed to load, events are off: {e.Message}"); return null; }
     }
 
-    /// <summary>Bind the event deck to a fresh state (runs on the generation thread; the pack loads on first use).</summary>
-    static void AttachEvents(WorldData w, GameState s, GameSetup setup)
-    {
-        if (ContentPack.Value is { } db) s.Events = new SimEvents(db, w, s, setup.JokePercent);
-    }
-
     // ISimSink: SimEvents reports a human nation's choice window
     public void EventChoiceChanged(int nation)
     {

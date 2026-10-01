@@ -119,6 +119,7 @@ public partial class Game
             WorldHash = CurrentWorldHash(),
             StateHash = s.Hash().All,
             ContentHash = SaveFile.ContentSignature(s.Events?.Db),
+            BlitzTicks = Setup?.BlitzTicks ?? 0,
         };
         var body = new SaveBody { State = SaveFile.Snapshot(s), Journal = new List<Cmd>(Journal), View = CaptureView() };
         _commands.Sequences.CopyTo(body.Seq);
@@ -284,6 +285,7 @@ public partial class Game
             WorldReady?.Invoke();
             RaiseDateChanged();
             TimeControlChanged?.Invoke(State.Paused, State.Speed);
+            CheckBlitzEnd();   // a blitz saved after its end shows its result again
         }
         finally
         {

@@ -76,9 +76,11 @@ public sealed class SaveHeader
     public ulong StateHash;
     public ulong ContentHash;
     public int SnapshotVersion = GameState.SnapshotVersion;
+    /// <summary>GameSetup.BlitzTicks of a blitz game (0 otherwise). Written last: headers of older builds simply end before it.</summary>
+    public long BlitzTicks;
 
     /// <summary>The setup of the saved game (a loaded game starts paused).</summary>
-    public GameSetup ToSetup() => new GameSetup(Seed, SeedText, NationCount, Fog, PacePermille, true, Player) { JokePercent = JokePercent };
+    public GameSetup ToSetup() => new GameSetup(Seed, SeedText, NationCount, Fog, PacePermille, true, Player) { JokePercent = JokePercent, BlitzTicks = BlitzTicks };
 
     public void Write(BinaryWriter w)
     {
@@ -94,6 +96,7 @@ public sealed class SaveHeader
         GameState.WriteFlag(w, Flag);
         w.Write(Tick); w.Write(WorldW); w.Write(WorldH); w.Write(Provinces);
         w.Write(WorldHash); w.Write(StateHash); w.Write(ContentHash); w.Write(SnapshotVersion);
+        w.Write(BlitzTicks);
     }
 
     public static SaveHeader Read(BinaryReader r, int format)
@@ -115,6 +118,7 @@ public sealed class SaveHeader
         h.Flag = GameState.ReadFlag(r);
         h.Tick = r.ReadInt64(); h.WorldW = r.ReadInt32(); h.WorldH = r.ReadInt32(); h.Provinces = r.ReadInt32();
         h.WorldHash = r.ReadUInt64(); h.StateHash = r.ReadUInt64(); h.ContentHash = r.ReadUInt64(); h.SnapshotVersion = r.ReadInt32();
+        if (r.BaseStream.Length - r.BaseStream.Position >= 8) h.BlitzTicks = Math.Max(0, r.ReadInt64());   // older headers end before it
         if (h.NationCount < 1 || h.NationCount > 255 || h.WorldW <= 0 || h.WorldH <= 0 || h.Tick < 0) throw new InvalidDataException("header values");
         return h;
     }
