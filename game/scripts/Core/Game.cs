@@ -81,6 +81,7 @@ public partial class Game : Node
         var cancel = _genCancel = new CancellationTokenSource();
         Setup = setup;
         ResetSaveInfo();
+        _replay = null;   // a replay asked for by PrepareReplay is taken when the state is ready
         World = null; State = null; Seed = setup.Seed;
         Hovered = -1; Selected = -1;
         ResetClock();
@@ -111,6 +112,7 @@ public partial class Game : Node
         }
         if (gen != _generation) return LoadResult.Dropped;
         World = world; State = state;
+        TakeReplay();
         Seed = world.Seed;
         ResetClock();
         LastGenerationMs = sw.ElapsedMilliseconds;
@@ -120,6 +122,7 @@ public partial class Game : Node
         if (State.Nat[Viewer].Camp >= 0)   // the first line of the chronicle (CONTENT §8, Первобытная)
             Notify("history", "Огонь горит. Род цел. Идём. Найдите место для очага и основайте столицу");
         AnnounceBlitz();
+        AnnounceReplay();
         return LoadResult.Done;
     }
 
@@ -129,6 +132,7 @@ public partial class Game : Node
     /// <summary>Drop the running game (back to the menu). A generation still running can no longer resurrect it.</summary>
     public void EndGame()
     {
+        DropReplay();
         ++_generation;
         _genCancel?.Cancel();
         World = null; State = null;
@@ -189,6 +193,7 @@ public partial class Game : Node
     {
         if (!IsReady) return Commands.BadCommand;
         if (BlitzOver && !c.IsSession) { ShowRefusal("Блиц окончен: время вышло"); return Commands.BadCommand; }
+        if (IsReplay && !c.IsSession) { ShowRefusal("Это повтор чужой партии: приказы идут из файла"); return Commands.BadCommand; }
         long day = State.Day256 / Calendar.DayUnit;
         _commands.Submit(State, c);
         int r = _commands.Flush(World, State, this);
@@ -213,7 +218,7 @@ public partial class Game : Node
     public TickReport RunTicks(int ticks)
     {
         if (!IsReady || (ticks = BlitzCap(ticks)) <= 0) return default;
-        var r = _commands.Run(World, State, ticks, this);
+        var r = IsReplay ? RunReplay(ticks) : _commands.Run(World, State, ticks, this);
         if (r.ScoutSteps > 0 || r.ScoutsFinished > 0) RaiseScoutsChanged();
         if (r.Tribes) RaiseTribeChanged();
         if (r.EraChanged) CheckEra();

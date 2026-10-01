@@ -63,7 +63,7 @@ public partial class BlitzCard : PanelContainer
     {
         var r = Game.I.BlitzResult;
         if (r == null) return;
-        _kicker.Text = $"БЛИЦ ОКОНЧЕН · {Blitz.WeekTitle(r.Week)}".ToUpper();
+        _kicker.Text = $"{(Game.I.IsReplay ? $"ПОВТОР · {r.NationName}" : "БЛИЦ ОКОНЧЕН")} · {Blitz.WeekTitle(r.Week)}".ToUpper();
         foreach (var c in _rows.GetChildren()) { _rows.RemoveChild(c); c.QueueFree(); }   // gone now: a second Show in one frame keeps the size
         var sc = r.Score;
         Row("Люди", $"{Fmt.Int(sc.People * 1000L)} чел.", sc.People);
@@ -73,7 +73,9 @@ public partial class BlitzCard : PanelContainer
         Row("Города", "города × 30", sc.Cities);
         Row("Встречи", "державы × 15", sc.Contacts);
         _total.Text = Fmt.Int(sc.Total);
-        _file.Text = Game.I.BlitzResultPath != null
+        _file.Text = Game.I.IsReplay
+            ? Game.I.ReplayMatches ? "Повтор сошёлся с файлом до последнего такта:\nочки честные." : "Повтор разошёлся с файлом:\nдругая версия игры или файл правили."
+            : Game.I.BlitzResultPath != null
             ? "Результат сохранён в папку блица. Пришлите файл друзьям:\nигра повторит вашу партию и проверит очки."
             : "Результат не удалось записать.";
         Visible = true;

@@ -5,6 +5,8 @@ public sealed record PendingGame(GameSetup Setup, World.WorldData World)
 {
     /// <summary>A save to load instead of starting Setup («ПРОДОЛЖИТЬ», «ЗАГРУЗИТЬ»); Setup is then the save's own.</summary>
     public string LoadPath { get; init; }
+    /// <summary>A friend's blitz to watch («Смотреть» in the blitz table) instead of playing Setup.</summary>
+    public BlitzRecord Replay { get; init; }
 }
 
 /// <summary>Hand-over between the front-end scene (Front.tscn) and the game scene (Main.tscn). Contract: MAIN_MENU.md §2.6.</summary>

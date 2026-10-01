@@ -42,6 +42,14 @@ public partial class Game
     {
         if (!BlitzOver || ReferenceEquals(_blitzFor, State)) return;
         _blitzFor = State;
+        if (IsReplay)
+        {
+            // a friend's game: its own result, nothing written
+            BlitzResult = _replay; BlitzResultPath = null;
+            GD.Print($"blitz: the replay of «{_replay.NationName}» ended, hash {(ReplayMatches ? "matches" : "differs from")} the file");
+            BlitzEnded?.Invoke();
+            return;
+        }
         BlitzResult = Blitz.Record(BlitzWeek, ProjectSettings.GetSetting("application/config/version", "0.1").AsString(), Setup, State, Journal,
                                    DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
         try { BlitzResultPath = BlitzStore.Write(BlitzResult); }

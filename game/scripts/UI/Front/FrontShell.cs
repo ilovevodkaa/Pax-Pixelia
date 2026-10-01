@@ -264,13 +264,13 @@ public partial class FrontShell : Control
     /// Hand the game over to Main.tscn: Session.Pending = (setup, world), dither curtain forward, scene change.
     /// Without an explicit world the ready <see cref="NextWorld"/> is reused when its seed matches.
     /// </summary>
-    public async void StartGame(GameSetup setup, WorldData world = null)
+    public async void StartGame(GameSetup setup, WorldData world = null, BlitzRecord replay = null)
     {
         if (_leaving) return;
         _leaving = _busy = true;
         PixelKit.Sfx?.Invoke("confirm", 1f);
         world ??= NextWorld.IsReady && NextWorld.Seed == setup.Seed ? NextWorld.World : null;
-        Session.Pending = new PendingGame(setup, world);
+        Session.Pending = new PendingGame(setup, world) { Replay = replay };
         NextWorld.Release();   // the game owns the world now; the menu will make a fresh one next time
         await _wipe.Close(1);
         GetTree().ChangeSceneToFile(MainScene);

@@ -149,6 +149,7 @@ public partial class Game
     public SaveResult SaveNow(SaveKind kind, string name = null, string path = null)
     {
         var sw = Stopwatch.StartNew();
+        if (IsReplay) return new SaveResult(true, null, null, 0, 0);   // a friend's replay is watched, never saved
         var data = CaptureSave(kind, name);
         if (data == null) return SaveResult.Fail("Партия ещё не началась");
         var png = SaveThumb.CaptureNow().SavePngToBuffer();
@@ -173,6 +174,7 @@ public partial class Game
     public async Task<SaveResult> SaveAsync(SaveKind kind, string name = null, string path = null, string keep = null)
     {
         var sw = Stopwatch.StartNew();
+        if (IsReplay) return new SaveResult(true, null, null, 0, 0);
         var data = CaptureSave(kind, name);
         if (data == null) return SaveResult.Fail("Партия ещё не началась");
         long captureMs = sw.ElapsedMilliseconds;
@@ -223,6 +225,7 @@ public partial class Game
         catch (SaveException e) { GD.PushWarning($"save: {path}: {e.Message}"); return LoadResult.Fail(e.Message); }
         long readMs = sw.ElapsedMilliseconds;
 
+        DropReplay();
         int gen = ++_generation;
         _genCancel?.Cancel();
         var cancel = _genCancel = new CancellationTokenSource();

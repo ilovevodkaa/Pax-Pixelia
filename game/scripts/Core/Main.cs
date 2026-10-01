@@ -62,7 +62,17 @@ public partial class Main : Node
         else
         {
             if (pending == null && Cli.Has("load")) GD.PushWarning("--load: no save to load, starting a new game");
-            var r = await Game.I.NewGame(pending?.Setup ?? SetupFromCli(), pending?.World);
+            if (pending?.Replay != null) Game.I.PrepareReplay(pending.Replay);
+            var setup = pending?.Setup ?? SetupFromCli();
+            if (pending == null && Cli.Str("replay") is { } file)
+            {
+                // --replay=result.pxb: watch a blitz result from the command line
+                BlitzRecord rec;
+                using (var fs = System.IO.File.OpenRead(SaveStore.Resolve(file) is { } p && System.IO.File.Exists(p) ? p : file)) rec = Blitz.Read(fs);
+                Game.I.PrepareReplay(rec);
+                setup = rec.Setup with { StartPaused = Cli.Has("pause") };
+            }
+            var r = await Game.I.NewGame(setup, pending?.World);
             if (!r.Ok && !r.Superseded)
             {
                 GD.PushError($"new game failed: {r.Error}");

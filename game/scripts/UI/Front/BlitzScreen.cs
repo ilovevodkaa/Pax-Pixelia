@@ -82,6 +82,12 @@ public partial class BlitzScreen : FrontScreen
             var status = PixelKit.Label("проверяется…", 13, PixelKit.TextDim);
             row.AddChild(status);
             row.AddChild(PixelKit.Label(r.Score.Total.ToString(), 18, PixelKit.AccentLight));
+            var watch = PixelKit.Button("Смотреть", "GhostButton");
+            watch.CustomMinimumSize = new Vector2(120, 34);
+            watch.TooltipText = "Повтор этой партии: игра пройдёт её по журналу, вы смотрите глазами игрока";
+            var rec = r;
+            watch.Pressed += () => Shell.StartGame(rec.Setup, null, rec);
+            row.AddChild(watch);
             _table.AddChild(row);
             marks.Add((e, status));
         }
