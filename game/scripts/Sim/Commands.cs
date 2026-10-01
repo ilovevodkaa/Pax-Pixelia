@@ -34,6 +34,8 @@ public enum CmdType : byte
     Gift, Pact, DemandTribute, AnswerDemand, StopTribute,
     // dig the ruins of province A (Archaeology)
     Excavate,
+    // adopt dogma A for the nation's faith
+    Dogma,
 }
 
 /// <summary>
@@ -62,6 +64,7 @@ public readonly record struct Cmd(int Tick, byte Nation, ushort Seq, CmdType Typ
     public static Cmd WonderStart(int n, int wonder) => new(0, (byte)n, 0, CmdType.WonderStart, wonder);
     public static Cmd Relief(int n, int province) => new(0, (byte)n, 0, CmdType.Relief, province);
     public static Cmd Gift(int n, int to) => new(0, (byte)n, 0, CmdType.Gift, to);
+    public static Cmd Dogma(int n, int dogma) => new(0, (byte)n, 0, CmdType.Dogma, dogma);
     public static Cmd Pact(int n, int with, bool on) => new(0, (byte)n, 0, CmdType.Pact, with, on ? 1 : 0);
     public static Cmd DemandTribute(int n, int from) => new(0, (byte)n, 0, CmdType.DemandTribute, from);
     public static Cmd AnswerDemand(int n, bool pay) => new(0, (byte)n, 0, CmdType.AnswerDemand, pay ? 1 : 0);
@@ -189,6 +192,14 @@ public static class Commands
                 var e = Wonders.CheckStart(s, n, c.A);
                 if (e != WonderError.None) return (int)e;
                 Wonders.Start(s, n, c.A);
+                return 0;
+            }
+            case CmdType.Dogma:
+            {
+                var e = Faith.CheckAdopt(s.Nat[n], c.A);
+                if (e != DogmaError.None) return (int)e;
+                Faith.Adopt(s, n, c.A);
+                Firsts.OnDogma(w, s, n, sink);
                 return 0;
             }
             case CmdType.Gift:

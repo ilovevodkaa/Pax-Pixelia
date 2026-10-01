@@ -17,7 +17,7 @@ public sealed record FirstDef(string Name, string Deed, string Effect, string Ic
 /// </summary>
 public static class Firsts
 {
-    public const int Hearth = 0, NewTown = 1, Mine = 2, Gold = 3, ThreePeoples = 4, Writing = 5, GreatFork = 6, GreatCity = 7, Realm = 8, FirstWonder = 9;
+    public const int Hearth = 0, NewTown = 1, Mine = 2, Gold = 3, ThreePeoples = 4, Writing = 5, GreatFork = 6, GreatCity = 7, Realm = 8, FirstWonder = 9, FirstTeaching = 10;
     /// <summary>Glory every world first brings besides its bonus (Wonders: glory counts in the leaderboard).</summary>
     public const int FirstGlory = 15;
     public const int CheckCycles = 4;
@@ -44,6 +44,8 @@ public static class Firsts
         new("Держава пятидесяти земель", "собирает 50 провинций", "Налоги +3%", "flag", new[] { (TechFx.TaxPermille, 30) },
             Character.Commune, false, 5),
         new("Чудо света", "возводит чудо света", "Довольство +2", "diamond", new[] { (TechFx.Mood, 2) },
+            Character.Faith, false, 5),
+        new("Первое учение", "принимает догмат своей веры", "Святилища: довольство +1", "sun", new[] { (TechFx.ShrineMood, 1) },
             Character.Faith, false, 5),
     };
 
@@ -108,6 +110,11 @@ public static class Firsts
     {
         if (Holder(s, Writing) < 0 && Techs.All[t].Id == "writing") Award(w, s, Writing, n, sink);
         if (Holder(s, GreatFork) < 0 && Techs.All[t].Fork >= 0) Award(w, s, GreatFork, n, sink);
+    }
+
+    public static void OnDogma(WorldData w, GameState s, int n, ISimSink sink)
+    {
+        if (Holder(s, FirstTeaching) < 0) Award(w, s, FirstTeaching, n, sink);
     }
 
     public static void OnWonder(WorldData w, GameState s, int n, ISimSink sink)

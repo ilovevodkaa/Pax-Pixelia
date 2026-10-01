@@ -60,6 +60,7 @@ public static partial class Simulation
         for (int n = 0; n < s.Nat.Length; n++) Eurekas.Baseline(w, s, n);
         Unrest.Init(w, s);
         Diplomacy.Init(s);
+        for (int n = 0; n < s.Nat.Length; n++) { if (s.Nat[n].Rulers == 0) Leader.Crown(w, s, n); Faith.Refresh(s.Nat[n]); }
         for (int n = 0; n < s.Nat.Length; n++)
         {
             var nat = s.Nat[n];
@@ -123,6 +124,8 @@ public static partial class Simulation
         Character.Cycle(w, s, cycle, sink);
         Firsts.Cycle(w, s, cycle, sink);
         Wonders.Cycle(w, s, cycle, sink);
+        Leader.Cycle(w, s, cycle, sink);
+        Faith.Cycle(w, s, cycle, sink);
         Challenges.Cycle(w, s, cycle, sink);
         Archaeology.Cycle(w, s, cycle, sink);
         Eurekas.Cycle(w, s, cycle, sink);
@@ -236,7 +239,9 @@ public static partial class Simulation
                 if (s.CapitalOf[p] >= 0) target += 5;
                 if (Rules.KnownOre(s, p) == Rules.OreSalt) target += Rules.SaltMood;
                 target += Nomads.MythMood(s, o);
-                if (s.Religion[p] >= 0 && s.Religion[p] != s.Nations[o].Religion) target -= 10;
+                if (s.Religion[p] >= 0 && s.Religion[p] != s.Nations[o].Religion && !Faith.Tolerant(s.Nat[o])) target -= 10;
+                target += Faith.MoodIn(w, s, o, p);
+                if (Policy.On(s.Nat[o], 0)) target += Leader.FeastMood(s.Nat[o]) + Faith.FeastMood(s.Nat[o]);   // «Праздники» with a merry ruler or a harvest feast
             }
             target = IntMath.Clamp(target, 5, 95);
             int m = s.Mood[p];

@@ -77,6 +77,7 @@ public static class UiDebug
         if (Cli.Has("policy")) hud.DebugTogglePolicy();
         if (Cli.Has("wonders")) hud.DebugToggleWonders();
         if (Cli.Has("diplo")) hud.DebugToggleDiplomacy();
+        if (Cli.Has("faith")) hud.DebugToggleFaith();
         if (Cli.Has("toast"))
         {
             var text = Cli.Str("toast");

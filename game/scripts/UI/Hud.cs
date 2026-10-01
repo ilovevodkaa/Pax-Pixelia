@@ -26,6 +26,7 @@ public partial class Hud : CanvasLayer
     PolicyCard _policy;
     WondersCard _wonders;
     DiplomacyCard _diplo;
+    FaithCard _faith;
     Toast _toast;
     TipCard _tip;
     ChapterCard _loading;
@@ -35,8 +36,8 @@ public partial class Hud : CanvasLayer
     int _tipProvince = -1;
     bool _tipDirty;
     // heavy refreshes are coalesced: fog/ownership events may arrive every tick at speed 5
-    bool _miniDirty, _leadDirty, _liveDirty, _techDirty, _policyDirty, _wondersDirty, _diploDirty;
-    double _miniCooldown, _leadCooldown, _liveCooldown, _miniHeld, _policyCooldown, _wondersCooldown, _diploCooldown;
+    bool _miniDirty, _leadDirty, _liveDirty, _techDirty, _policyDirty, _wondersDirty, _diploDirty, _faithDirty;
+    double _miniCooldown, _leadCooldown, _liveCooldown, _miniHeld, _policyCooldown, _wondersCooldown, _diploCooldown, _faithCooldown;
 
     /// <summary>Debug hooks (UiDebug): a fixed mouse position for screenshots and the control whose tip is forced.</summary>
     internal Vector2? FakeMouse;
@@ -65,6 +66,8 @@ public partial class Hud : CanvasLayer
     internal WondersCard WondersView => _wonders;
     internal void DebugToggleDiplomacy() => ToggleDiplomacy();
     internal DiplomacyCard DiplomacyView => _diplo;
+    internal void DebugToggleFaith() => ToggleFaith();
+    internal FaithCard FaithView => _faith;
 
     /// <summary>The HUD in the tree (a skin change builds a new one), for the panels that open a card of another.</summary>
     internal static Hud I { get; private set; }
@@ -89,6 +92,7 @@ public partial class Hud : CanvasLayer
         _top.PolicyToggled += TogglePolicy;
         _top.WondersToggled += ToggleWonders;
         _top.DiplomacyToggled += ToggleDiplomacy;
+        _top.FaithToggled += ToggleFaith;
         _top.PauseClicked += TogglePause;
         _root.AddChild(_top);
 
@@ -115,6 +119,8 @@ public partial class Hud : CanvasLayer
         _root.AddChild(_wonders);
         _diplo = new DiplomacyCard();
         _root.AddChild(_diplo);
+        _faith = new FaithCard();
+        _root.AddChild(_faith);
         _tech = new TechScreen { Hud = this };
         _root.AddChild(_tech);
         _events = new EventWindow();
@@ -243,7 +249,7 @@ public partial class Hud : CanvasLayer
     void OnCycleTick()
     {
         _top.OnCycleTick();
-        _liveDirty = _leadDirty = _techDirty = _policyDirty = _wondersDirty = _diploDirty = true;   // top bar + panel live values, coalesced in _Process
+        _liveDirty = _leadDirty = _techDirty = _policyDirty = _wondersDirty = _diploDirty = _faithDirty = true;   // top bar + panel live values, coalesced in _Process
     }
 
     /// <summary>The date moves every tick (months/days): the clock follows at once, the heavier live values
@@ -304,7 +310,19 @@ public partial class Hud : CanvasLayer
         if (keep != _policy && _policy.Visible) TogglePolicy();
         if (keep != _wonders && _wonders.Visible) ToggleWonders();
         if (keep != _diplo && _diplo.Visible) ToggleDiplomacy();
+        if (keep != _faith && _faith.Visible) ToggleFaith();
     }
+
+    void ToggleFaith()
+    {
+        if (!Game.I.IsReady && !_faith.Visible) return;
+        if (!_faith.Visible) CloseOthers(_faith);
+        bool open = _faith.Toggle();
+        _top.SetFaithOpen(open);
+        if (open) { _faithCooldown = .5; PlaceFaith(); }
+    }
+
+    void PlaceFaith() => _faith.Place(_top.FaithButton.GetGlobalRect(), _root.Size);
 
     internal void ToggleDiplomacy()
     {
@@ -397,6 +415,7 @@ public partial class Hud : CanvasLayer
         if (_policy.Visible) TogglePolicy();
         if (_wonders.Visible) ToggleWonders();
         if (_diplo.Visible) ToggleDiplomacy();
+        if (_faith.Visible) ToggleFaith();
         if (_tech.Visible) ToggleTech();
         _toast.HideNow();
         _loading.ShowNow();
@@ -429,6 +448,7 @@ public partial class Hud : CanvasLayer
                 else if (_policy.Visible) TogglePolicy();
                 else if (_wonders.Visible) ToggleWonders();
                 else if (_diplo.Visible) ToggleDiplomacy();
+                else if (_faith.Visible) ToggleFaith();
                 else if (_panel.Visible) Game.I.Select(-1);
                 else if (Game.I.IsReady && !_loading.Visible) PauseMenu.Open();
                 else return;
@@ -453,6 +473,7 @@ public partial class Hud : CanvasLayer
         if (_policy.Visible) Callable.From(PlacePolicy).CallDeferred();
         if (_wonders.Visible) Callable.From(PlaceWonders).CallDeferred();
         if (_diplo.Visible) Callable.From(PlaceDiplomacy).CallDeferred();
+        if (_faith.Visible) Callable.From(PlaceFaith).CallDeferred();
     }
 
     // ---------------- tooltip ----------------
@@ -465,6 +486,12 @@ public partial class Hud : CanvasLayer
         // while a capture fill runs on the map the minimap keeps its old colours and snaps when it ends (at most 1.2 s late)
         if (_miniDirty && Game.I.CaptureFillsRunning && _miniHeld < 1.2) _miniHeld += delta;
         else if (_miniDirty && _miniCooldown <= 0) { _miniDirty = false; _miniHeld = 0; _miniCooldown = .25; _mini.View.Recolor(); }
+        if (_faith.Visible)
+        {
+            _faithCooldown -= delta;
+            if (_faithDirty && _faithCooldown <= 0) { _faithDirty = false; _faithCooldown = .5; _faith.Refresh(); }
+            PlaceFaith();
+        }
         if (_diplo.Visible)
         {
             _diploCooldown -= delta;

@@ -60,6 +60,15 @@ public sealed class NationState
     public int Wonder = -1;             // Wonders.All index being built in the capital, -1 = none
     public long WonderGold, WonderMats; // put into it so far (gold in hundredths, materials whole)
     public int[] WonderFx;              // derived: bonuses of the wonders this nation owns per TechFx (Wonders.Refresh), never saved
+    // ---- the ruler (Leader.cs) and the faith's dogmas (Faith.cs) ----
+    public int Rulers;                  // rulers crowned so far (0: none yet, crowned in the next cycle)
+    public int RulerSeed;               // the ruler's name comes from it
+    public int RulerNumeral = 1;        // «II» for a namesake heir
+    public int RulerStart;              // rules cycle of the accession
+    public byte RulerAge0, RulerLife;   // age at the accession, the age the ruler is due to die at (before traits)
+    public int RulerTraits;             // bit t: Leader.Traits[t]
+    public int Dogmas;                  // bit d: Faith.Dogmas[d] adopted
+    public int[] LeaderFx, FaithFx;     // derived: the bonuses of the ruler's traits and of the dogmas per TechFx, never saved
     public ulong[] Eurekas;             // bit e: Eurekas.All[e] has struck (or its technology was known before the deed)
     // ---- the leader's challenge (Challenges.cs) ----
     public int ChallengeKind = -1;      // Challenges.All index under way, -1 = none

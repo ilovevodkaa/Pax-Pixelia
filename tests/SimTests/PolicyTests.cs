@@ -173,6 +173,7 @@ public static class PolicyTests
         s.Nat[Me].Control = NationControl.Human;
         for (int t = 0; t < Techs.Count; t++) Techs.Set(s.Nat[Me], t, t < 6);
         Simulation.Begin(w, s);
+        s.Nat[Me].RulerTraits = 0; Leader.Refresh(s.Nat[Me]);   // no ruler's bonuses in the numbers
         return s;
     }
 }

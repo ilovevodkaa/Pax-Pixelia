@@ -280,13 +280,13 @@ public static class Techs
     public static int ResearchRate(NationState nat)
     {
         int r = nat.ScienceRate + (nat.ScienceRate > 0 ? Sum(nat, TechFx.Science) : 0);
-        return r + r * Policy.ResearchPct(nat) / 100;   // Покровительство мудрецам
+        return r + r * (Policy.ResearchPct(nat) + Leader.ResearchPct(nat) + Faith.ResearchPct(nat)) / 100;   // sages, a wise ruler, temple schools
     }
 
     /// <summary>Sum of one effect over the nation's known technologies.</summary>
     public static int Sum(NationState nat, TechFx fx)
     {
-        int s = Character.Fx(nat, fx) + Wonders.Fx(nat, fx);   // the character of the people and the wonders add their bonuses as technology effects
+        int s = Character.Fx(nat, fx) + Wonders.Fx(nat, fx) + Leader.Fx(nat, fx) + Faith.Fx(nat, fx);   // the people, the wonders, the ruler and the faith add theirs
         for (int t = 0; t < All.Length; t++)
         {
             if (!Known(nat, t)) continue;

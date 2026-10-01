@@ -143,6 +143,7 @@ public static class CharacterTests
         System.Array.Clear(nat.CharA); System.Array.Clear(nat.CharB); System.Array.Clear(nat.CharLevel); System.Array.Clear(nat.CharHeld);
         nat.CharTraits = 0; nat.FirstTechs = 0;
         Character.Refresh(nat);
+        nat.RulerTraits = 0; Leader.Refresh(nat);   // a ruler without traits: the numbers are the character's alone
         return s;
     }
 

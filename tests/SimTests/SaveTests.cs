@@ -261,7 +261,7 @@ public static class SaveTests
                 "FogEnabled", "Scouts", "ScoutSeq", "Events", "WonderOwner", "WonderFlag", "Opinion", "Pact", "TributeTo", "DemandFrom", "DemandUntil", "FirstHolder", "FirstCycle" }, new[] { "Scratch" }),
             (typeof(NationState), new[] { "Control", "Treasury", "LastTaxes", "LastUpkeep", "Progress", "ScienceRate", "Era", "ProjectIndex",
                 "QueuePct", "ProjectsDone", "EventCount", "Materials", "LastMaterials", "TechsDone", "Researching", "TechPts", "TechPool", "Camp", "CampPath", "CampStep", "CampSub", "Supplies", "TribePop", "Legends", "Myth", "Edicts", "Fog",
-                "CharA", "CharB", "CharLevel", "CharHeld", "CharTraits", "FirstTechs", "Glory", "Wonder", "WonderGold", "WonderMats", "Eurekas", "ChallengeKind", "ChallengeGoal", "ChallengeEnd", "ChallengesWon" }, new[] { "CharFx", "WonderFx", "Firsts" }),
+                "CharA", "CharB", "CharLevel", "CharHeld", "CharTraits", "FirstTechs", "Glory", "Wonder", "WonderGold", "WonderMats", "Rulers", "RulerSeed", "RulerNumeral", "RulerStart", "RulerAge0", "RulerLife", "RulerTraits", "Dogmas", "Eurekas", "ChallengeKind", "ChallengeGoal", "ChallengeEnd", "ChallengesWon" }, new[] { "CharFx", "WonderFx", "LeaderFx", "FaithFx", "Firsts" }),
             (typeof(NationFog), new[] { "Fog", "Explored", "KnownOwner", "Met" }, Array.Empty<string>()),
             (typeof(GameState.Scout), new[] { "Id", "Nation", "Path", "Step", "Sub", "Auto", "Steps", "MaxSteps", "Found" }, new[] { "Progress" }),
             (typeof(EventMemory), new[] { "Nation", "Bot", "NextDue", "NextChoice", "ReadyAt", "FiredCount", "Flags", "ThreadEra", "GuaranteedThreads",

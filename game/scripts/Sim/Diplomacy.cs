@@ -268,6 +268,7 @@ public static class Diplomacy
             }
             if (best < 0) { s.Pull[p] = (byte)Math.Max(0, s.Pull[p] - 2 * PullCheck); continue; }
             int step = Opinion(s, best, o) <= Hostile ? 2 * PullCheck : PullCheck;
+            step = Math.Max(1, step * (100 + Leader.PullPct(s.Nat[o])) / 100);   // a recluse ruler keeps people at home
             int was = s.Pull[p], now = Math.Min(PullAt, was + step);
             s.Pull[p] = (byte)now;
             if (was == 0 && s.Nat[o].Human) sink?.Notify("affiliate", $"Провинция {w.PName[p]} засматривается на соседей ({s.Nations[best].Name}): у них живут лучше. Поднимите довольство");

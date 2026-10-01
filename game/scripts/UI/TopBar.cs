@@ -21,6 +21,7 @@ public partial class TopBar : PanelContainer
     public event Action PolicyToggled;
     public event Action WondersToggled;
     public event Action DiplomacyToggled;
+    public event Action FaithToggled;
     public Button TechButton => _screenBtns[0];
     public event Action PauseClicked;
 
@@ -112,6 +113,7 @@ public partial class TopBar : PanelContainer
                 0 => Ui.IconButton(icon, "Ib", 36, 34, 2, () => TechToggled?.Invoke()),
                 1 => Ui.IconButton(icon, "Ib", 36, 34, 2, () => PolicyToggled?.Invoke()),
                 3 => Ui.IconButton(icon, "Ib", 36, 34, 2, () => DiplomacyToggled?.Invoke()),
+                4 => Ui.IconButton(icon, "Ib", 36, 34, 2, () => FaithToggled?.Invoke()),
                 _ => Ui.IconButton(icon, "Ib", 36, 34, 2, () => Game.I.ShowToast($"Экран «{name}» — нарисуем следующим")),
             };
             b.MouseFilter = MouseFilterEnum.Stop;
@@ -143,6 +145,16 @@ public partial class TopBar : PanelContainer
                 if (g.DemandFrom >= 0) t.Kv("Требуют дань", g.Nations[g.DemandFrom].Name, Pal.Bad);
                 int pays = g.TributeTo(g.Viewer);
                 if (pays >= 0) t.Kv("Мы платим дань", g.Nations[pays].Name, Pal.Warn);
+            });
+            else if (i == 4) b.Tip(t =>
+            {
+                t.Title("Правитель и вера").Mu("Черты правителя, догматы веры, иноверцы");
+                var g = Game.I;
+                if (!g.IsReady) return;
+                t.Kv("Правит", $"{g.RulerTitle(g.Viewer)}, {g.RulerAge(g.Viewer)} лет", Pal.Hi);
+                int open = 0;
+                foreach (var slot in Faith.Slots) if (g.DogmaSlotOpen(slot) && g.DogmaInSlot(slot) < 0) open++;
+                if (open > 0) t.Kv("Догматы", $"можно принять {open}", Pal.Warn);
             });
             else b.Tip(name, null, "Экран в разработке");
             _screens.AddChild(b);
@@ -202,6 +214,7 @@ public partial class TopBar : PanelContainer
         {
             var n = Game.I.Nations[GameState.LocalPlayer];
             t.Title(n.Name).Line($"{n.Gov} · {Game.I.EraName}");
+            if (Game.I.IsReady) t.Kv("Правит", $"{Game.I.RulerTitle(GameState.LocalPlayer)}, {Game.I.RulerAge(GameState.LocalPlayer)} лет", Pal.Hi);
             if (Game.I.IsReady) CharacterTip.Fill(t, Game.I.State.Nat[GameState.LocalPlayer]);
             if (Game.I.IsReady && Challenges.Text(Game.I.State, GameState.LocalPlayer) is { } challenge)
             {
@@ -400,6 +413,13 @@ public partial class TopBar : PanelContainer
 
     public Button PolicyButton => _screenBtns[1];
     public Button DiplomacyButton => _screenBtns[3];
+    public Button FaithButton => _screenBtns[4];
+
+    public void SetFaithOpen(bool open)
+    {
+        FaithButton.ThemeTypeVariation = open ? "IbOn" : "Ib";
+        FaithButton.Icon = Icons.Get("sun", 2, !open);
+    }
 
     public void SetDiplomacyOpen(bool open)
     {

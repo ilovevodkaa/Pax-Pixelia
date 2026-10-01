@@ -162,6 +162,47 @@ public partial class Game : ISimSink
         Notify("building-bank", on ? $"Издан указ «{d.Name}»: {d.Effect.ToLowerInvariant()}" : $"Указ «{d.Name}» отменён");
     }
 
+    // ------------------------------------------------------------------ the ruler and the faith
+
+    public string RulerTitle(int n) => IsReady ? Leader.Title(State.Nat[n]) : "";
+    public int RulerAge(int n) => IsReady ? Leader.Age(State, State.Nat[n]) : 0;
+    public int RulerReign(int n) => IsReady ? Leader.ReignYears(State, State.Nat[n]) : 0;
+    public bool RulerHas(int t) => IsReady && Leader.Has(State.Nat[Viewer], t);
+    public bool DogmaHas(int d) => IsReady && Faith.Has(State.Nat[Viewer], d);
+    public bool DogmaSlotOpen(string slot) => IsReady && Faith.SlotOpen(State.Nat[Viewer], slot);
+    public int DogmaInSlot(string slot) => IsReady ? Faith.InSlot(State.Nat[Viewer], slot) : -1;
+
+    /// <summary>Own provinces of another faith (they sulk unless the faith is tolerant).</summary>
+    public int Heathens()
+    {
+        int k = 0;
+        if (!IsReady) return 0;
+        int faith = Nations[Viewer].Religion;
+        for (int p = 0; p < State.Owner.Length; p++) if (State.Owner[p] == Viewer && State.Religion[p] >= 0 && State.Religion[p] != faith) k++;
+        return k;
+    }
+
+    static string DogmaText(DogmaError e) => e switch
+    {
+        DogmaError.None => null,
+        DogmaError.Taken => "Этот догмат уже принят",
+        DogmaError.NoSlot => "Место для такого догмата занято или ещё не открылось",
+        DogmaError.Excluded => "Он спорит с уже принятым догматом",
+        _ => "Нельзя",
+    };
+
+    public string DogmaProblem(int d) => !IsReady ? "Мир ещё не создан" : DogmaText(Faith.CheckAdopt(State.Nat[Viewer], d));
+
+    public void AdoptDogma(int d)
+    {
+        var why = DogmaProblem(d);
+        if (why != null) { ShowRefusal(why); return; }
+        int r = Issue(Cmd.Dogma(Viewer, d));
+        if (r != 0) { ShowRefusal(DogmaText((DogmaError)r)); return; }
+        var def = Faith.Dogmas[d];
+        Notify("sun", $"Вера принимает догмат «{def.Name}»: {def.Effect.ToLowerInvariant()}");
+    }
+
     // ------------------------------------------------------------------ diplomacy
 
     public int OpinionOf(int who, int about) => IsReady ? Diplomacy.Opinion(State, who, about) : 0;

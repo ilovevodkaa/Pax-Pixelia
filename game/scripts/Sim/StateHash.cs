@@ -89,6 +89,12 @@ public sealed partial class GameState
             for (int k = 0; k < TributeTo.Length; k++) { nat.Add(TributeTo[k]); nat.Add(DemandFrom[k]); nat.Add(DemandUntil[k]); }
             foreach (byte b in Pull) nat.Add(b);
         }
+        foreach (var x in Nat)   // a nation without a ruler or dogmas yet (an older save) hashes as before them
+            if (x.Rulers != 0 || x.Dogmas != 0)
+            {
+                nat.Add(x.Rulers); nat.Add(x.RulerSeed); nat.Add(x.RulerNumeral); nat.Add(x.RulerStart);
+                nat.Add(x.RulerAge0); nat.Add(x.RulerLife); nat.Add(x.RulerTraits); nat.Add(x.Dogmas);
+            }
         if (!Wonders.IsBlank(this))  // no glory, no wonder: hashes as before wonders
         {
             foreach (var x in Nat) { nat.Add(x.Glory); nat.Add(x.Wonder); nat.Add(x.WonderGold); nat.Add(x.WonderMats); }

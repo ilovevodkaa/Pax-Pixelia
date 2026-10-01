@@ -79,6 +79,7 @@ public partial class SelfTest : Node
             await WondersFlow();
             await UnrestFlow();
             await DiplomacyFlow();
+            await FaithFlow();
             await EventChoiceFlow();
             await PauseMenuFlow();
             await SkinFlow();

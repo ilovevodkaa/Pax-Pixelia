@@ -52,6 +52,7 @@ public static class Program
         WonderTests.Run(w);
         UnrestTests.Run(w);
         DiplomacyTests.Run(w);
+        LeaderFaithTests.Run(w);
         TechTests.Run(w);
         NomadTests.Run(w);
         RumorTests.Run(w);

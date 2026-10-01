@@ -32,6 +32,9 @@ public static class Unrest
     /// <summary>«Раздать хлеб»: mood in the province and in its own neighbours.</summary>
     public const int ReliefMood = 15, ReliefNeighbourMood = 6;
 
+    /// <summary>Cycles of rising before secession for nation nat: a stern ruler holds a quarter longer.</summary>
+    public static int RevoltAtFor(NationState nat) => Math.Min(250, RevoltAt * (100 + Leader.RevoltPct(nat)) / 100);
+
     public static UnrestStage Stage(int mood) => mood >= GrumbleBelow ? UnrestStage.Calm : mood >= UnrestBelow ? UnrestStage.Grumbling
                                                : mood >= RevoltBelow ? UnrestStage.Unrest : UnrestStage.Revolt;
 
@@ -115,7 +118,7 @@ public static class Unrest
                     sink?.Notify("alert-triangle", $"В провинции {w.PName[p]} мятеж! Если не успокоить людей, через минуту она отложится");
                 else if (u == RevoltAt / 2 && s.Nat[o].Human)
                     sink?.Notify("alert-triangle", $"Мятеж в провинции {w.PName[p]} разгорается: полминуты до отделения. Раздайте хлеб или объявите праздники");
-                if (u >= RevoltAt) { (seceding ??= new List<int>()).Add(p); u = 0; }
+                if (u >= RevoltAtFor(s.Nat[o])) { (seceding ??= new List<int>()).Add(p); u = 0; }
             }
             else u = Math.Max(0, u - 2);
             s.Unrest[p] = (byte)u;

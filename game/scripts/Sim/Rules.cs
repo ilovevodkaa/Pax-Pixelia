@@ -31,7 +31,7 @@ public static class Rules
     /// <summary>Base gold price of b (Первобытная).</summary>
     public static int BuildCost(Bld b) => Cost[(int)b];
     /// <summary>What b costs nation nat in its era: a quarter dearer every era.</summary>
-    public static int BuildPrice(Bld b, NationState nat) => (int)((long)Cost[(int)b] * Policy.EraPermille(nat.Era) / 1000);
+    public static int BuildPrice(Bld b, NationState nat) => (int)((long)Cost[(int)b] * Policy.EraPermille(nat.Era) / 1000 * (100 - Leader.BuildPct(nat)) / 100);
 
     /// <summary>Materials (wood and stone) a building takes, by Bld: the lumber mill and the quarry cost none, so a
     /// nation that ran out can always dig itself out.</summary>
@@ -65,7 +65,7 @@ public static class Rules
         if (!Unrest.Works(s, p)) return 0;   // on strike
         int m = s.CapitalOf[p] >= 0 ? CapitalMaterials : 0;
         foreach (var b in s.Buildings[p])
-            m += b switch { Bld.Lumber => LumberMaterials, Bld.Quarry => QuarryMaterials, _ => 0 };
+            m += b switch { Bld.Lumber => LumberMaterials - (s.Owner[p] >= 0 && Faith.Has(s.Nat[s.Owner[p]], Faith.Index("sacred_groves")) ? 1 : 0), Bld.Quarry => QuarryMaterials, _ => 0 };
         if (IsMine(s, p)) m += MineMaterials + (s.Owner[p] >= 0 ? Techs.Sum(s.Nat[s.Owner[p]], TechFx.MineMaterials) : 0);
         if (s.Owner[p] >= 0)
         {
@@ -200,7 +200,11 @@ public static class Rules
     public static long ProvinceTax(GameState s, int p)
     {
         long t = (long)s.Pop[p] * (650 + 5 * s.Mood[p]) / 700_000;
-        foreach (var b in s.Buildings[p]) if (b == Bld.Market) t += MarketTax;
+        foreach (var b in s.Buildings[p])
+        {
+            if (b == Bld.Market) t += MarketTax;
+            else if (b == Bld.Shrine && s.Owner[p] >= 0) t += Faith.ShrineTax(s.Nat[s.Owner[p]]);   // pilgrims
+        }
         if (s.CapitalOf[p] >= 0) t += CapitalTax;
         if (KnownOre(s, p) == OreGold) t += GoldVeinTax;
         if (s.Owner[p] >= 0)

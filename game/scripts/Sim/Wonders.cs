@@ -264,7 +264,8 @@ public static class Wonders
             long m = Math.Min(Math.Max(0, nat.Materials), Math.Max(0, (long)nat.LastMaterials) * AutoPct / 100);
             g = Math.Min(g, GoldCost(nat.Wonder) * Rules.Cents - nat.WonderGold);
             m = Math.Min(m, MatCost(nat.Wonder) - nat.WonderMats);
-            nat.Treasury -= Math.Max(0, g); nat.WonderGold += Math.Max(0, g);
+            nat.Treasury -= Math.Max(0, g);
+            nat.WonderGold += Math.Max(0, g) * (100 + Leader.WonderPct(nat)) / 100;   // an architect ruler stretches every coin
             nat.Materials -= Math.Max(0, m); nat.WonderMats += Math.Max(0, m);
         }
         // finished wonders, the lowest nation index first among those done this very cycle

@@ -22,7 +22,7 @@ namespace PaxPixelia.Sim;
 public sealed partial class GameState
 {
     /// <summary>Layout version of the snapshot (the save file carries it; older layouts are read field by field).</summary>
-    public const int SnapshotVersion = 14;   // 2: materials · 3: technologies · 4: the nomad phase · 5: techs past 64 · 6: character · 7: edicts · 8: world firsts · 9: wonders and glory · 10: eurekas · 11: unrest · 12: challenges · 13: diplomacy · 14: ruins dug
+    public const int SnapshotVersion = 15;   // 2: materials · 3: technologies · 4: the nomad phase · 5: techs past 64 · 6: character · 7: edicts · 8: world firsts · 9: wonders and glory · 10: eurekas · 11: unrest · 12: challenges · 13: diplomacy · 14: ruins dug · 15: ruler and dogmas
 
     const int MaxNations = 255;
 
@@ -151,6 +151,13 @@ public sealed partial class GameState
         // ---- archaeology (14) ----
         w.Write(RuinsDug?.Length ?? 0);
         if (RuinsDug != null) foreach (ulong v in RuinsDug) w.Write(v);
+
+        // ---- the ruler and the dogmas (15) ----
+        foreach (var x in Nat)
+        {
+            w.Write(x.Rulers); w.Write(x.RulerSeed); w.Write(x.RulerNumeral); w.Write(x.RulerStart);
+            w.Write(x.RulerAge0); w.Write(x.RulerLife); w.Write(x.RulerTraits); w.Write(x.Dogmas);
+        }
     }
 
     /// <summary>
@@ -348,7 +355,7 @@ public sealed partial class GameState
         if (version >= 11)
         {
             s.Unrest = ReadBytes(r, P);
-            foreach (byte u in s.Unrest) Require(u <= Sim.Unrest.RevoltAt, "unrest");
+            foreach (byte u in s.Unrest) Require(u <= 250, "unrest");
             s.Plague = ReadBytes(r, P);
             foreach (byte u in s.Plague) Require(u <= Sim.Unrest.PlagueCycles / Sim.Unrest.PlagueStep + 1 || u >= Sim.Unrest.ImmuneBase, "plague");
         }
@@ -381,6 +388,16 @@ public sealed partial class GameState
             Require(words >= 0 && words <= 1024, "ruins");
             if (words > 0) { s.RuinsDug = new ulong[words]; for (int i = 0; i < words; i++) s.RuinsDug[i] = r.ReadUInt64(); }
         }
+
+        if (version >= 15)
+            foreach (var x in s.Nat)
+            {
+                x.Rulers = r.ReadInt32(); x.RulerSeed = r.ReadInt32(); x.RulerNumeral = r.ReadInt32(); x.RulerStart = r.ReadInt32();
+                x.RulerAge0 = r.ReadByte(); x.RulerLife = r.ReadByte(); x.RulerTraits = r.ReadInt32(); x.Dogmas = r.ReadInt32();
+                Require(x.Rulers >= 0 && x.RulerNumeral >= 1 && x.RulerStart >= 0, "ruler");
+                x.RulerTraits &= (1 << Sim.Leader.Count) - 1; x.Dogmas &= (1 << Sim.Faith.Count) - 1;
+            }
+        foreach (var x in s.Nat) { Sim.Leader.Refresh(x); Sim.Faith.Refresh(x); }
         return s;
     }
 
