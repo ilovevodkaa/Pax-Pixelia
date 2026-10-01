@@ -98,6 +98,7 @@ public static partial class Simulation
 
     static void Cycle(WorldData w, GameState s, int cycle, ISimSink sink, ref TickReport r)
     {
+        if (!Policy.EdictsOpen) for (int n = 0; n < s.Nat.Length; n++) s.Nat[n].Edicts = 0;   // an older save's edicts go before they cost or act
         var sc = Tally(w, s);
         for (int n = 0; n < s.Nat.Length; n++)
         {

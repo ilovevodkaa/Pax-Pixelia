@@ -67,9 +67,13 @@ public partial class GovernmentScreen : Control
         _compass.Tip(CompassTip);
         var close = Ui.IconButton("x", "Ib", 34, 34, 1, () => Hud.ClosePolicy());
         close.Tip("Закрыть", null, "Esc");
+        _sub.ClipText = true;
+        _sub.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis;
+        var titleCol = Ui.VBox(2, title, _sub);
+        titleCol.SizeFlagsHorizontal = SizeFlags.ExpandFill;   // the subtitle gives way on a narrow window
         var head = Ui.Panel(St.Header(64).Pad(20, 12, 14, 10),
-            Ui.HBox(14, Ui.Icon("building-bank", 2, Pal.Ac), Ui.VBox(2, title, _sub), Ui.Gap(12, 0), Ui.HBox(6, _tabPolicy, _tabLaws),
-                Ui.Expand(), _drop, chip, _compass, close));
+            Ui.HBox(14, Ui.Icon("building-bank", 2, Pal.Ac), titleCol, Ui.Gap(12, 0), Ui.HBox(6, _tabPolicy, _tabLaws),
+                _drop, chip, _compass, close));
         head.SetAnchorsPreset(LayoutPreset.TopWide);
         AddChild(head);
     }
@@ -77,12 +81,25 @@ public partial class GovernmentScreen : Control
     public bool Toggle()
     {
         Visible = !Visible;
+        _tree.Halt();
         if (!Visible) return false;
         _tree.Build();
-        BuildLaws();
         if (!_greeted) { _greeted = true; _tree.Greet(); }
         SetTab(_tab);
         return true;
+    }
+
+    int _lawsEra = -1;
+    GameState _lawsState;
+
+    /// <summary>The laws tab is built when first shown and again only after an era change or another game.</summary>
+    void EnsureLaws()
+    {
+        if (!Game.I.IsReady) return;
+        int era = Game.I.State.Nat[Game.I.Viewer].Era;
+        if (era == _lawsEra && ReferenceEquals(_lawsState, Game.I.State)) return;
+        _lawsEra = era; _lawsState = Game.I.State;
+        BuildLaws();
     }
 
     /// <summary>Open a tab (the --policy=laws screenshot switch).</summary>
@@ -93,6 +110,7 @@ public partial class GovernmentScreen : Control
         _tab = t;
         _tree.Visible = t == 0;
         _lawsScroll.Visible = t == 1;
+        if (t == 1) EnsureLaws();
         _tabPolicy.ThemeTypeVariation = t == 0 ? "On" : "";
         _tabLaws.ThemeTypeVariation = t == 1 ? "On" : "";
         Refresh();
@@ -106,7 +124,7 @@ public partial class GovernmentScreen : Control
         int now = g.CourseNow;
         var views = g.CourseViews();
         _sub.Text = now >= 0 ? $"Принимается «{Politics.All[now].Name}» · ≈{views[now].SecondsLeft} с"
-            : !g.StateFounded ? "Начните с «Основ государства» в центре"
+            : !g.StateFounded ? (g.IsNomad ? "Сначала основайте столицу: у кочующего рода ещё нет государства" : "Начните с «Основ государства» в центре")
             : _tab == 0 ? "Выберите следующий курс: каждый уводит державу в свою сторону" : "Законы эпох: пока только заготовки";
         _sub.Colored(now >= 0 ? Pal.Ok : Pal.Mu);
         _drop.Visible = now >= 0;
@@ -259,6 +277,14 @@ public partial class GovernmentScreen : Control
             return new Vector2(rx * Mathf.Cos(a), -ry * Mathf.Sin(a));
         }
 
+        /// <summary>Stop every motion: a drag, a fling, a glide (the screen opens or closes).</summary>
+        internal void Halt()
+        {
+            _press = _moved = _gliding = false;
+            _vel = Vector2.Zero;
+            MouseDefaultCursorShape = CursorShape.Arrow;
+        }
+
         public void Build()
         {
             foreach (var c in _cards) c.QueueFree();
@@ -334,6 +360,7 @@ public partial class GovernmentScreen : Control
                 case InputEventMouseMotion mm when _press && (mm.ButtonMask & (MouseButtonMask.Left | MouseButtonMask.Middle)) == 0:
                     // no button held: the release went elsewhere (a card under it, a window switch); the drag is over
                     _press = false;
+                    _vel = Vector2.Zero;
                     MouseDefaultCursorShape = CursorShape.Arrow;
                     break;
                 case InputEventMouseMotion mm when _press:
@@ -346,7 +373,7 @@ public partial class GovernmentScreen : Control
                         ulong now = Time.GetTicksUsec();
                         float dt = Math.Max(1e-3f, (now - _lastMove) / 1e6f);
                         _lastMove = now;
-                        _vel = _vel.Lerp(shift / dt, .35f);
+                        _vel = dt > .08f ? shift / dt : _vel.Lerp(shift / dt, .35f);   // after a pause it starts afresh
                     }
                     AcceptEvent();
                     break;
@@ -364,8 +391,10 @@ public partial class GovernmentScreen : Control
         {
             if (!IsVisibleInTree()) return;
             float dt = (float)delta;
+            var lim = new Vector2(Math.Max(0, Extent.X - Size.X / 2), Math.Max(0, Extent.Y - Size.Y / 2));
             if (_gliding)
             {
+                _goal = _goal.Clamp(-lim, lim);   // a wheel notch past the edge glides to the edge
                 _pan = _pan.Lerp(_goal, 1 - Mathf.Exp(-9 * dt));
                 if (_pan.DistanceTo(_goal) < .5f) { _pan = _goal; _gliding = false; }
             }
@@ -375,7 +404,6 @@ public partial class GovernmentScreen : Control
                 _vel *= Mathf.Exp(-4.5f * dt);
             }
             // past the edge of the field it springs back
-            var lim = new Vector2(Math.Max(0, Extent.X - Size.X / 2), Math.Max(0, Extent.Y - Size.Y / 2));
             var clamped = new Vector2(Mathf.Clamp(_pan.X, -lim.X, lim.X), Mathf.Clamp(_pan.Y, -lim.Y, lim.Y));
             if (!_press && clamped != _pan) { _pan = _pan.Lerp(clamped, 1 - Mathf.Exp(-10 * dt)); _vel *= .5f; }
             _world.Position = (Size / 2 + _pan).Round();
@@ -490,7 +518,9 @@ public partial class GovernmentScreen : Control
                 GuiInput += e =>
                 {
                     // a release that did not drag the field is a click
-                    if (e is InputEventMouseButton { Pressed: false, ButtonIndex: MouseButton.Left } && !_tree.Moved && _v.State == Game.CourseState.Open)
+                    // a blocked card answers with the reason (AdoptCourse refuses with it)
+                    if (e is InputEventMouseButton { Pressed: false, ButtonIndex: MouseButton.Left } && !_tree.Moved
+                        && _v.State is Game.CourseState.Open or Game.CourseState.Locked or Game.CourseState.Closed)
                         Game.I.AdoptCourse(_v.Id);
                 };
                 this.Tip(Tip);
@@ -528,7 +558,7 @@ public partial class GovernmentScreen : Control
                     Game.CourseState.Open => $"принять · ≈{v.SecondsLeft} с · +{v.Gold} золота",
                     Game.CourseState.Closed => "путь закрыт",
                     Game.CourseState.Hidden => "откроется после основ государства",
-                    _ => "сначала основы государства",
+                    _ => d.Ring == 0 ? "сначала основайте столицу" : "сначала основы государства",
                 };
                 _status.Colored(v.State switch
                 {

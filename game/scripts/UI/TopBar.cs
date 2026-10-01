@@ -136,7 +136,7 @@ public partial class TopBar : PanelContainer
                 t.Kv("Провинции", $"{prov} из {limit}", over > 0 ? Pal.Bad : Pal.Hi);
                 if (over > 0) t.Kv("Перерасширение", $"{over}%", Pal.Bad);
                 int now = g.CourseNow;
-                t.Kv("Курс", now >= 0 ? $"принимается «{Politics.All[now].Name}»" : g.StateFounded ? "можно выбрать следующий" : "начните с «Основ государства»",
+                t.Kv("Курс", now >= 0 ? $"принимается «{Politics.All[now].Name}»" : g.StateFounded ? "можно выбрать следующий" : g.IsNomad ? "сначала основайте столицу" : "начните с «Основ государства»",
                     now >= 0 ? Pal.Ok : Pal.Warn);
             });
             else if (i == 3) b.Tip(t =>

@@ -102,7 +102,6 @@ public static class Policy
     {
         for (int n = 0; n < s.Nat.Length; n++)
         {
-            if (!EdictsOpen) s.Nat[n].Edicts = 0;   // an older save's edicts are repealed
             int bits = s.Nat[n].Edicts;
             for (int e = 0; bits != 0 && e < Edicts.Length; e++, bits >>= 1)
                 if ((bits & 1) != 0) Character.DeedPermille(s, n, Edicts[e].CharScale, Edicts[e].CharRight, EdictDeedPermille);

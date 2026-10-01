@@ -76,14 +76,16 @@ internal partial class SiteOverlay : MapOverlay
             var standing = Map.Memory.Buildings(p);
             _kinds.Clear(); _jobs.Clear();
             foreach (var b in standing) _kinds.Add(b);
-            // the jobs of a province share their builders, so they finish in the order of the work they still need:
-            // listed that way the next to stand is always first, and joining the standing ones it keeps its plot
+            // the jobs of a province share their builders, so they finish in the order of the cycles they still need
+            // (ties in list order, as Construction.Cycle adds them): listed that way the next to stand is always first,
+            // and joining the standing ones it keeps its plot
             _mine.Clear();
             for (int i = 0; i < s.Builds.Count; i++) if (s.Builds[i].Province == p) _mine.Add(i);
+            int rate = Construction.RateOf(_mine.Count);
             _mine.Sort((a, b) =>
             {
-                int c = (s.Builds[a].Total - s.Builds[a].Work).CompareTo(s.Builds[b].Total - s.Builds[b].Work);
-                return c != 0 ? c : a.CompareTo(b);
+                int ca = (s.Builds[a].Total - s.Builds[a].Work + rate - 1) / rate, cb = (s.Builds[b].Total - s.Builds[b].Work + rate - 1) / rate;
+                return ca != cb ? ca.CompareTo(cb) : a.CompareTo(b);   // jobs finishing in one cycle stand in list order
             });
             foreach (int i in _mine) { var j = s.Builds[i]; _kinds.Add(j.Building); _jobs.Add((j.Era, Construction.PermilleDone(j))); }
             int owner = s.Owner[p];

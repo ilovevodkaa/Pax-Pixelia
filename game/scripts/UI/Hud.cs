@@ -377,6 +377,9 @@ public partial class Hud : CanvasLayer
         if (open) { _policyCooldown = .5; HideTip(); }
     }
 
+    /// <summary>A full-screen screen (technologies, government) covers the map: its keys rest.</summary>
+    internal bool CoversMap => _tech.Visible || _policy.Visible;
+
     /// <summary>The screen's × button.</summary>
     internal void ClosePolicy() { if (_policy.Visible) TogglePolicy(); }
 

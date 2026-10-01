@@ -36,7 +36,10 @@ public partial class SelfTest
 
         // drag the field by its empty part, then back to the centre
         var view = Hud.Policy.GetViewportRect().Size;
-        var from = new Vector2(view.X * .5f, view.Y * .5f + 120);
+        // the drag starts on an open card: letting go there must not adopt it
+        var openCard = LabelOf(Hud.Policy, "Наследный надел")?.GetParent<Control>();   // on the side: the top one may sit under the header of a small window
+        Check("government: an open course card to drag from", openCard != null);
+        var from = openCard?.GetGlobalRect().GetCenter() ?? new Vector2(view.X * .5f, view.Y * .5f + 120);
         var rootAt = root.GetGlobalRect().Position;
         MouseAt(from); MouseAt(from, MouseButton.Left, true);
         for (int k = 1; k <= 10; k++) { MouseAt(from + new Vector2(k * 18, k * -6), held: true); await Frames(1); }

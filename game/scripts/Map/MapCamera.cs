@@ -203,6 +203,7 @@ public partial class MapCamera : Node
 
     Vector2 KeyboardPan()
     {
+        if (UI.Hud.I?.CoversMap == true) return Vector2.Zero;   // the map lies hidden under a full-screen screen
         var focus = GetViewport().GuiGetFocusOwner();
         if (focus is LineEdit or TextEdit) return Vector2.Zero;
         return Input.GetVector(PanLeft, PanRight, PanUp, PanDown);
@@ -343,6 +344,7 @@ public partial class MapCamera : Node
 
     void OnKey(InputEventKey k)
     {
+        if (UI.Hud.I?.CoversMap == true) return;
         var key = k.Keycode;
         if (key is Key.Equal or Key.Plus or Key.KpAdd) { ZoomAt(1, ScreenSize / 2); GetViewport().SetInputAsHandled(); }
         else if (key is Key.Minus or Key.KpSubtract) { ZoomAt(-1, ScreenSize / 2); GetViewport().SetInputAsHandled(); }

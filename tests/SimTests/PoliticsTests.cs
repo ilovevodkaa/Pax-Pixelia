@@ -63,7 +63,16 @@ public static class PoliticsTests
         Check(Politics.Has(bn, Politics.Root) && Politics.Has(bn, one) && Politics.Has(bn, noble) && bn.CourseNow == Politics.Index("family_plot") && bn.CourseCycles == 7,
             "the courses and the one under way survive a save");
         Check(back.Hash().Nations == s.Hash().Nations && Techs.Sum(bn, TechFx.TaxPermille) == Techs.Sum(nat, TechFx.TaxPermille), "same hash, same bonuses after the load");
-        Check(Fresh(w).Hash().Nations != s.Hash().Nations, "the hash sees the courses");
+        var h0 = Fresh(w); var h1 = Fresh(w);
+        Check(h0.Hash().Nations == h1.Hash().Nations, "two fresh realms hash alike");
+        Check(Commands.Apply(w, h1, Cmd.Course(Me, Politics.Root, true), null) == 0 && h1.Hash().Nations != h0.Hash().Nations, "the hash sees a course under way");
+        var h2 = SaveFile.Restore(SaveFile.Snapshot(h1), w, null, 100);
+        h2.Nat[Me].CourseCycles++;
+        Check(h2.Hash().Nations != h1.Hash().Nations, "the hash sees its progress");
+        var h3 = SaveFile.Restore(SaveFile.Snapshot(h1), w, null, 100);
+        Politics.Init(h3.Nat[Me]);
+        h3.Nat[Me].Courses[0] ^= 1UL << one;
+        Check(h3.Hash().Nations != h1.Hash().Nations, "the hash sees the courses adopted");
 
         Section("politics: a wandering tribe has no state yet");
         var t = NationGen.CreateInitialState(w);
