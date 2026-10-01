@@ -52,6 +52,7 @@ public static class Program
         NomadTests.Run(w);
         RumorTests.Run(w);
         BlitzTests.Run();
+        ClimateTests.Run(w);
         PacingTests.Run(w, full: pacing);
 
         return Report();

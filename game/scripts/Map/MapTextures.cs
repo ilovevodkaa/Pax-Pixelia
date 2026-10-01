@@ -17,9 +17,9 @@ internal sealed class MapTextures
     /// <summary>Explored-but-unseen land: faded like an old map, not darkened into mud (same numbers in stale_grade).</summary>
     public const float StaleDesat = .45f, StaleDim = .78f;
 
-    public ImageTexture Base, BaseHalf, Prov, Tint, Info, Own, FogDist, Cloud, Water;
-    Image _tintImg, _infoImg, _ownImg, _fogImg;
-    byte[] _tint = Array.Empty<byte>(), _info = Array.Empty<byte>(), _own = Array.Empty<byte>();
+    public ImageTexture Base, BaseHalf, Prov, Tint, Info, Own, FogDist, Cloud, Water, Climate;
+    Image _tintImg, _infoImg, _ownImg, _fogImg, _climateImg;
+    byte[] _tint = Array.Empty<byte>(), _info = Array.Empty<byte>(), _own = Array.Empty<byte>(), _climate = Array.Empty<byte>();
     int _pw, _ph;
     /// <summary>Last uploaded per-province bytes (read-only for ProvinceTransitions: the look a capture starts from).</summary>
     internal byte[] TintData => _tint;
@@ -42,6 +42,8 @@ internal sealed class MapTextures
         _tintImg = Image.CreateFromData(_pw, _ph, false, Image.Format.Rgba8, _tint); Tint = ImageTexture.CreateFromImage(_tintImg);
         _infoImg = Image.CreateFromData(_pw, _ph, false, Image.Format.Rgba8, _info); Info = ImageTexture.CreateFromImage(_infoImg);
         _ownImg = Image.CreateFromData(_pw, _ph, false, Image.Format.Rgba8, _own); Own = ImageTexture.CreateFromImage(_ownImg);
+        _climate = new byte[n];
+        _climateImg = Image.CreateFromData(_pw, _ph, false, Image.Format.Rgba8, _climate); Climate = ImageTexture.CreateFromImage(_climateImg);
 
         _fogImg = Image.CreateFromData(w.W, w.H, false, Image.Format.R8, fog.Dist);
         FogDist = ImageTexture.CreateFromImage(_fogImg);
@@ -105,6 +107,18 @@ internal sealed class MapTextures
     {
         _fogImg.SetData(w.W, w.H, false, Image.Format.R8, fog.Dist);
         FogDist.Update(_fogImg);
+    }
+
+    /// <summary>The climate of every province (Sim/Climate.Look: drying, green desert, frost, thaw) for the terrain shader.</summary>
+    public void UpdateClimate(WorldData w, GameState s)
+    {
+        for (int p = 0; p < w.P; p++)
+        {
+            var (dry, green, frost, thaw) = Sim.Climate.Look(w, s, p);
+            int k = p * 4;
+            _climate[k] = dry; _climate[k + 1] = green; _climate[k + 2] = frost; _climate[k + 3] = thaw;
+        }
+        Upload(_climateImg, _climate, Climate);
     }
 
     /// <summary>Recompute every per-province texel for the current mode / ownership / fog and upload (P≈6k: trivial).</summary>

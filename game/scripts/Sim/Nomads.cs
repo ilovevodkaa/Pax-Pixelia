@@ -136,7 +136,7 @@ public static class Nomads
     /// with nothing left people leave (2% a check).</summary>
     static void Eat(WorldData w, GameState s, NationState nat)
     {
-        int p = nat.Camp, fert = WorldFacts.Of(w).FertPm[p];
+        int p = nat.Camp, fert = Climate.FertNow(w, s)[p];
         int d = fert >= 600 || w.PRiver[p] != 0 ? 1 : fert <= 150 ? -1 : 0;
         if (nat.CampPath != null && d == 0) d = -1;          // walking through middling land costs food
         nat.Supplies = IntMath.Clamp(nat.Supplies + d, 0, StartSupplies);
@@ -217,7 +217,7 @@ public static class Nomads
     {
         if (p < 0 || p >= w.P || w.PLand[p] != 1) return default;
         var facts = WorldFacts.Of(w);
-        int fert = facts.FertPm[p] * 40 / 1000;
+        int fert = Climate.FertNow(w, s)[p] * 40 / 1000;   // a green desert tempts, but the rains are leaving
         int biomes = 1 << w.PBiome[p], hills = facts.Hills[p] ? 1 : 0;
         foreach (int q in w.Adj[p])
         {

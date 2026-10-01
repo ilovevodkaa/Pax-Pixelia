@@ -150,12 +150,13 @@ public static partial class Simulation
 
     // ------------------------------------------------------------------ people
 
-    /// <summary>Population cap of p: fertile land feeds more, farms and granaries raise it, the capital draws people.</summary>
-    public static int Capacity(WorldData w, GameState s, int p) => Capacity(WorldFacts.Of(w), w, s, p);
+    /// <summary>Population cap of p: fertile land feeds more (under today's climate), farms and granaries raise it, the
+    /// capital draws people.</summary>
+    public static int Capacity(WorldData w, GameState s, int p) => Capacity(Climate.FertNow(w, s), w, s, p);
 
-    static int Capacity(WorldFacts facts, WorldData w, GameState s, int p)
+    static int Capacity(int[] fert, WorldData w, GameState s, int p)
     {
-        long baseCap = (long)w.PSize[p] * Math.Max(50, facts.FertPm[p]) * 55 / 1000;
+        long baseCap = (long)w.PSize[p] * Math.Max(50, fert[p]) * 55 / 1000;
         if (s.Owner[p] < 0) return (int)(baseCap * 3 / 10);    // nomad tribes
         int m = 1600;
         foreach (var b in s.Buildings[p])
@@ -173,14 +174,13 @@ public static partial class Simulation
     /// is rounded up with the matching chance, so small provinces grow on average instead of stalling.</summary>
     static void Grow(WorldData w, GameState s, int cycle)
     {
-        var facts = WorldFacts.Of(w);
-        var fert = facts.FertPm;
+        var fert = Climate.FertNow(w, s);   // the land as the climate leaves it this year
         for (int p = 0; p < w.P; p++)
         {
             if (w.PLand[p] != 1) continue;
             long pop = s.Pop[p];
             if (pop <= 0) continue;
-            long cap = Math.Max(1, Capacity(facts, w, s, p));
+            long cap = Math.Max(1, Capacity(fert, w, s, p));
             long rPpm = 3000 + 12L * fert[p];                                 // growth rate, per million
             long moodPm = IntMath.Clamp((s.Mood[p] - 30) * 20, -500, 1200);   // (mood − 30) / 50
             long roomPm = 1000 - pop * 1000 / cap;

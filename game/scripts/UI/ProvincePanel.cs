@@ -251,6 +251,12 @@ public partial class ProvincePanel : PanelContainer
         _live.Add(Sync);
     }
 
+    /// <summary>«Зелёная пустыня: дожди уходят · плодородие 50 % → 10 %» while the climate changes this land (Sim/Climate).</summary>
+    static void ClimateLine(Flow flow, int p)
+    {
+        if (Climate.Describe(Game.I.World, Game.I.State, p) is { } line) flow.Add(Kit.Para(line, true, UiFonts.Small), 8);
+    }
+
     void SeaBody(Flow flow, int p, bool stale)
     {
         var w = Game.I.World; var s = Game.I.State;
@@ -265,7 +271,8 @@ public partial class ProvincePanel : PanelContainer
     {
         var w = Game.I.World; var s = Game.I.State;
         if (stale) flow.Add(Kit.Stale(), 0, 10);
-        flow.Add(Kit.Grid(("Кочевые племена", LivePop(p, stale)), ("Плодородие", Kit.Fertility(w.PFert[p]))), 0);
+        flow.Add(Kit.Grid(("Кочевые племена", LivePop(p, stale)), ("Плодородие", Kit.Fertility(Climate.FertNow(w, s)[p] / 1000f))), 0);
+        ClimateLine(flow, p);
         if (Game.I.IsNomad) { SiteSection(flow, p, here: false); return; }   // no land to claim from yet: a place for the hearth
         flow.Add(Kit.H4("Присоединение"), 20, 10);
 
@@ -411,7 +418,8 @@ public partial class ProvincePanel : PanelContainer
         }
         SyncStats();
         _live.Add(SyncStats);
-        flow.Add(Kit.Grid(("Население", pop), ("Довольство", mood), ("Плодородие", Kit.Fertility(w.PFert[p])), ("Налоги", Kit.ValueUnit(tax, "за цикл"))), 0);
+        flow.Add(Kit.Grid(("Население", pop), ("Довольство", mood), ("Плодородие", Kit.Fertility(Climate.FertNow(w, s)[p] / 1000f)), ("Налоги", Kit.ValueUnit(tax, "за цикл"))), 0);
+        ClimateLine(flow, p);
         CitySection(flow, p);
 
         if (capital) { flow.Add(BuildScouts(), 20); RefreshScouts(); }

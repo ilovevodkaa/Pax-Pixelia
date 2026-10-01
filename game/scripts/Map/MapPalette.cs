@@ -66,7 +66,7 @@ internal static class MapPalette
                 if (land && o >= 0) { tint = Nation(o); a = .18f; }
                 break;
             case MapMode.Fertility:
-                if (land) { tint = Fertility(w.PFert[p]); a = .62f; }
+                if (land) { tint = Fertility(Climate.FertNow(w, s)[p] / 1000f); a = .62f; }
                 else desat = .5f;
                 break;
         }

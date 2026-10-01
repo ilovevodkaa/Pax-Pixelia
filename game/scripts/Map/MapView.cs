@@ -34,6 +34,7 @@ public partial class MapView : Node2D
     LabelOverlay _labels;
     ScoutOverlay _scouts;
     RumorOverlay _rumors;
+    int _climateKey = int.MinValue;
     ShaderMaterial _mapMat, _riverCasingMat, _riverMat, _routeCasingMat, _routeMat;
     readonly List<ShaderMaterial> _mats = new();       // all map materials: they share the province/fog uniforms
     static readonly StringName UZoom = "zoom", UHovered = "hovered", USelected = "selected", UFogOn = "fog_on", UWater = "water_color", UAnim = "anim_t";
@@ -136,6 +137,8 @@ public partial class MapView : Node2D
         _mapMat.SetShaderParameter("water_tex", Tex.Water);
         _mapMat.SetShaderParameter("ptint_tex", Tex.Tint);
         _mapMat.SetShaderParameter("pown_tex", Tex.Own);
+        _mapMat.SetShaderParameter("pclimate_tex", Tex.Climate);
+        _climateKey = int.MinValue;   // tinted on the first frame
         Tex.UpdateProvinces(w, s, g.Mode);
         Trans.Reset(w, Tex, _mapMat);
         SetFogUniform(s.FogEnabled);
@@ -189,6 +192,8 @@ public partial class MapView : Node2D
         bool fog = _fogChanges.Any, prov = _provChanges.Any, sel = _selDirty && Labels.SetSelected(Game.I.Selected);
         bool fin = Trans.Finished.Count > 0;   // capture fills that ended: names and city colours switch now
         _selDirty = false;
+        int climate = Sim.Climate.Key(s);
+        if (climate != _climateKey) { _climateKey = climate; Tex.UpdateClimate(w, s); }   // a new climate step: deserts dry, frost spreads
         int era = MapEra.Key(Game.I.Nations.Length);
         if (era != _eraKey)
         {

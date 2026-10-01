@@ -155,7 +155,7 @@ public partial class MiniMapView : Control
                     if (L && o >= 0) { Nat(o, out cr, out cg, out cb); a = .18f; }
                     break;
                 case MapMode.Fertility:
-                    if (L) { FertColor(wd.PFert[p], out cr, out cg, out cb); a = .62f; } else d = .5f;
+                    if (L) { FertColor(Climate.FertNow(wd, s)[p] / 1000f, out cr, out cg, out cb); a = .62f; } else d = .5f;
                     break;
             }
             if (fogOn && s.Fog[p] == 1) { d = Math.Max(d, L ? .45f : .3f); f *= L ? .78f : .85f; }   // = MapTextures.StaleDesat/StaleDim

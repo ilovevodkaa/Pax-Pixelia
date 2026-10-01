@@ -14,6 +14,7 @@ uniform sampler2D base_half_tex : filter_nearest, repeat_disable; // base_tex av
 uniform sampler2D ptint_tex : filter_nearest, repeat_disable; // RGBA8 per province: map-mode tint rgb + strength
 uniform sampler2D pown_tex : filter_nearest, repeat_disable;  // RGBA8 per province: country-border rgb, owner + 1
 uniform sampler2D water_tex : filter_nearest, repeat_disable; // R8 per pixel: cluster phase (0-3), shore distance (4-5), sparkle (6)
+uniform sampler2D pclimate_tex : filter_nearest, repeat_disable; // RGBA8 per province (Sim/Climate): steppe drying, desert green, frost, glacier thaw
 uniform float anim_t = 0.0;      // seconds of water animation (MapView: a quarter speed on pause)
 uniform float zoom = 3.0;        // screen px per world px
 uniform int hovered = -1;
@@ -55,6 +56,39 @@ vec3 water_anim(vec3 c, ivec2 t) {
 	return c;
 }
 
+// «Дышащая планета»: the climate repaints the land pixel by pixel through a 4×4 ordered dither (a crisp pixel-art
+// spread, stable in world pixels), keeping the relief's light and shade from the baked terrain.
+const vec3 CLIM_SAND = vec3(0.80, 0.68, 0.46);
+const vec3 CLIM_GREEN = vec3(0.52, 0.60, 0.30);
+const vec3 CLIM_SNOW = vec3(0.88, 0.91, 0.95);
+const vec3 CLIM_TUNDRA = vec3(0.50, 0.52, 0.40);
+float bayer4(ivec2 t) {
+	int x = t.x & 3, y = t.y & 3;
+	int m = (y == 0) ? (x == 0 ? 0 : x == 1 ? 8 : x == 2 ? 2 : 10)
+	      : (y == 1) ? (x == 0 ? 12 : x == 1 ? 4 : x == 2 ? 14 : 6)
+	      : (y == 2) ? (x == 0 ? 3 : x == 1 ? 11 : x == 2 ? 1 : 9)
+	      :            (x == 0 ? 15 : x == 1 ? 7 : x == 2 ? 13 : 5);
+	return (float(m) + 0.5) / 16.0;
+}
+// a ragged threshold for snow and thaw: 2×2 clumps plus single pixels (a regular dither would read as a checkerboard)
+float clim_hash(ivec2 t) {
+	uint h = uint(t.x) * 374761393u + uint(t.y) * 668265263u;
+	h = (h ^ (h >> 13u)) * 1274126177u;
+	return float((h ^ (h >> 16u)) & 1023u) / 1023.0;
+}
+float clim_ragged(ivec2 t) { return clim_hash(t / 2) * 0.65 + clim_hash(t + ivec2(7, 3)) * 0.35; }
+vec3 climate_px(vec3 base, int p, ivec2 t) {
+	vec4 k = texelFetch(pclimate_tex, pcoord(p), 0);
+	if (k.r + k.g + k.b + k.a < 0.004) return base;
+	float d = bayer4(t), r = clim_ragged(t);
+	float shade = 0.72 + 0.56 * dot(base, vec3(0.30, 0.59, 0.11));
+	if (k.g > d) base = mix(base, CLIM_GREEN * shade, 0.72);
+	if (k.r > r) base = mix(base, CLIM_SAND * shade, 0.66);
+	if (k.a > r) base = mix(base, CLIM_TUNDRA * shade, 0.78);
+	if (k.b > r) base = mix(base, CLIM_SNOW * (0.9 + 0.1 * shade), 0.8);
+	return base;
+}
+
 void fragment() {
 	vec2 w = wpos;
 	if (w.y < 0.0 || w.y >= world_size.y) {
@@ -68,6 +102,7 @@ void fragment() {
 		bool explored = explored_info(info);
 		bool atlas = zoom < 0.75;
 		vec3 base = atlas ? texelFetch(base_half_tex, t / 2, 0).rgb : texelFetch(base_tex, t, 0).rgb;
+		if (info.a > 0.5) base = climate_px(base, p, atlas ? t / 2 * 2 : t);
 		int tone; float tt;
 		int fog = fog_px(t, explored, tone, tt);
 		if (fog == 1) {

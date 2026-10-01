@@ -217,7 +217,7 @@ public partial class Game : Node
         if (r.ScoutSteps > 0 || r.ScoutsFinished > 0) RaiseScoutsChanged();
         if (r.Tribes) RaiseTribeChanged();
         if (r.EraChanged) CheckEra();
-        if (r.Cycle) { RumorsCycle(); CycleTick?.Invoke(); CheckResearch(); }
+        if (r.Cycle) { RumorsCycle(); ClimateCycle(); CycleTick?.Invoke(); CheckResearch(); }
         if (r.MonthChanged) MonthTick?.Invoke();
         if (r.YearChanged) YearTick?.Invoke();
         if (r.DayChanged) RaiseDateChanged();
