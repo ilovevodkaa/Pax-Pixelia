@@ -164,13 +164,19 @@ public static partial class Simulation
             if (Policy.MaterialsPct(nat) > 0) sc.Materials[n] += (sc.Materials[n] * Policy.MaterialsPct(nat) + 50) / 100;   // rounded: a small store still feels it
         }
         if (s.TributeTo != null)
-            for (int n = 0; n < s.Nat.Length; n++)   // tribute: a tenth of the payer's taxes goes to the receiver
+        {
+            // tribute: a tenth of the payer's own taxes (pacts included, tribute it receives not) goes to the receiver —
+            // worked out from the taxes before any tribute moves, so a chain A → B → C does not depend on the nations' order
+            Span<long> own = stackalloc long[s.Nat.Length];
+            for (int n = 0; n < s.Nat.Length; n++) own[n] = sc.Taxes[n];
+            for (int n = 0; n < s.Nat.Length; n++)
             {
                 int r = s.TributeTo[n];
                 if (r < 0) continue;
-                long t = Diplomacy.TributeOf(sc.Taxes[n]);
+                long t = Diplomacy.TributeOf(own[n]);
                 sc.Upkeep[n] += t; sc.Taxes[r] += t;
             }
+        }
         return sc;
     }
 

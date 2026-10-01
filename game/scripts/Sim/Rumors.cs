@@ -42,7 +42,7 @@ public static class Rumors
             if (home < 0 || f.Explored[home] || Simulation.Distance(w, from, home) > reach) continue;
             int p = Spot(w, s, viewer, m, home);
             if (f.Explored[p]) p = home;   // the vague spot has been seen already: the talk now points at the home itself
-            into.Add(new Rumor(m, p, SimRng.Pick(w.Seed, 73, viewer, m, 3)));
+            into.Add(new Rumor(m, p, SimRng.Pick(w.Seed, 173, viewer, m, 3)));
         }
         return into;
     }
@@ -70,7 +70,7 @@ public static class Rumors
                 if (k == near.Length) break;
             }
         }
-        return near[SimRng.Pick(w.Seed, 71, viewer * 256 + m, home, k)];
+        return near[SimRng.Pick(w.Seed, 171, viewer * 256 + m, home, k)];
     }
 
     /// <summary>Land steps from a to b when b is a neighbour of a's neighbours (0, 1 or 2; the spread is tiny).</summary>

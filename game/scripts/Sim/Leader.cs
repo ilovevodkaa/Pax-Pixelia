@@ -189,6 +189,7 @@ public static class Leader
             bool dies = age >= life || age >= 55 && SimRng.Chance(w.Seed, 124, n, cycle, Math.Max(1, age - 52), 100);
             if (!dies) continue;
             string old = Title(nat);
+            string died = Female(nat.RulerSeed) ? "умерла" : "умер";
             int reigned = ReignYears(s, nat);
             Crown(w, s, n, heirOf: n);
             bool honoured = Faith.Has(nat, Faith.Index("ancestor_worship"));
@@ -196,11 +197,11 @@ public static class Leader
                 for (int p = 0; p < w.P; p++) if (s.Owner[p] == n) s.Mood[p] = (byte)Math.Max(0, s.Mood[p] - MournMood);
             if (sink == null) continue;
             if (nat.Human)
-                sink.Notify("crown", $"Умер {old} ({age} лет, правил {reigned} {Ru.Plural(reigned, "год", "года", "лет")}). На престол {(Female(nat.RulerSeed) ? "взошла" : "взошёл")} {Title(nat)}, {nat.RulerAge0} лет: {TraitList(nat).ToLowerInvariant()}"
+                sink.Notify("crown", $"{(died == "умер" ? "Умер" : "Умерла")} {old} ({age} лет, правил {reigned} {Ru.Plural(reigned, "год", "года", "лет")}). На престол {(Female(nat.RulerSeed) ? "взошла" : "взошёл")} {Title(nat)}, {nat.RulerAge0} лет: {TraitList(nat).ToLowerInvariant()}"
                                     + (honoured ? ". Предков чтут — траур недолог" : $". Траур: довольство −{MournMood}"));
             else
                 for (int h = 0; h < s.Nat.Length; h++)
-                    if (s.Nat[h].Human && Rules.Met(s, h, n)) sink.Notify("crown", $"В державе {s.Nations[n].Name} умер {old}. Правит {Title(nat)}");
+                    if (s.Nat[h].Human && Rules.Met(s, h, n)) sink.Notify("crown", $"В державе {s.Nations[n].Name} {died} {old}. Правит {Title(nat)}");
         }
     }
 

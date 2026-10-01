@@ -125,7 +125,7 @@ public static class Challenges
         var open = new List<int>(All.Length);
         for (int k = 0; k < All.Length; k++) if (Fits(s, leader, k)) open.Add(k);
         if (open.Count == 0) return;
-        int pick = open[SimRng.Pick(w.Seed, 81, leader, cycle / Window, open.Count)];
+        int pick = open[SimRng.Pick(w.Seed, 181, leader, cycle / Window, open.Count)];
         var lead = s.Nat[leader];
         lead.ChallengeKind = pick;
         lead.ChallengeGoal = GoalFrom(s, leader, pick);

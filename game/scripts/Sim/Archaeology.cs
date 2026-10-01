@@ -29,7 +29,7 @@ public static class Archaeology
     {
         var list = new System.Collections.Generic.List<int>();
         for (int p = 0; p < w.P; p++)
-            if (w.PLand[p] == 1 && w.PBiome[p] is not (1 or 2) && SimRng.Permille(w.Seed, 91, p, 0) < RuinPermille) list.Add(p);
+            if (w.PLand[p] == 1 && w.PBiome[p] is not (1 or 2) && SimRng.Permille(w.Seed, 191, p, 0) < RuinPermille) list.Add(p);
         return list.ToArray();
     }
 
@@ -67,7 +67,7 @@ public static class Archaeology
     }
 
     /// <summary>What the dig at p found (the same every time).</summary>
-    public static string FindAt(WorldData w, int p) => Finds[SimRng.Pick(w.Seed, 92, p, 0, Finds.Length)];
+    public static string FindAt(WorldData w, int p) => Finds[SimRng.Pick(w.Seed, 192, p, 0, Finds.Length)];
 
     public static readonly string[] Finds =
     {
@@ -92,7 +92,7 @@ public static class Archaeology
         {
             int n = s.Owner[p];
             if (n < 0 || s.Nat[n].Control != NationControl.Bot || s.Nat[n].Treasury < 2 * Cost * Rules.Cents) continue;
-            if (Check(w, s, p, n) != ExcavateError.None || !SimRng.Chance(w.Seed, 93, p, cycle, 1, 3)) continue;
+            if (Check(w, s, p, n) != ExcavateError.None || !SimRng.Chance(w.Seed, 193, p, cycle, 1, 3)) continue;
             Commands.Apply(w, s, Cmd.Excavate(n, p), sink);
         }
     }

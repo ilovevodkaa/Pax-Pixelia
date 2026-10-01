@@ -36,6 +36,10 @@ public static class Commons
 
     static readonly ConditionalWeakTable<WorldData, Basins> Cache = new();
 
+    /// <summary>Work arrays per game state, refilled by every call (the rules call this every cycle: no garbage per tick).</summary>
+    sealed class Buffers { public CommonsHit[] Hit; public int[] Fert; public int[][] Mills; public bool[] Any; }
+    static readonly ConditionalWeakTable<GameState, Buffers> Pool = new();
+
     static Basins Of(WorldData w) => Cache.GetValue(w, Build);
 
     static Basins Build(WorldData w)
@@ -81,23 +85,34 @@ public static class Commons
         return false;
     }
 
-    /// <summary>The harm to every province now (fresh from the buildings: call once per pass).</summary>
+    /// <summary>The harm to every province now (fresh from the buildings: call once per pass). The array belongs to the
+    /// state's work buffers and is refilled by the next call: read it at once, do not keep it.</summary>
     public static CommonsHit[] Hits(WorldData w, GameState s)
     {
         var b = Of(w);
-        var hit = new CommonsHit[w.P];
+        var buf = Pool.GetValue(s, _ => new Buffers());
+        if (buf.Hit == null || buf.Hit.Length != w.P || buf.Mills == null || buf.Mills.Length != b.Course.Length)
+        {
+            buf.Hit = new CommonsHit[w.P];
+            buf.Mills = new int[b.Course.Length][];
+            for (int r = 0; r < b.Course.Length; r++) buf.Mills[r] = new int[b.Course[r].Length];
+            buf.Any = new bool[b.Course.Length];
+        }
+        var hit = buf.Hit;
+        Array.Clear(hit);
         // floods: the mills by the river and the place they touch it, then counted from the head down
-        var mills = new int[b.Course.Length][];
+        var mills = buf.Mills;
+        for (int r = 0; r < mills.Length; r++) if (buf.Any[r]) { Array.Clear(mills[r]); buf.Any[r] = false; }
         for (int q = 0; q < w.P; q++)
         {
             if (b.Touch[q].Length == 0 || !s.Buildings[q].Contains(Bld.Lumber)) continue;
-            foreach (int key in b.Touch[q]) (mills[key / 4096] ??= new int[b.Course[key / 4096].Length])[key % 4096]++;
+            foreach (int key in b.Touch[q]) { mills[key / 4096][key % 4096]++; buf.Any[key / 4096] = true; }
         }
         for (int r = 0; r < b.Course.Length; r++)
         {
             var c = b.Course[r];
             var m = mills[r];
-            if (m == null) continue;
+            if (!buf.Any[r]) continue;
             int up = 0;
             for (int i = 0; i < c.Length; i++)
             {
@@ -121,14 +136,15 @@ public static class Commons
         return hit;
     }
 
-    /// <summary>Fertility the land gives now: the climate's (<see cref="Climate.FertNow"/>) less the shared harm. A fresh
-    /// array every call (buildings change between ticks): call once per pass.</summary>
+    /// <summary>Fertility the land gives now: the climate's (<see cref="Climate.FertNow"/>) less the shared harm, worked out
+    /// afresh by every call (buildings change between ticks) into the state's work buffer: read it at once, do not keep it.</summary>
     public static int[] FertNow(WorldData w, GameState s) => FertNow(w, s, Hits(w, s));
 
     public static int[] FertNow(WorldData w, GameState s, CommonsHit[] hits)
     {
         var climate = Climate.FertNow(w, s);
-        var f = new int[w.P];
+        var buf = Pool.GetValue(s, _ => new Buffers());
+        var f = buf.Fert is { Length: var len } && len == w.P ? buf.Fert : buf.Fert = new int[w.P];
         for (int p = 0; p < w.P; p++) f[p] = Math.Max(0, climate[p] - climate[p] * Math.Min(800, hits[p].Total) / 1000);
         return f;
     }

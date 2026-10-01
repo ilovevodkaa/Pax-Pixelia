@@ -19,7 +19,7 @@ public partial class Game
     public (string Name, bool Mine) RuinPeople(int p)
     {
         if (!IsReady) return ("", false);
-        uint h = SimRng.Hash(World.Seed, 94, p, 0);
+        uint h = SimRng.Hash(World.Seed, 194, p, 0);
         var mine = NationStore.List().Where(d => d.LastUsedUnix > 0 && d.Id != Setup?.Player?.Id && !string.IsNullOrWhiteSpace(d.Name))
                                      .OrderBy(d => d.Id, StringComparer.Ordinal).ToList();
         if (mine.Count > 0 && h % 3 == 0) return (mine[(int)(h / 3 % (uint)mine.Count)].Name, true);   // a third of the ruins
