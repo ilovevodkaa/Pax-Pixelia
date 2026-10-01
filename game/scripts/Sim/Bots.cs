@@ -146,6 +146,7 @@ public static class Bots
         var nat = s.Nat[n];
         var facts = WorldFacts.Of(w);
         bool lowMaterials = nat.Materials < BotMaterialsLow;
+        int[] land = null;   // the land's fertility, worked out once if a crowding check needs it
         int best = -1; Bld bestB = default; long bs = 0;
         for (int p = 0; p < w.P; p++)
         {
@@ -166,7 +167,7 @@ public static class Bots
                         sc = (lowMaterials ? 850 : 140) + (Rules.KnownOre(s, p) is Rules.OreCopper or Rules.OreTin or Rules.OreIron ? 600 : 0);
                         break;
                     case Bld.Farm: case Bld.Fishery: case Bld.Pasture: case Bld.Granary:
-                        if (crowd < 0) crowd = (int)System.Math.Min(1000, (long)s.Pop[p] * 1000 / System.Math.Max(1, Simulation.Capacity(w, s, p)));
+                        if (crowd < 0) crowd = (int)System.Math.Min(1000, (long)s.Pop[p] * 1000 / System.Math.Max(1, Simulation.Capacity(land ??= Commons.FertNow(w, s), w, s, p)));
                         sc = 200 + crowd * 6 / 10 + (b == Bld.Farm ? facts.FertPm[p] / 4 : 0) - (b == Bld.Pasture ? 80 : 0);
                         break;
                     case Bld.Shrine:

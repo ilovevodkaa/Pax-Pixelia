@@ -162,9 +162,10 @@ public static partial class Simulation
 
     /// <summary>Population cap of p: fertile land feeds more (under today's climate), farms and granaries raise it, the
     /// capital draws people.</summary>
-    public static int Capacity(WorldData w, GameState s, int p) => Capacity(Climate.FertNow(w, s), w, s, p);
+    public static int Capacity(WorldData w, GameState s, int p) => Capacity(Commons.FertNow(w, s), w, s, p);
 
-    static int Capacity(int[] fert, WorldData w, GameState s, int p)
+    /// <summary>The same with the land's fertility already worked out (<see cref="Commons.FertNow"/>): for loops over provinces.</summary>
+    public static int Capacity(int[] fert, WorldData w, GameState s, int p)
     {
         long baseCap = (long)w.PSize[p] * Math.Max(50, fert[p]) * 55 / 1000;
         if (s.Owner[p] < 0) return (int)(baseCap * 3 / 10);    // nomad tribes
@@ -184,7 +185,7 @@ public static partial class Simulation
     /// is rounded up with the matching chance, so small provinces grow on average instead of stalling.</summary>
     static void Grow(WorldData w, GameState s, int cycle)
     {
-        var fert = Climate.FertNow(w, s);   // the land as the climate leaves it this year
+        var fert = Commons.FertNow(w, s);   // the land as the climate and the neighbours' mills and herds leave it
         for (int p = 0; p < w.P; p++)
         {
             if (w.PLand[p] != 1) continue;
@@ -205,12 +206,14 @@ public static partial class Simulation
     /// <summary>Mood drifts one point a cycle towards what the province has: shrines, markets, granaries, salt, the right faith.</summary>
     static void Moods(WorldData w, GameState s, int cycle, SimScratch sc)
     {
+        var hits = Commons.Hits(w, s);   // floods sour the mood of whoever lives downstream
         for (int p = 0; p < w.P; p++)
         {
             int o = s.Owner[p];
             int target = 60;
             if (o >= 0)
             {
+                target -= Commons.FloodMood(hits[p]);
                 int shrine = 8 + Techs.Sum(s.Nat[o], TechFx.ShrineMood);
                 foreach (var b in s.Buildings[p])
                     target += b switch { Bld.Shrine => shrine, Bld.Market => 3, Bld.Granary => 4, _ => 0 };

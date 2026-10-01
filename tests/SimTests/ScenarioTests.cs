@@ -223,8 +223,11 @@ public static class ScenarioTests
             dates.Add(s.Day256);
             if (k % 200 == 0 && !watch.Verify(rec, "cycle")) Check(false, "fog changes from bot claims are reported");
             if (badPop < 0 && Clock.IsCycleTick(s.Tick - 1))
+            {
+                var land = Commons.FertNow(w, s);   // once per check: the per-province overload
                 for (int p = 0; p < w.P; p++)
-                    if (w.PLand[p] == 1 && (s.Pop[p] < 10 || s.Pop[p] > (long)Simulation.Capacity(w, s, p) * 5 / 2 + 10)) { badPop = p; break; }
+                    if (w.PLand[p] == 1 && (s.Pop[p] < 10 || s.Pop[p] > (long)Simulation.Capacity(land, w, s, p) * 5 / 2 + 10)) { badPop = p; break; }
+            }
         }
         double tickUs = sw.Elapsed.TotalMilliseconds * 1000 / (cycles * Clock.CycleTicks);
         Info($"{cycles * Clock.CycleTicks} ticks in {sw.ElapsedMilliseconds} ms ({tickUs:F1} µs/tick) → {Calendar.Text(s.Date, true)}, era {Eras.Name(s.Nat[Me].Era)}");
