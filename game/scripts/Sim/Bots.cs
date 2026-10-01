@@ -25,13 +25,16 @@ public static class Bots
             if (nat.Control != NationControl.Bot || count[n] == 0) continue;
             TryClaim(w, s, n, cycle, count, sink, ref changed);
             if (WantsToBuild(w.Seed, n, cycle)) TryBuild(w, s, n, tally.Shrines[n], sink, ref changed);
+            if (WantsEdicts(w.Seed, n, cycle)) ChooseEdicts(w, s, n, tally.OverPct[n], sink);
         }
     }
 
     static void TryClaim(WorldData w, GameState s, int n, int cycle, int[] count, ISimSink sink, ref List<int> changed)
     {
         if (!WantsToClaim(w.Seed, n, cycle, count[n])) return;
-        if (s.Nat[n].Treasury < Rules.ClaimCost * Rules.Cents) return;
+        var (prov, _, over) = Policy.Admin(s, n);
+        if (over >= BotOverMax) return;   // a bot does not sprawl far past what it can govern (its cities still grow)
+        if (s.Nat[n].Treasury < Rules.ClaimPriceFor(prov, s.Nat[n].Era, over) * Rules.Cents) return;
         int q = BestClaim(w, s, n);
         if (q < 0) { TryFoundCity(w, s, n, sink, ref changed); return; }
         changed ??= new List<int>();
@@ -46,13 +49,52 @@ public static class Bots
             }
     }
 
+    /// <summary>Overextension % at which a bot stops buying land.</summary>
+    public const int BotOverMax = 25;
+
+    // ------------------------------------------------------------------ edicts
+
+    /// <summary>A bot reviews its edicts about once in 40 cycles (≈ 20 s at speed 3).</summary>
+    public static bool WantsEdicts(int seed, int nation, int cycle) => SimRng.Chance(seed, 71, nation, cycle, 1, 40);
+
+    /// <summary>
+    /// The edicts a bot wants, most needed first: festivals while its people sulk or it sprawls, corvée while the store is
+    /// low, the levy while the treasury is thin and people are content, otherwise sages while it studies and envoys while
+    /// its cities can grow. It repeals what it no longer wants and fills its slots through <see cref="Cmd.Edict"/>.
+    /// </summary>
+    static void ChooseEdicts(WorldData w, GameState s, int n, int overPct, ISimSink sink)
+    {
+        var nat = s.Nat[n];
+        long mood = 0, people = 0;
+        for (int p = 0; p < w.P; p++) if (s.Owner[p] == n) { mood += (long)s.Mood[p] * s.Pop[p]; people += s.Pop[p]; }
+        int avg = people > 0 ? (int)(mood / people) : 60;
+        var want = new List<int>(Policy.Count);
+        if (avg < 52 || overPct >= 15) want.Add(Policy.Index("feasts"));
+        if (nat.Materials < BotMaterialsLow && avg >= 58) want.Add(Policy.Index("corvee"));
+        if (nat.Treasury < Rules.ClaimPrice(s, n) * Rules.Cents && avg >= 62) want.Add(Policy.Index("levy"));
+        // then the bot's own taste: every nation has its favourite way to govern in calm times (so peoples differ)
+        string[] calm = { "sages", "envoys", "feasts" };
+        int fav = (int)((uint)SimRng.Hash(w.Seed, 72, n, 0) % (uint)calm.Length);
+        for (int k = 0; k < calm.Length; k++)
+        {
+            int e = Policy.Index(calm[(fav + k) % calm.Length]);
+            if (!want.Contains(e)) want.Add(e);
+        }
+        int slots = Policy.Slots(nat.Era);
+        if (want.Count > slots) want.RemoveRange(slots, want.Count - slots);
+        for (int e = 0; e < Policy.Count; e++)
+            if (Policy.On(nat, e) && !want.Contains(e)) Commands.Apply(w, s, Cmd.Edict(n, e, false), sink);
+        foreach (int e in want)
+            if (!Policy.On(nat, e)) Commands.Apply(w, s, Cmd.Edict(n, e, true), sink);
+    }
+
     // ------------------------------------------------------------------ building
 
     /// <summary>A bot thinks about building once in 4 cycles on average (≈ every 2 s at speed 3).</summary>
     public static bool WantsToBuild(int seed, int nation, int cycle) => SimRng.Chance(seed, 61, nation, cycle, 1, 4);
 
     /// <summary>Below this store a bot wants lumber mills and quarries first (a town takes Cities.FoundMaterials).</summary>
-    public const int BotMaterialsLow = 60;
+    public const int BotMaterialsLow = 600;
 
     /// <summary>
     /// A bot builds one thing: the best (province, building) its rules allow, through the very <see cref="Cmd.Build"/> a
@@ -63,16 +105,16 @@ public static class Bots
     {
         var nat = s.Nat[n];
         if (nat.LastTaxes - nat.LastUpkeep < Rules.UpkeepPerBuilding * 3) return;   // cannot carry another building yet
-        long spare = nat.Treasury - Rules.ClaimCost * Rules.Cents;
-        if (spare < Rules.SurveyCost * Rules.Cents) return;   // the cheapest thing a bot can order
+        long spare = nat.Treasury - Rules.ClaimPrice(s, n) * Rules.Cents;
+        if (spare < Rules.SurveyPrice(nat) * Rules.Cents) return;   // the cheapest thing a bot can order
         if (WantsToSurvey(w.Seed, n, Clock.CycleOf(s.Tick)) && Techs.Known(nat, Techs.SurveyTech) && SurveySite(w, s, n) is var q and >= 0)
         {
             Commands.Apply(w, s, Cmd.Survey(n, q), sink, changed ??= new List<int>());
             return;
         }
-        if (spare < CheapestBuilding * Rules.Cents) return;
+        if (spare < CheapestBuilding * Policy.EraPermille(nat.Era) / 1000 * Rules.Cents) return;
         var (p, b) = BestBuild(w, s, n, shrines);
-        if (p >= 0 && Rules.BuildCost(b) * Rules.Cents <= spare) Commands.Apply(w, s, Cmd.Build(n, p, b), sink, changed ??= new List<int>());
+        if (p >= 0 && Rules.BuildPrice(b, nat) * Rules.Cents <= spare) Commands.Apply(w, s, Cmd.Build(n, p, b), sink, changed ??= new List<int>());
     }
 
     static readonly int CheapestBuilding = CheapestCost();
@@ -170,7 +212,7 @@ public static class Bots
     /// used up (about 6 provinces per city) and rarely (≈ once in 30 s at speed 3 at most).</summary>
     static void TryFoundCity(WorldData w, GameState s, int n, ISimSink sink, ref List<int> changed)
     {
-        if (s.Nat[n].Treasury < (Cities.FoundCost + Rules.ClaimCost) * Rules.Cents || s.Nat[n].Materials < Cities.FoundMaterials) return;
+        if (s.Nat[n].Treasury < ((long)Cities.FoundPrice(s, n) + Rules.ClaimPrice(s, n)) * Rules.Cents || s.Nat[n].Materials < Cities.FoundMaterialsFor(s.Nat[n])) return;
         int cities = 0, provinces = 0;
         for (int q = 0; q < w.P; q++) if (s.Owner[q] == n) { provinces++; if (Cities.IsCity(s, q)) cities++; }
         if (provinces < cities * 6) return;

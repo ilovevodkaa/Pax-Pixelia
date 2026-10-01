@@ -136,9 +136,9 @@ public static class ScenarioTests
         int claim = Enumerable.Range(0, w.P).FirstOrDefault(p => Rules.CheckClaim(w, s, p, Me) == ClaimError.None, -1);
         Check(claim >= 0, "a claimable border province exists");
         long gold = s.Nat[Me].Treasury;
-        int popBefore = s.Pop[claim];
+        int popBefore = s.Pop[claim], price = Rules.ClaimPrice(s, Me);
         Check(Commands.Apply(w, s, Cmd.Claim(Me, claim), rec) == 0, "claim command executes");
-        Check(s.Owner[claim] == Me && s.Controller[claim] == Me && s.Nat[Me].Treasury == gold - Rules.ClaimCost * Rules.Cents, "claim: owner set, 120 gold paid");
+        Check(s.Owner[claim] == Me && s.Controller[claim] == Me && s.Nat[Me].Treasury == gold - price * Rules.Cents, $"claim: owner set, {price} gold paid");
         Check(s.Pop[claim] == (int)((long)popBefore * Rules.ClaimPopBoostPermille / 1000), "claim: census ×2.2 in whole people");
         Check(s.Religion[claim] == s.Nations[Me].Religion, "claim: state religion");
         Check(fog.Fog[claim] == 2 && w.Adj[claim].Where(q => w.PLand[q] == 1).All(q => fog.Fog[q] == 2), "claim: new border is watched");
@@ -179,7 +179,7 @@ public static class ScenarioTests
         {
             long g0 = s.Nat[Me].Treasury, m0 = s.Nat[Me].Materials;
             if (!Check(Commands.Apply(w, s, Cmd.Build(Me, bp, o[0]), rec) == 0, $"can build {Data.BldName[(int)o[0]]}", quietPass: true)) break;
-            Check(s.Nat[Me].Treasury == g0 - Rules.BuildCost(o[0]) * Rules.Cents, "building costs gold", quietPass: true);
+            Check(s.Nat[Me].Treasury == g0 - Rules.BuildPrice(o[0], s.Nat[Me]) * Rules.Cents, "building costs gold", quietPass: true);
             Check(s.Nat[Me].Materials == m0 - Rules.BuildMaterials(o[0], s.Nat[Me]), "building costs materials", quietPass: true);
         }
         Check(s.Buildings[bp].Count == s.Slots[bp] || opts.Count < s.Slots[bp], "plots filled");

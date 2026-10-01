@@ -43,7 +43,7 @@ public static class MaterialTests
             nat.Materials = Rules.BuildMaterials(Bld.Shrine);
             long gold = nat.Treasury;
             Check(Commands.Apply(w, s, Cmd.Build(Me, shrineAt, Bld.Shrine), null) == 0 && nat.Materials == 0
-                  && gold - nat.Treasury == Rules.BuildCost(Bld.Shrine) * Rules.Cents, "built with exactly enough: gold and materials both spent");
+                  && gold - nat.Treasury == Rules.BuildPrice(Bld.Shrine, nat) * Rules.Cents, "built with exactly enough: gold and materials both spent");
         }
         else Check(true, "no shrine site on this seed (skip)");
 

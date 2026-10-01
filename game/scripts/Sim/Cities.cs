@@ -16,8 +16,8 @@ public enum FoundError { None, NotLand, NotYours, IsCity, TooClose, NoGold, NoSe
 /// </summary>
 public static class Cities
 {
-    public const int FoundCost = 150;            // gold
-    public const int FoundMaterials = 30;        // wood and stone for the first houses
+    public const int FoundCost = 300;            // gold, base (FoundPrice: +25% per city the nation has, +25% per era)
+    public const int FoundMaterials = 200;       // wood and stone for the first houses, base (FoundMaterialsFor: +25% per era)
     public const int MinCityDistance = 3;        // land steps between cities
     public const int SettlersMin = 1500, SettlersPermille = 200, SettlersKeep = 2000;
     /// <summary>Influence a city needs for one province at «Обычная» pace (scaled by GameSetup.PacePermille).</summary>
@@ -187,7 +187,12 @@ public static class Cities
     {
         int v = 10 + Math.Min(30, s.Pop[c] / 2000) + s.Mood[c] / 10;
         foreach (var b in s.Buildings[c]) v += b switch { Bld.Shrine => 8, Bld.Market => 5, _ => 0 };
-        if (s.Owner[c] >= 0) v += Techs.Sum(s.Nat[s.Owner[c]], TechFx.CityInfluence);
+        if (s.Owner[c] >= 0)
+        {
+            var nat = s.Nat[s.Owner[c]];
+            v += Techs.Sum(nat, TechFx.CityInfluence);
+            v += v * Policy.InfluencePct(nat) / 100;
+        }
         return v;
     }
 
@@ -302,19 +307,31 @@ public static class Cities
             if (!Rules.Borders(w, s, p, n)) return FoundError.NotYours;
         }
         if (CityNear(w, s, p)) return FoundError.TooClose;
-        if (s.Nat[n].Treasury < FoundCost * Rules.Cents) return FoundError.NoGold;
-        if (s.Nat[n].Materials < FoundMaterials) return FoundError.NoMaterials;
+        if (s.Nat[n].Treasury < FoundPrice(s, n) * Rules.Cents) return FoundError.NoGold;
+        if (s.Nat[n].Materials < FoundMaterialsFor(s.Nat[n])) return FoundError.NoMaterials;
         if (SettlerSource(w, s, p, n) < 0) return FoundError.NoSettlers;
         return FoundError.None;
     }
+
+    /// <summary>Gold a new town costs nation n: the base, +25% for every city it already has, +25% per era.</summary>
+    public static int FoundPrice(GameState s, int n)
+    {
+        int cities = 0;
+        for (int p = 0; p < s.Owner.Length; p++) if (s.Owner[p] == n && IsCity(s, p)) cities++;
+        return FoundPriceFor(cities, s.Nat[n].Era);
+    }
+
+    public static int FoundPriceFor(int cities, int era) => (int)((long)FoundCost * (4 + cities) / 4 * Policy.EraPermille(era) / 1000);
+
+    public static int FoundMaterialsFor(NationState nat) => (int)((long)FoundMaterials * Policy.EraPermille(nat.Era) / 1000);
 
     /// <summary>Settlers from the nearest city found a town at p. Caller validated with Check.</summary>
     public static void Found(WorldData w, GameState s, int p, int n)
     {
         int src = SettlerSource(w, s, p, n);
         int people = Settlers(s, src);
-        s.Nat[n].Treasury -= FoundCost * Rules.Cents;
-        s.Nat[n].Materials -= FoundMaterials;
+        s.Nat[n].Treasury -= FoundPrice(s, n) * Rules.Cents;
+        s.Nat[n].Materials -= FoundMaterialsFor(s.Nat[n]);
         s.Pop[src] -= people;
         if (s.Owner[p] < 0)
         {

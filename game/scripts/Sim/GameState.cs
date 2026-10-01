@@ -38,6 +38,7 @@ public sealed class NationState
     public int Researching = -1;        // the technology being studied, -1 = none chosen
     public long[] TechPts;              // science put into each technology so far (Techs.Count)
     public long TechPool;               // science made while nothing was chosen: goes to the next choice
+    public int Edicts;                  // bit e: Policy.Edicts[e] is in force
     // ---- the nomad phase (Nomads.cs): the tribe before its capital ----
     public int Camp = -1;               // province the tribe stands on, -1 once settled (or never nomadic)
     public int[] CampPath;              // the walk under way (null = standing)

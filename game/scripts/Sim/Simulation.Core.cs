@@ -31,7 +31,7 @@ public struct TickReport
 public static partial class Simulation
 {
     public const int QueuePctPerCycle = 3;
-    public const long StartTreasury = 1240 * Rules.Cents;
+    public const long StartTreasury = 400 * Rules.Cents;
 
     public sealed record Project(string Name, string DoneText, Bld? Building);
 
@@ -101,13 +101,14 @@ public static partial class Simulation
             nat.Materials += sc.Materials[n];
         }
         Grow(w, s, cycle);
-        Moods(w, s, cycle);
+        Moods(w, s, cycle, sc);
         if (Research(w, s, sc, sink)) r.EraChanged = true;
         List<int> changed = null;
         for (int n = 0; n < s.Nat.Length; n++) Queue(s, n, sink, ref changed);
         Cities.Grow(w, s, sink, ref changed);
         Bots.Act(w, s, cycle, sc, sink, ref changed);
         s.Events?.Cycle(cycle, sink);
+        Policy.Deeds(s);   // governing by edicts shapes the people, like any deed
         Character.Cycle(w, s, cycle, sink);
         PlanDate(s);
 
@@ -122,16 +123,25 @@ public static partial class Simulation
     static SimScratch Tally(WorldData w, GameState s)
     {
         var sc = SimScratch.For(w, s);
-        Array.Clear(sc.Provinces); Array.Clear(sc.Shrines); Array.Clear(sc.Taxes); Array.Clear(sc.Upkeep); Array.Clear(sc.Materials);
+        Array.Clear(sc.Provinces); Array.Clear(sc.Shrines); Array.Clear(sc.Taxes); Array.Clear(sc.Upkeep); Array.Clear(sc.Materials); Array.Clear(sc.CityN);
         for (int p = 0; p < w.P; p++)
         {
             int o = s.Owner[p];
             if (o < 0) continue;
             sc.Provinces[o]++;
+            if (Cities.IsCity(s, p)) sc.CityN[o]++;
             sc.Taxes[o] += Rules.ProvinceTax(s, p);
             sc.Upkeep[o] += Rules.ProvinceUpkeep(s, p);
             sc.Materials[o] += Rules.ProvinceMaterials(s, p);
             foreach (var b in s.Buildings[p]) if (b == Bld.Shrine) sc.Shrines[o]++;
+        }
+        for (int n = 0; n < s.Nat.Length; n++)   // the administration (its overextension) and the edicts take their share (Policy)
+        {
+            var nat = s.Nat[n];
+            int limit = Policy.AdminLimit(nat, sc.CityN[n]);
+            sc.OverPct[n] = Policy.OverPct(sc.Provinces[n], limit);
+            sc.Upkeep[n] += Policy.AdminUpkeep(sc.Provinces[n], limit) + Policy.EdictCost(nat, sc.Taxes[n]);
+            if (Policy.MaterialsPct(nat) > 0) sc.Materials[n] += (sc.Materials[n] * Policy.MaterialsPct(nat) + 50) / 100;   // rounded: a small store still feels it
         }
         return sc;
     }
@@ -181,7 +191,7 @@ public static partial class Simulation
     }
 
     /// <summary>Mood drifts one point a cycle towards what the province has: shrines, markets, granaries, salt, the right faith.</summary>
-    static void Moods(WorldData w, GameState s, int cycle)
+    static void Moods(WorldData w, GameState s, int cycle, SimScratch sc)
     {
         for (int p = 0; p < w.P; p++)
         {
@@ -192,7 +202,7 @@ public static partial class Simulation
                 int shrine = 8 + Techs.Sum(s.Nat[o], TechFx.ShrineMood);
                 foreach (var b in s.Buildings[p])
                     target += b switch { Bld.Shrine => shrine, Bld.Market => 3, Bld.Granary => 4, _ => 0 };
-                target += Techs.Sum(s.Nat[o], TechFx.Mood);
+                target += Techs.Sum(s.Nat[o], TechFx.Mood) + Policy.MoodOf(s.Nat[o]) + Policy.OverMood(sc.OverPct[o]);
                 if (s.CapitalOf[p] >= 0) target += 5;
                 if (Rules.KnownOre(s, p) == Rules.OreSalt) target += Rules.SaltMood;
                 target += Nomads.MythMood(s, o);

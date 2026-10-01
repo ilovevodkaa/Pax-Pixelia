@@ -21,6 +21,7 @@ internal sealed class SimScratch
     // per-nation tallies of the rules cycle (sized on demand: the roster may hold 2..16 nations)
     public int[] Provinces = System.Array.Empty<int>(), Shrines = System.Array.Empty<int>(), Materials = System.Array.Empty<int>();
     public long[] Taxes = System.Array.Empty<long>(), Upkeep = System.Array.Empty<long>();
+    public int[] CityN = System.Array.Empty<int>(), OverPct = System.Array.Empty<int>();   // cities, overextension % (Policy)
     // bots: terrain travel cost from each nation's capital (Bots.Reach), cached per capital — capitals do not move
     public int[][] Reach = System.Array.Empty<int[]>();
     public int[] ReachCap = System.Array.Empty<int>();
@@ -61,7 +62,7 @@ internal sealed class SimScratch
         if (s.Scratch == null || s.Scratch.P != w.P) s.Scratch = new SimScratch(w.P);
         var sc = s.Scratch;
         int nN = s.Nat?.Length ?? 0;
-        if (sc.Provinces.Length != nN) { sc.Provinces = new int[nN]; sc.Shrines = new int[nN]; sc.Materials = new int[nN]; sc.Taxes = new long[nN]; sc.Upkeep = new long[nN]; }
+        if (sc.Provinces.Length != nN) { sc.Provinces = new int[nN]; sc.Shrines = new int[nN]; sc.Materials = new int[nN]; sc.Taxes = new long[nN]; sc.Upkeep = new long[nN]; sc.CityN = new int[nN]; sc.OverPct = new int[nN]; }
         return sc;
     }
 

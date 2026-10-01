@@ -72,6 +72,7 @@ public sealed partial class GameState
                 for (int k = 0; k < x.CharA.Length; k++) { nat.Add(x.CharA[k]); nat.Add(x.CharB[k]); nat.Add(x.CharLevel[k]); nat.Add(x.CharHeld[k]); }
                 nat.Add(x.CharTraits); nat.Add(x.FirstTechs);
             }
+            if (x.Edicts != 0) nat.Add(x.Edicts);   // no edicts hashes as before them (older saves keep their hash)
             nat.Add(x.CampPath?.Length ?? -1);
             if (x.CampPath != null) foreach (int p in x.CampPath) nat.Add(p);
             nat.Add(NationCapital[n]);

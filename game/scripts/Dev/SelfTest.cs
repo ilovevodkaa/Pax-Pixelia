@@ -75,6 +75,7 @@ public partial class SelfTest : Node
             await TimeControl();
             await Observer();
             await LeaderboardFlow();
+            await PolicyFlow();
             await EventChoiceFlow();
             await PauseMenuFlow();
             await SkinFlow();
@@ -234,11 +235,12 @@ public partial class SelfTest : Node
         G.JumpCamera(new Vector2(w.PCX[p], w.PCY[p]));
         await Seconds(.4);
         double gold = s.Gold;
+        int claimPrice = G.ClaimPrice;
         G.Claim(p);
         double charged = gold - s.Gold;   // read now: a year may tick during the frames below
         await Frames(3);
         Check("claim: province joins", s.Owner[p] == GameState.LocalPlayer, w.PName[p]);
-        Check("claim: gold charged", Math.Abs(charged - Game.ClaimCost) < .01, $"−{charged:F0}");
+        Check("claim: gold charged", Math.Abs(charged - claimPrice) < .01, $"−{charged:F0} of {claimPrice}");
         Check("claim: chronicle entry", _notes.Skip(notes).Any(n => n.icon == "flag"));
         Check("claim: ProvincesChanged raised", _provChanges.Skip(changes).Any(ps => ps != null && ps.Contains(p)));
         Check("claim: panel shows own province", Hud.Panel.Visible && Hud.Panel.Province == p && Hud.Panel.TitleText == w.PName[p]);
@@ -282,11 +284,12 @@ public partial class SelfTest : Node
         G.Select(p);
         await Frames(2);
         double gold = s.Gold;
+        int buildPrice = G.BuildCost(b);
         G.Build(p, b);
         double charged = gold - s.Gold;
         await Frames(3);
         Check("build: building added", s.Buildings[p].Contains(b), $"{Data.BldName[(int)b]} in {w.PName[p]}");
-        Check("build: gold charged", Math.Abs(charged - G.BuildCost(b)) < .01, $"−{charged:F0}");
+        Check("build: gold charged", Math.Abs(charged - buildPrice) < .01, $"−{charged:F0}");
         Check("build: chronicle entry", _notes.Skip(notes).Any(n => n.icon == "hammer"));
         await Shot("built");
 
@@ -322,7 +325,7 @@ public partial class SelfTest : Node
                 var chain = new List<int>();
                 for (int c = p; c >= 0 && s.Owner[c] < 0; c = prev[c]) chain.Add(c);
                 chain.Reverse();
-                if (chain.Count * Game.ClaimCost > s.Gold) return -1;   // too far to afford
+                if (chain.Count * G.ClaimPrice > s.Gold) return -1;   // too far to afford
                 foreach (int c in chain) { if (!G.CanClaim(c)) return -1; G.Claim(c); }
                 return p;
             }

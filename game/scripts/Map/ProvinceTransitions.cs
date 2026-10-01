@@ -547,7 +547,7 @@ internal sealed class ProvinceTransitions : ICaptureFills
                     if (d < bestD) { bestD = d; best = p; }
                 }
             if (best < 0) { GD.Print("capturetest: nothing left to claim"); _testDone = true; return; }
-            g.Issue(Cmd.CheatGold(g.Viewer, Game.ClaimCost));
+            g.Issue(Cmd.CheatGold(g.Viewer, g.ClaimPrice));
             g.Claim(best);
             GD.Print($"capturetest: claimed {best} {w.PName[best]} centre ({w.PCX[best]},{w.PCY[best]}) at t={_t:F2}s");
             _last = best;

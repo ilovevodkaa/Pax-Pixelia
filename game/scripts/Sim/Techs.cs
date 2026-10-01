@@ -18,6 +18,7 @@ public enum TechFx : byte
     TaxPermille,      // taxes, ‰ extra
     ScoutRange,       // scouts see this many provinces further
     MineMaterials,    // materials per mine (a quarry on a surveyed metal vein)
+    AdminLimit,       // provinces the realm governs without overextension (Policy.AdminLimit)
 }
 
 /// <summary>One technology: era, tree position (lane = branch row, order = column inside its era), cost in science at
@@ -87,20 +88,20 @@ public static class Techs
         new("barter", "Обмен", 1, 5, 1, 2000, new[] { "pottery" }, -1, Bld.Market, NoFx, "coins",
             "Открывает рынок",
             "Горшок за рыбу, рыбу за шкуру, шкуру за горшок. К вечеру все остались при своём, но довольные."),
-        new("chief_law", "Закон вождя", 1, 7, 0, 2000, new[] { "elders" }, -1, null, new[] { (TechFx.TaxPermille, 100) }, "crown",
-            "Налоги +10%",
+        new("chief_law", "Закон вождя", 1, 7, 0, 2000, new[] { "elders" }, -1, null, new[] { (TechFx.TaxPermille, 100), (TechFx.AdminLimit, 4) }, "crown",
+            "Налоги +10%, предел управления +4",
             "Вождь сказал: «Так будет». Так и стало. Некоторым даже понравилось."),
         new("calendar", "Календарь", 1, 6, 0, 2000, new[] { "tally" }, -1, null, new[] { (TechFx.Science, 1) }, "hourglass",
             "Исследования +1 очко за цикл",
             "Жрецы сосчитали дни от разлива до разлива. Вышло 365, но один жрец настаивает на 366."),
-        new("writing", "Письменность", 1, 6, 1, 2000, new[] { "calendar" }, -1, null, new[] { (TechFx.Science, 1) }, "book",
-            "Исследования +1 очко за цикл",
+        new("writing", "Письменность", 1, 6, 1, 2000, new[] { "calendar" }, -1, null, new[] { (TechFx.Science, 1), (TechFx.AdminLimit, 4) }, "book",
+            "Исследования +1 очко за цикл, предел управления +4",
             "Первая запись: «Три козы — долг». Литература началась с бухгалтерии."),
         new("priesthood", "Жречество", 1, 8, 0, 2000, new[] { "ancestors" }, -1, null, new[] { (TechFx.ShrineMood, 4) }, "sun",
             "Святилища: довольство ещё +4",
             "Шаманов стало много, и им понадобился главный. Главный первым делом построил себе крышу."),
-        new("first_cities", "Первые города", 1, 7, 3, 2000, new[] { "brick", "chief_law" }, -1, null, new[] { (TechFx.CityInfluence, 2) }, "building-bank",
-            "Города растут быстрее (+2 влияния) и открывают Великую развилку",
+        new("first_cities", "Первые города", 1, 7, 3, 2000, new[] { "brick", "chief_law" }, -1, null, new[] { (TechFx.CityInfluence, 2), (TechFx.AdminLimit, 4) }, "building-bank",
+            "Города растут быстрее (+2 влияния), предел управления +4, открывают Великую развилку",
             "Люди поставили дома тесно, чтобы было теплее. Оказалось, так ещё и веселее. И шумнее."),
         new("temple_kingdom", "Храмовое царство", 1, 3, 4, 3000, new[] { "first_cities" }, 1, null, new[] { (TechFx.Science, 2), (TechFx.ShrineMood, 3) }, "sun",
             "Великая развилка. Исследования +2 очка за цикл, святилища: довольство ещё +3",
@@ -137,8 +138,8 @@ public static class Techs
         new("rafts", "Плоты", 0, 5, 3, 800, new[] { "stone_axe" }, -1, null, new[] { (TechFx.ScoutRange, 1) }, "anchor",
             "Разведчики видят на 1 провинцию дальше",
             "Три бревна, верёвка — и река уже не стена, а дорога."),
-        new("elders", "Совет старейшин", 0, 7, 2, 800, new[] { "speech" }, -1, null, new[] { (TechFx.TaxPermille, 50) }, "users",
-            "Налоги +5%",
+        new("elders", "Совет старейшин", 0, 7, 2, 800, new[] { "speech" }, -1, null, new[] { (TechFx.TaxPermille, 50), (TechFx.AdminLimit, 3) }, "users",
+            "Налоги +5%, предел управления +3",
             "Самые старые садятся в круг и решают. Самые молодые ворчат, но слушаются."),
 
         // ---- Древний мир: the rest of the branches (ids 29..39)
@@ -276,7 +277,11 @@ public static class Techs
     }
 
     /// <summary>Research points a cycle: the nation's science plus what its knowledge adds (Речь, Календарь, Письменность…).</summary>
-    public static int ResearchRate(NationState nat) => nat.ScienceRate + (nat.ScienceRate > 0 ? Sum(nat, TechFx.Science) : 0);
+    public static int ResearchRate(NationState nat)
+    {
+        int r = nat.ScienceRate + (nat.ScienceRate > 0 ? Sum(nat, TechFx.Science) : 0);
+        return r + r * Policy.ResearchPct(nat) / 100;   // Покровительство мудрецам
+    }
 
     /// <summary>Sum of one effect over the nation's known technologies.</summary>
     public static int Sum(NationState nat, TechFx fx)

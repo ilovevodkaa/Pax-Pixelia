@@ -139,20 +139,21 @@ public partial class QaTest : Node
 
         // ---- claim when poor
         int p = First(G.CanClaim);
-        s.Gold = Game.ClaimCost - 1;
+        int price = G.ClaimPrice;
+        s.Gold = price - 1;
         int t0 = _toasts.Count;
         G.Select(p); await Frames(3);
         await Shot("claim_poor_panel");
         var claimBtn = FindButton(Hud.Panel, "Присоединить");
         Check("claim poor: panel button disabled", claimBtn != null && claimBtn.Disabled, claimBtn == null ? "no button" : $"disabled={claimBtn.Disabled}");
         G.Claim(p);
-        Check("claim poor: refused, gold kept", s.Owner[p] < 0 && s.Gold == Game.ClaimCost - 1 && ErrorSince(t0, "золота"), ToastsSince(t0));
+        Check("claim poor: refused, gold kept", s.Owner[p] < 0 && s.Gold == price - 1 && ErrorSince(t0, "золота"), ToastsSince(t0));
         // gold arrives while the panel is open → button must enable (live sync)
-        s.Gold = Game.ClaimCost + 5;
+        s.Gold = price + 5;
         await RealYear(); await Frames(3);
         claimBtn = FindButton(Hud.Panel, "Присоединить");
         Check("claim: button re-enables when gold arrives (year tick)", claimBtn != null && !claimBtn.Disabled);
-        s.Gold = Game.ClaimCost;
+        s.Gold = price;
         G.Claim(p);
         Check("claim with exactly the cost", s.Owner[p] == 0 && Math.Abs(s.Gold) < 1e-9, $"gold={s.Gold}");
         s.Gold = gold0;

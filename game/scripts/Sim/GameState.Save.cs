@@ -22,7 +22,7 @@ namespace PaxPixelia.Sim;
 public sealed partial class GameState
 {
     /// <summary>Layout version of the snapshot (the save file carries it; older layouts are read field by field).</summary>
-    public const int SnapshotVersion = 6;   // 2: materials · 3: technologies · 4: the nomad phase · 5: techs past 64 · 6: character
+    public const int SnapshotVersion = 7;   // 2: materials · 3: technologies · 4: the nomad phase · 5: techs past 64 · 6: character · 7: edicts
 
     const int MaxNations = 255;
 
@@ -58,6 +58,7 @@ public sealed partial class GameState
             w.Write(x.Camp); w.Write(x.CampStep); w.Write(x.CampSub); w.Write(x.Supplies); w.Write(x.TribePop); w.Write(x.Legends); w.Write(x.Myth);
             w.Write(x.CampPath != null);
             if (x.CampPath != null) WriteInts(w, x.CampPath);
+            w.Write(x.Edicts);
             w.Write(x.Fog != null);
             if (x.Fog == null) continue;
             WriteBytes(w, x.Fog.Fog);
@@ -173,6 +174,11 @@ public sealed partial class GameState
                 Require(x.Camp >= -1 && x.Camp < P && x.Supplies >= 0 && x.Supplies <= Nomads.StartSupplies && x.TribePop >= 0
                         && x.Myth >= -1 && x.Myth < Nomads.Legends.Length && (x.CampPath == null || x.CampStep >= 0 && x.CampStep < x.CampPath.Length)
                         && x.CampSub >= 0 && x.CampSub < Nomads.StepTicks, "tribe");
+            }
+            if (version >= 7)
+            {
+                x.Edicts = r.ReadInt32();
+                Require((x.Edicts & ~((1 << Policy.Count) - 1)) == 0, "edicts");
             }
             Require(x.Era <= Eras.Last && x.ProjectIndex >= -1 && x.ProjectIndex < Simulation.Projects.Length, "nation");
             if (!r.ReadBoolean()) continue;

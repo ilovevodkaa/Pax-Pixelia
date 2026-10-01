@@ -23,6 +23,8 @@ public enum CmdType : byte
     Research, CheatTech,
     // the tribe: walk to A (-1 = stop), found the capital on the camp with legend A as the myth (-1 = none)
     TribeTo, Settle,
+    // put edict A in force (B = 1) or repeal it (B = 0)
+    Edict,
 }
 
 /// <summary>
@@ -47,6 +49,7 @@ public readonly record struct Cmd(int Tick, byte Nation, ushort Seq, CmdType Typ
     public static Cmd CheatTech(int n, int tech) => new(0, (byte)n, 0, CmdType.CheatTech, tech);
     public static Cmd TribeTo(int n, int province) => new(0, (byte)n, 0, CmdType.TribeTo, province);
     public static Cmd Settle(int n, int myth) => new(0, (byte)n, 0, CmdType.Settle, myth);
+    public static Cmd Edict(int n, int edict, bool on) => new(0, (byte)n, 0, CmdType.Edict, edict, on ? 1 : 0);
 
     public bool IsSession => Type is CmdType.Pause or CmdType.Unpause or CmdType.SetSpeed;
 
@@ -153,6 +156,13 @@ public static class Commands
                 if (c.A >= 0 && c.A < Techs.Count) Techs.Learn(nat, c.A);
                 else if (c.A < 0) { for (int t = 0; t < Techs.Count; t++) if (!Techs.ForkClosed(nat, t)) Techs.Learn(nat, t); }   // of a fork its first open path
                 else return BadCommand;
+                return 0;
+            }
+            case CmdType.Edict:
+            {
+                var e = Policy.CheckSet(s.Nat[n], c.A, c.B != 0);
+                if (e != EdictError.None) return (int)e;
+                Policy.Set(s.Nat[n], c.A, c.B != 0);
                 return 0;
             }
             default: return BadCommand;

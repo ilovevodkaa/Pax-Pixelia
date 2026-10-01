@@ -23,6 +23,7 @@ public partial class Hud : CanvasLayer
     ProvincePanel _panel;
     Leaderboard _lead;
     TechScreen _tech;
+    PolicyCard _policy;
     Toast _toast;
     TipCard _tip;
     ChapterCard _loading;
@@ -32,8 +33,8 @@ public partial class Hud : CanvasLayer
     int _tipProvince = -1;
     bool _tipDirty;
     // heavy refreshes are coalesced: fog/ownership events may arrive every tick at speed 5
-    bool _miniDirty, _leadDirty, _liveDirty, _techDirty;
-    double _miniCooldown, _leadCooldown, _liveCooldown, _miniHeld;
+    bool _miniDirty, _leadDirty, _liveDirty, _techDirty, _policyDirty;
+    double _miniCooldown, _leadCooldown, _liveCooldown, _miniHeld, _policyCooldown;
 
     /// <summary>Debug hooks (UiDebug): a fixed mouse position for screenshots and the control whose tip is forced.</summary>
     internal Vector2? FakeMouse;
@@ -56,6 +57,8 @@ public partial class Hud : CanvasLayer
     System.Action _debugReady;
     internal Control DebugTarget(string name) => _top.DebugTarget(name) ?? _modes.DebugTarget(name) ?? _mini.DebugTarget(name);
     internal void DebugToggleLead() => ToggleLeaderboard();
+    internal void DebugTogglePolicy() => TogglePolicy();
+    internal PolicyCard Policy => _policy;
 
     public override void _Ready()
     {
@@ -73,6 +76,7 @@ public partial class Hud : CanvasLayer
         _top.SetAnchorsPreset(Control.LayoutPreset.TopWide);
         _top.LeaderboardToggled += ToggleLeaderboard;
         _top.TechToggled += ToggleTech;
+        _top.PolicyToggled += TogglePolicy;
         _top.PauseClicked += TogglePause;
         _root.AddChild(_top);
 
@@ -93,6 +97,8 @@ public partial class Hud : CanvasLayer
         _root.AddChild(_panel);
         _lead = new Leaderboard();
         _root.AddChild(_lead);
+        _policy = new PolicyCard();
+        _root.AddChild(_policy);
         _tech = new TechScreen { Hud = this };
         _root.AddChild(_tech);
         _events = new EventWindow();
@@ -220,7 +226,7 @@ public partial class Hud : CanvasLayer
     void OnCycleTick()
     {
         _top.OnCycleTick();
-        _liveDirty = _leadDirty = _techDirty = true;   // top bar + panel live values, coalesced in _Process
+        _liveDirty = _leadDirty = _techDirty = _policyDirty = true;   // top bar + panel live values, coalesced in _Process
     }
 
     /// <summary>The date moves every tick (months/days): the clock follows at once, the heavier live values
@@ -276,6 +282,7 @@ public partial class Hud : CanvasLayer
     void ToggleLeaderboard()
     {
         if (_tech.Visible && !_lead.Visible) ToggleTech();
+        if (_policy.Visible && !_lead.Visible) TogglePolicy();
         bool open = _lead.Toggle();
         _top.SetLeaderboardOpen(open);
         if (open) { _leadCooldown = 1; PlaceLeaderboard(); }
@@ -283,9 +290,22 @@ public partial class Hud : CanvasLayer
 
     void PlaceLeaderboard() => _lead.Place(_top.Trophy.GetGlobalRect(), _root.Size);
 
+    void TogglePolicy()
+    {
+        if (!Game.I.IsReady && !_policy.Visible) return;
+        if (_tech.Visible && !_policy.Visible) ToggleTech();
+        if (_lead.Visible && !_policy.Visible) ToggleLeaderboard();
+        bool open = _policy.Toggle();
+        _top.SetPolicyOpen(open);
+        if (open) { _policyCooldown = .5; PlacePolicy(); }
+    }
+
+    void PlacePolicy() => _policy.Place(_top.PolicyButton.GetGlobalRect(), _root.Size);
+
     void ToggleTech()
     {
         if (_lead.Visible && !_tech.Visible) ToggleLeaderboard();
+        if (_policy.Visible && !_tech.Visible) TogglePolicy();
         if (!Game.I.IsReady && !_tech.Visible) return;
         bool open = _tech.Toggle();
         _top.SetTechOpen(open);
@@ -328,6 +348,7 @@ public partial class Hud : CanvasLayer
         if (Game.I.IsTargeting) Game.I.CancelScoutTargeting();
         _panel.Close();
         if (_lead.Visible) ToggleLeaderboard();
+        if (_policy.Visible) TogglePolicy();
         if (_tech.Visible) ToggleTech();
         _toast.HideNow();
         _loading.ShowNow();
@@ -357,6 +378,7 @@ public partial class Hud : CanvasLayer
                 if (_tech.Visible) ToggleTech();
                 else if (Game.I.IsTargeting) Game.I.CancelScoutTargeting();
                 else if (_lead.Visible) ToggleLeaderboard();
+                else if (_policy.Visible) TogglePolicy();
                 else if (_panel.Visible) Game.I.Select(-1);
                 else if (Game.I.IsReady && !_loading.Visible) PauseMenu.Open();
                 else return;
@@ -378,6 +400,7 @@ public partial class Hud : CanvasLayer
         _modes.SetWidth(mw + 16);
         _panel.SetViewport(size);
         if (_lead.Visible) Callable.From(PlaceLeaderboard).CallDeferred();
+        if (_policy.Visible) Callable.From(PlacePolicy).CallDeferred();
     }
 
     // ---------------- tooltip ----------------
@@ -390,6 +413,12 @@ public partial class Hud : CanvasLayer
         // while a capture fill runs on the map the minimap keeps its old colours and snaps when it ends (at most 1.2 s late)
         if (_miniDirty && Game.I.CaptureFillsRunning && _miniHeld < 1.2) _miniHeld += delta;
         else if (_miniDirty && _miniCooldown <= 0) { _miniDirty = false; _miniHeld = 0; _miniCooldown = .25; _mini.View.Recolor(); }
+        if (_policy.Visible)
+        {
+            _policyCooldown -= delta;
+            if (_policyDirty && _policyCooldown <= 0) { _policyDirty = false; _policyCooldown = .5; _policy.Refresh(); }
+            PlacePolicy();
+        }
         if (_lead.Visible)
         {
             _leadCooldown -= delta;

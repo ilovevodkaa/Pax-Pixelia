@@ -18,6 +18,7 @@ public partial class TopBar : PanelContainer
     public Button Trophy { get; private set; }
     public event Action LeaderboardToggled;
     public event Action TechToggled;
+    public event Action PolicyToggled;
     public Button TechButton => _screenBtns[0];
     public event Action PauseClicked;
 
@@ -104,9 +105,12 @@ public partial class TopBar : PanelContainer
         for (int i = 0; i < screens.Length; i++)
         {
             var (icon, name) = screens[i];
-            var b = i == 0
-                ? Ui.IconButton(icon, "Ib", 36, 34, 2, () => TechToggled?.Invoke())
-                : Ui.IconButton(icon, "Ib", 36, 34, 2, () => Game.I.ShowToast($"Экран «{name}» — нарисуем следующим"));
+            var b = i switch
+            {
+                0 => Ui.IconButton(icon, "Ib", 36, 34, 2, () => TechToggled?.Invoke()),
+                1 => Ui.IconButton(icon, "Ib", 36, 34, 2, () => PolicyToggled?.Invoke()),
+                _ => Ui.IconButton(icon, "Ib", 36, 34, 2, () => Game.I.ShowToast($"Экран «{name}» — нарисуем следующим")),
+            };
             b.MouseFilter = MouseFilterEnum.Stop;
             if (i == 0) b.Tip(t =>
             {
@@ -117,6 +121,16 @@ public partial class TopBar : PanelContainer
                 int r = g.Researching;
                 t.Line(r >= 0 ? $"Изучается: «{Techs.All[r].Name}»" : g.ResearchIdle ? "Ничего не изучается — выберите технологию" : "Всё доступное изучено");
                 if (needed > 0) t.Kv($"До эпохи «{g.NextEraName}»", $"{known} из {needed}", known >= needed ? Pal.Ok : Pal.Hi);
+            });
+            else if (i == 1) b.Tip(t =>
+            {
+                t.Title("Политика").Mu("Бюджет, предел управления и указы");
+                var g = Game.I;
+                if (!g.IsReady) return;
+                var (prov, limit, over) = g.Admin;
+                t.Kv("Провинции", $"{prov} из {limit}", over > 0 ? Pal.Bad : Pal.Hi);
+                if (over > 0) t.Kv("Перерасширение", $"{over}%", Pal.Bad);
+                t.Kv("Указы", $"{g.EdictsActive} из {g.EdictSlots}", g.EdictsActive < g.EdictSlots ? Pal.Warn : Pal.Hi);
             });
             else b.Tip(name, null, "Экран в разработке");
             _screens.AddChild(b);
@@ -171,10 +185,12 @@ public partial class TopBar : PanelContainer
             t.Title("Казна");
             if (!Game.I.IsReady || !_incomeKnown) { t.Mu("Доход появится после первого цикла"); return; }
             var s = Game.I.State;
-            t.Line($"Налоги {Fmt.Signed(s.LastTaxes)} · Содержание {Fmt.Signed(-s.LastUpkeep)}")
+            var b = Game.I.BudgetLines;
+            t.Line($"Налоги {Fmt.Signed(b.Taxes / 100.0, 1)} · Постройки {Fmt.Signed(-b.Buildings / 100.0, 1)}")
+             .Line($"Управление {Fmt.Signed(-b.Admin / 100.0, 1)} · Указы {Fmt.Signed(-b.Edicts / 100.0, 1)}")
              .Kv("Итого за цикл", Fmt.Signed(s.LastIncome, 1), s.LastIncome >= 0 ? Pal.Ok : Pal.Bad)
              .Kv("В минуту", Fmt.Signed(s.LastIncome * Game.CyclesPerMinute(s.Speed)), s.LastIncome >= 0 ? Pal.Ok : Pal.Bad)
-             .Mu("Цикл — полсекунды при скорости 3. Золото тратится на земли, постройки и геологов");
+             .Mu("Цикл — полсекунды при скорости 3. Золото тратится на земли, города, постройки, геологов и указы. Подробно — в «Политике»");
         });
         _res[1].Root.Tip(t =>
         {
@@ -320,6 +336,14 @@ public partial class TopBar : PanelContainer
     {
         if (TechButton.ThemeTypeVariation == "IbOn") return;
         TechButton.SelfModulate = idle ? new Color(1.6f, 1.35f, .7f) : Colors.White;
+    }
+
+    public Button PolicyButton => _screenBtns[1];
+
+    public void SetPolicyOpen(bool open)
+    {
+        PolicyButton.ThemeTypeVariation = open ? "IbOn" : "Ib";
+        PolicyButton.Icon = Icons.Get("building-bank", 2, !open);
     }
 
     public void SetLeaderboardOpen(bool open)

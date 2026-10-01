@@ -278,9 +278,11 @@ public partial class ProvincePanel : PanelContainer
         }
         string nation = Game.I.Nations[GameState.LocalPlayer].Name;
         flow.Add(Kit.Para($"Граничит с державой {nation}. Племена можно убедить войти в её состав."), 0, 8);
-        var claim = Ui.Button($"Присоединить · {Game.ClaimCost} золота", "flag", "Pri", () => Game.I.Claim(p), 1, 34);
+        int claimPrice = Game.I.ClaimPrice;
+        var claim = Ui.Button($"Присоединить · {claimPrice} золота", "flag", "Pri", () => Game.I.Claim(p), 1, 34);
         claim.Tip(t => t.Title("Присоединение").Line("Провинция войдёт в состав державы вместе с племенами.")
-            .Kv("Стоимость", $"{Game.ClaimCost} золота").Kv("В казне", Fmt.Int(Game.I.State.Gold), Game.I.State.Gold >= Game.ClaimCost ? Pal.Ok : Pal.Bad));
+            .Kv("Стоимость", $"{claimPrice} золота").Kv("В казне", Fmt.Int(Game.I.State.Gold), Game.I.State.Gold >= claimPrice ? Pal.Ok : Pal.Bad)
+            .Mu("Цена растёт с размером державы, эпохой и перерасширением"));
         flow.Add(claim, 8);
         var note = flow.Add(Kit.Para("", true, UiFonts.Small), 8);
         void Sync()
@@ -355,15 +357,16 @@ public partial class ProvincePanel : PanelContainer
     void FoundButton(Flow flow, int p)
     {
         var w = Game.I.World;
-        var found = Ui.Button($"Основать город · {Game.FoundCityCost} золота", "home", null, () => Game.I.FoundCity(p), 1, 34);
+        var found = Ui.Button($"Основать город · {Game.I.FoundCityPrice} золота", "home", null, () => Game.I.FoundCity(p), 1, 34);
         found.Tip(t =>
         {
             t.Title("Основать город").Line("Новый город получит свою сферу и сам будет присоединять земли вокруг.");
             var (src, people) = Game.I.FoundCityPlan(p);
             if (src >= 0) t.Kv("Поселенцы", $"{Fmt.Int(people)} из {w.PName[src]}");
-            t.Kv("Стоимость", $"{Game.FoundCityCost} золота · {Game.FoundCityMaterials} материалов")
-             .Kv("В казне", Fmt.Int(Game.I.State.Gold), Game.I.State.Gold >= Game.FoundCityCost ? Pal.Ok : Pal.Bad)
-             .Kv("На складе", Fmt.Int(Game.I.State.Materials), Game.I.State.Materials >= Game.FoundCityMaterials ? Pal.Ok : Pal.Bad);
+            int gold = Game.I.FoundCityPrice, mats = Game.I.FoundCityMats;
+            t.Kv("Стоимость", $"{gold} золота · {mats} материалов")
+             .Kv("В казне", Fmt.Int(Game.I.State.Gold), Game.I.State.Gold >= gold ? Pal.Ok : Pal.Bad)
+             .Kv("На складе", Fmt.Int(Game.I.State.Materials), Game.I.State.Materials >= mats ? Pal.Ok : Pal.Bad);
         });
         flow.Add(found, 10);
         var note = flow.Add(Kit.Para("", true, UiFonts.Small), 8);
@@ -485,7 +488,7 @@ public partial class ProvincePanel : PanelContainer
             survey.Tip(t =>
             {
                 t.Title("Геологическая разведка").Line("Геологи осмотрят холмы и найдут залежи, если они есть.")
-                 .Kv("Стоимость", $"{Game.SurveyCost} золота").Kv("В казне", Fmt.Int(Game.I.State.Gold), Game.I.State.Gold >= Game.SurveyCost ? Pal.Ok : Pal.Bad);
+                 .Kv("Стоимость", $"{Game.I.SurveyPrice} золота").Kv("В казне", Fmt.Int(Game.I.State.Gold), Game.I.State.Gold >= Game.I.SurveyPrice ? Pal.Ok : Pal.Bad);
                 if (Game.I.SurveyProblem(p) is string why) t.Kv("Нельзя", why, Pal.Bad);
             });
             void SyncSurvey() => Ui.Enable(survey, Game.I.SurveyProblem(p) == null);

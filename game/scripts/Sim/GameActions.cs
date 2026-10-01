@@ -20,7 +20,14 @@ public partial class Game : ISimSink
     /// <summary>Scouts were sent, stepped into a new province or came back (scout box, leaderboard).</summary>
     public event Action ScoutsChanged;
 
-    public const int ClaimCost = Rules.ClaimCost, SurveyCost = Rules.SurveyCost, MaxScouts = Scouts.Max;
+    public const int MaxScouts = Scouts.Max;
+
+    /// <summary>What the local nation pays now for a province, for geologists, for a town (gold) and its materials:
+    /// prices grow with the era, land and towns also with the size of the realm (Rules, Cities, Policy).</summary>
+    public int ClaimPrice => IsReady ? Rules.ClaimPrice(State, Viewer) : Rules.ClaimCost;
+    public int SurveyPrice => IsReady ? Rules.SurveyPrice(State.Nat[Viewer]) : Rules.SurveyCost;
+    public int FoundCityPrice => IsReady ? Cities.FoundPrice(State, Viewer) : Cities.FoundCost;
+    public int FoundCityMats => IsReady ? Cities.FoundMaterialsFor(State.Nat[Viewer]) : Cities.FoundMaterials;
     const float PickToastSeconds = 86400f;   // stays until replaced by the outcome of the pick
 
     SimDriver _driver;
@@ -48,14 +55,14 @@ public partial class Game : ISimSink
     /// <summary>Why p cannot be claimed now (Russian, for a disabled button's tooltip), or null if it can.</summary>
     public string ClaimProblem(int p) => !IsReady ? "Мир ещё не создан" : ClaimText(Rules.CheckClaim(World, State, p, Viewer));
 
-    static string ClaimText(ClaimError e) => e switch
+    string ClaimText(ClaimError e) => e switch
     {
         ClaimError.None => null,
         ClaimError.NotLand => "Море нельзя присоединить",
         ClaimError.Owned => "У этих земель уже есть хозяин",
         ClaimError.Unexplored => "Сначала разведайте эти земли",
         ClaimError.NotAdjacent => "Слишком далеко от ваших границ",
-        ClaimError.NoGold => $"Не хватает золота: нужно {ClaimCost}",
+        ClaimError.NoGold => $"Не хватает золота: нужно {ClaimPrice}",
         ClaimError.CityFull => "Ближайшие города уже освоили свои земли — основайте новый город",
         _ => "Нельзя присоединить",
     };
@@ -64,14 +71,13 @@ public partial class Game : ISimSink
     {
         var why = ClaimProblem(p);
         if (why != null) { ShowRefusal(why); return; }
+        int price = ClaimPrice;
         int r = Issue(Cmd.Claim(Viewer, p));
         if (r != 0) { ShowRefusal(ClaimText((ClaimError)r) ?? "Нельзя присоединить"); return; }
-        Notify("flag", $"Провинция {World.PName[p]} вошла в состав {Sim.Ru.Genitive(Nations[Viewer].Name)}");
+        Notify("flag", $"Провинция {World.PName[p]} вошла в состав {Sim.Ru.Genitive(Nations[Viewer].Name)} (−{price} золота)");
     }
 
     // ------------------------------------------------------------------ cities
-
-    public const int FoundCityCost = Cities.FoundCost, FoundCityMaterials = Cities.FoundMaterials;
 
     /// <summary>City sphere of the city p belongs to (p may be the city itself): city, provinces, cap, cycles to the next
     /// province (-1 = stalled). city = -1 when p has no city.</summary>
@@ -90,17 +96,17 @@ public partial class Game : ISimSink
 
     public string FoundCityProblem(int p) => !IsReady ? "Мир ещё не создан" : FoundText(Cities.Check(World, State, p, Viewer));
 
-    static string FoundText(FoundError e) => e switch
+    string FoundText(FoundError e) => e switch
     {
         FoundError.None => null,
         FoundError.NotLand => "Город можно основать только на суше",
         FoundError.NotYours => "Только в своих землях или рядом с границей",
         FoundError.IsCity => "Здесь уже стоит город",
         FoundError.TooClose => $"Слишком близко к другому городу: нужно не меньше {Cities.MinCityDistance} провинций",
-        FoundError.NoGold => $"Не хватает золота: нужно {Cities.FoundCost}",
+        FoundError.NoGold => $"Не хватает золота: нужно {FoundCityPrice}",
         FoundError.NoSettlers => $"Ни один город не может дать поселенцев: нужно больше {Cities.SettlersKeep + Cities.SettlersMin} жителей",
         FoundError.Unexplored => "Сначала разведайте эти земли",
-        FoundError.NoMaterials => $"Не хватает материалов: нужно {Cities.FoundMaterials}. Их дают лесопилки и каменоломни",
+        FoundError.NoMaterials => $"Не хватает материалов: нужно {FoundCityMats}. Их дают лесопилки и каменоломни",
         _ => "Здесь нельзя основать город",
     };
 
@@ -122,10 +128,44 @@ public partial class Game : ISimSink
         Notify("map-pin", $"Основан город {World.PName[p]}: {people:N0} поселенцев пришли из {World.PName[src]}".Replace(' ', ' '));
     }
 
+    // ------------------------------------------------------------------ policy: administration and edicts
+
+    /// <summary>The local nation's administration: provinces, the limit, overextension %.</summary>
+    public (int provinces, int limit, int overPct) Admin => IsReady ? Policy.Admin(State, Viewer) : (0, 0, 0);
+
+    /// <summary>The local nation's budget per cycle, line by line (hundredths).</summary>
+    public Policy.Budget BudgetLines => IsReady ? Policy.BudgetOf(State, Viewer) : default;
+
+    public bool EdictOn(int e) => IsReady && Policy.On(State.Nat[Viewer], e);
+    public int EdictSlots => IsReady ? Policy.Slots(State.Nat[Viewer].Era) : 1;
+    public int EdictsActive => IsReady ? Policy.Active(State.Nat[Viewer]) : 0;
+
+    static string EdictText(EdictError e) => e switch
+    {
+        EdictError.None => null,
+        EdictError.NoSlot => "Все места для указов заняты: отмените один из действующих",
+        EdictError.TooEarly => "Этот указ ещё не по силам державе: нужна новая эпоха",
+        EdictError.NotOn => "Этот указ и так не действует",
+        _ => "Указ невозможен",
+    };
+
+    /// <summary>Why edict e cannot be put in force (or repealed) now, or null.</summary>
+    public string EdictProblem(int e, bool on) => !IsReady ? "Мир ещё не создан" : EdictText(Policy.CheckSet(State.Nat[Viewer], e, on));
+
+    public void SetEdict(int e, bool on)
+    {
+        var why = EdictProblem(e, on);
+        if (why != null) { ShowRefusal(why); return; }
+        int r = Issue(Cmd.Edict(Viewer, e, on));
+        if (r != 0) { ShowRefusal(EdictText((EdictError)r) ?? "Указ невозможен"); return; }
+        var d = Policy.Edicts[e];
+        Notify("building-bank", on ? $"Издан указ «{d.Name}»: {d.Effect.ToLowerInvariant()}" : $"Указ «{d.Name}» отменён");
+    }
+
     // ------------------------------------------------------------------ buildings & geology
 
     public IReadOnlyList<Data.Bld> BuildOptions(int p) => IsReady ? Rules.BuildOptions(World, State, p, Viewer) : Array.Empty<Data.Bld>();
-    public int BuildCost(Data.Bld b) => Rules.BuildCost(b);
+    public int BuildCost(Data.Bld b) => IsReady ? Rules.BuildPrice(b, State.Nat[Viewer]) : Rules.BuildCost(b);
     public int BuildMaterials(Data.Bld b) => IsReady ? Rules.BuildMaterials(b, State.Nat[Viewer]) : Rules.BuildMaterials(b);
 
     /// <summary>Where the local nation's materials come from: lumber mills, quarries, mines on metal veins, the capital.</summary>
@@ -144,14 +184,14 @@ public partial class Game : ISimSink
         return (l, q, m, c);
     }
 
-    static string BuildText(BuildError e, Data.Bld b) => e switch
+    string BuildText(BuildError e, Data.Bld b) => e switch
     {
         BuildError.NotOwned => "Строить можно только в своих провинциях",
         BuildError.NoSlot => "Свободных участков не осталось",
         BuildError.AlreadyBuilt => "Такая постройка здесь уже есть",
         BuildError.NotAllowed => "Местность не подходит для этой постройки",
-        BuildError.NoGold => $"Не хватает золота: нужно {Rules.BuildCost(b)}",
-        BuildError.NoMaterials => $"Не хватает материалов: нужно {Rules.BuildMaterials(b)}. Постройте лесопилку или каменоломню",
+        BuildError.NoGold => $"Не хватает золота: нужно {BuildCost(b)}",
+        BuildError.NoMaterials => $"Не хватает материалов: нужно {BuildMaterials(b)}. Постройте лесопилку или каменоломню",
         BuildError.NeedTech => Techs.For(b) is int t and >= 0 ? $"Нужна технология «{Techs.All[t].Name}»" : "Нужна технология",
         _ => "Строительство невозможно",
     };
@@ -172,17 +212,17 @@ public partial class Game : ISimSink
         if (!IsReady) return;
         var err = Rules.CheckBuild(World, State, p, b, Viewer);
         if (err != BuildError.None) { ShowRefusal(BuildText(err, b)); return; }
+        int gold = BuildCost(b), mat = BuildMaterials(b);
         int r = Issue(Cmd.Build(Viewer, p, b));
         if (r != 0) { ShowRefusal(BuildText((BuildError)r, b)); return; }
-        int mat = Rules.BuildMaterials(b, State.Nat[Viewer]);
-        Notify("hammer", $"{World.PName[p]}: заложена постройка «{Data.BldName[(int)b]}» (−{Rules.BuildCost(b)} золота{(mat > 0 ? $", −{mat} материалов" : "")})");
+        Notify("hammer", $"{World.PName[p]}: заложена постройка «{Data.BldName[(int)b]}» (−{gold} золота{(mat > 0 ? $", −{mat} материалов" : "")})");
     }
 
-    static string SurveyText(SurveyError e) => e switch
+    string SurveyText(SurveyError e) => e switch
     {
         SurveyError.NotOwned => "Геологов можно отправить только в свои провинции",
         SurveyError.AlreadyDone => "Недра здесь уже разведаны",
-        SurveyError.NoGold => $"Не хватает золота: нужно {SurveyCost}",
+        SurveyError.NoGold => $"Не хватает золота: нужно {SurveyPrice}",
         SurveyError.NeedTech => $"Нужна технология «{Techs.All[Techs.SurveyTech].Name}»",
         _ => "Разведка недр невозможна",
     };
@@ -192,12 +232,13 @@ public partial class Game : ISimSink
         if (!IsReady) return;
         var err = Rules.CheckSurvey(State, p, Viewer);
         if (err != SurveyError.None) { ShowRefusal(SurveyText(err)); return; }
+        int price = SurveyPrice;
         int r = Issue(Cmd.Survey(Viewer, p));
         if (r != 0) { ShowRefusal(SurveyText((SurveyError)r)); return; }
         int ore = State.Ore[p];
         Notify("shovel", ore >= 0
-            ? $"Геологи нашли {Data.Ores[ore].ToLowerInvariant()} в провинции {World.PName[p]} (−{SurveyCost} золота)"
-            : $"Геологи обошли провинцию {World.PName[p]}: залежей не найдено (−{SurveyCost} золота)");
+            ? $"Геологи нашли {Data.Ores[ore].ToLowerInvariant()} в провинции {World.PName[p]} (−{price} золота)"
+            : $"Геологи обошли провинцию {World.PName[p]}: залежей не найдено (−{price} золота)");
     }
 
     /// <summary>Could geologists find anything in p (hills or mountains)? Says nothing about what is really there.</summary>
