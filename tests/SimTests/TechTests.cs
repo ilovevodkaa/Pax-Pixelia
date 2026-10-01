@@ -51,11 +51,29 @@ public static class TechTests
         int guard = 0;
         while (!Techs.Known(nat, gath) && guard++ < 5000) Simulation.Step(w, s, null);
         Check(Techs.Known(nat, gath) && nat.Researching == -1 && nat.TechPts[gath] == 0, $"«Собирательство» learned after {guard} ticks (≈ {guard / (double)Clock.TicksPerSecond[3]:0} s at speed 3)");
-        Check(guard / (double)Clock.TicksPerSecond[3] is > 20 and < 150, "a first-era technology takes about a minute");
+        Check(guard / (double)Clock.TicksPerSecond[3] is > 60 and < 240, "a first-era technology takes about two minutes");
         Check(Techs.Open(nat, grain), "a branch grows: «Собирательство» opens «Дикие злаки»");
         Techs.Learn(nat, grain);
         if (plot >= 0) Check(Rules.CheckBuild(w, s, plot, Bld.Farm, Me) is not BuildError.NeedTech, "the farm is open now");
         Check(Commands.Apply(w, s, Cmd.Research(Me, gath), null) == Commands.BadCommand, "a known technology cannot be chosen again");
+
+        Section("technologies: the pool holds half a minute of research, no more");
+        var pc = Fresh(w);
+        var pn = pc.Nat[Me];
+        Cycles(w, pc, Techs.PoolCycles + 40);
+        int pr = Techs.ResearchRate(pn);
+        Check(pn.Researching < 0 && pn.TechPool == Techs.PoolCap(pn) && pn.TechPool <= (long)Techs.PoolCycles * pr && pr > 0,
+            $"{Techs.PoolCycles + 40} cycles with nothing chosen: the pool stops at {pn.TechPool} = {Techs.PoolCycles} cycles × {pr}");
+        long held = pn.TechPool;
+        Check(Commands.Apply(w, pc, Cmd.Research(Me, gath), null) == 0 && pn.TechPts[gath] == held && pn.TechPool == 0 && held < Techs.Cost(gath, pc.Pace),
+            $"a full pool is a head start, not a finished study ({held} of {Techs.Cost(gath, pc.Pace)})");
+        Cycles(w, pc, 1);
+        Check(!Techs.Known(pn, gath), "and the study still takes its time after the pool is spent");
+        pn.TechPool = 10 * Techs.PoolCap(pn);
+        pn.Researching = -1;
+        long big = pn.TechPool;
+        Cycles(w, pc, 3);
+        Check(pn.TechPool == big, "a pool already above the cap (a dug ruin, an old save) is kept but grows no more");
 
         Section("technologies: the era gate");
         var g = Fresh(w);

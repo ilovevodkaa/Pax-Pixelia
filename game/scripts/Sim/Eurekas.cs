@@ -132,6 +132,7 @@ public static class Eurekas
                 }
                 if (counts[n * Kinds + (int)All[e].What] < All[e].Need) continue;
                 Strike(s, n, e, sink);
+                break;   // one insight per check: several ripe deeds strike one after another, not in one burst
             }
         }
     }

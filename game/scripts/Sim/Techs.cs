@@ -34,7 +34,8 @@ public sealed record TechDef(string Id, string Name, int Era, int Lane, int Orde
 /// when its prerequisites are known and its era has come; of a fork (the Great Fork of Древний мир) only one can ever
 /// be learned. Techs are kept as a bit set of 64-bit words (NationState.TechsDone, any number of technologies) and
 /// per-tech points (NationState.TechPts); points
-/// made while nothing is chosen wait in NationState.TechPool and go to the next choice, so a slow click loses nothing.
+/// made while nothing is chosen wait in NationState.TechPool and go to the next choice, but only up to
+/// <see cref="PoolCycles"/> cycles of them: a slow click loses little, a long wait buys no burst of studies.
 /// Ids never move (saves keep the bit set; new technologies are appended): the tree's shape is Lane/Order. The root
 /// «Огонь» is known by everyone from the start.
 /// </summary>
@@ -258,7 +259,21 @@ public static class Techs
 
     public static int Index(string id) => Array.FindIndex(All, d => d.Id == id);
 
-    public static int Cost(int t, int pace) => (int)Math.Max(1, (long)All[t].Cost * Eras.ClampPace(pace) / 1000);
+    /// <summary>Studies cost twice their table price: knowledge comes slower than the era stock fills, so a technology
+    /// takes about two minutes at speed 3 in Первобытная (the era gate keeps its slack: 9 studies take about half the era).</summary>
+    public const int CostPermille = 2000;
+
+    /// <summary>A human with nothing chosen banks at most this many cycles of research (30 s at speed 3); the rest is
+    /// lost, so waiting never buys a burst of studies.</summary>
+    public const int PoolCycles = 60;
+
+    public static int Cost(int t, int pace) => (int)Math.Max(1, (long)All[t].Cost * Eras.ClampPace(pace) * CostPermille / 1_000_000);
+
+    /// <summary>The most the waiting pool can hold at the nation's current research rate.</summary>
+    public static long PoolCap(NationState nat) => (long)PoolCycles * ResearchRate(nat);
+
+    /// <summary>Bank points in the pool up to cap; a pool already above it (an old save, a dug ruin) is kept but grows no more.</summary>
+    static void Bank(NationState nat, long pts, long cap) => nat.TechPool = Math.Max(nat.TechPool, Math.Min(nat.TechPool + pts, cap));
 
     public static bool Known(NationState nat, int t) => (uint)t < (uint)All.Length && (nat.TechsDone[t >> 6] & (1UL << (t & 63))) != 0;
 
@@ -396,14 +411,14 @@ public static class Techs
         int r = nat.Researching;
         if (r < 0)
         {
-            if (HasOpen(nat)) nat.TechPool += points;   // nothing chosen yet: the points wait
+            if (HasOpen(nat)) Bank(nat, points, (long)PoolCycles * points);   // nothing chosen yet: the points wait, a little
             return -1;
         }
         nat.TechPts[r] += points;
         if (nat.TechPts[r] < Cost(r, pace)) return -1;
         long spare = nat.TechPts[r] - Cost(r, pace);
         Learn(nat, r);
-        nat.TechPool += spare;                          // the overflow goes on to the next choice
+        Bank(nat, spare, (long)PoolCycles * points);   // the overflow goes on to the next choice, within the pool's cap
         return r;
     }
 

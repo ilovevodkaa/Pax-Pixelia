@@ -245,7 +245,10 @@ public partial class TopBar : PanelContainer
             if (g.NextEraName != "") t.Kv($"До эпохи «{g.NextEraName}»", $"{g.EraProgressPermille / 10}%", Pal.Hi);
             int r = g.Researching;
             t.Kv("Изучается", r >= 0 ? Techs.All[r].Name : "ничего", r >= 0 ? Pal.Ok : Pal.Bad);
-            t.Mu("Эпоха наступает, когда наука наберёт свою цену");
+            if (r < 0 && g.ResearchIdle) t.Kv("Запас", $"{g.TechPool} из {g.TechPoolCap}", g.TechPool >= g.TechPoolCap ? Pal.Bad : Pal.Warn);
+            t.Mu(r < 0 && g.ResearchIdle
+                ? "Без выбранной технологии наука копится лишь на полминуты (при скорости 3), дальше пропадает"
+                : "Эпоха наступает, когда наука наберёт свою цену");
         });
         _res[2].Root.Tip("Население", "Во всех провинциях державы");
         _res[3].Root.Tip(t =>

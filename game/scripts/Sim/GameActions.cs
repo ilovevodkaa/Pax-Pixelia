@@ -568,6 +568,8 @@ public partial class Game : ISimSink
 
     /// <summary>Science banked while nothing was chosen (goes to the next choice).</summary>
     public long TechPool => IsReady ? State.Nat[Viewer].TechPool : 0;
+    /// <summary>How much the pool can hold now (Techs.PoolCycles cycles of research); beyond it the science is lost.</summary>
+    public long TechPoolCap => IsReady ? Techs.PoolCap(State.Nat[Viewer]) : 0;
     /// <summary>The technology being studied, or -1.</summary>
     public int Researching => IsReady ? State.Nat[Viewer].Researching : -1;
     /// <summary>Nothing chosen while something could be studied: the top bar nudges the player.</summary>

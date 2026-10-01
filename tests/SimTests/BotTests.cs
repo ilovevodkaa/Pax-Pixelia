@@ -12,7 +12,7 @@ namespace PaxPixelia.Tests;
 public static class BotTests
 {
     const int Me = GameState.LocalPlayer;
-    const int Cycles = 600;   // ≈ 5 min at speed 3
+    const int Cycles = 1200;   // ≈ 10 min at speed 3: studies take two minutes, so the first buildings open later
 
     public static void Run(WorldData w)
     {

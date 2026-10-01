@@ -112,7 +112,9 @@ public partial class TechScreen : Control
             : $"{g.EraName} · дерево следующих эпох ещё растёт";
         int r = g.Researching;
         _study.Text = r >= 0 ? $"Изучается: {Techs.All[r].Name}"
-            : g.ResearchIdle ? (g.TechPool > 0 ? $"Ничего не изучается · в запасе {g.TechPool} очков" : "Ничего не изучается — выберите технологию")
+            : g.ResearchIdle ? (g.TechPool <= 0 ? "Ничего не изучается — выберите технологию"
+                : g.TechPool >= g.TechPoolCap ? $"Запас полон ({g.TechPool} очков) — наука пропадает, выберите технологию"
+                : $"Ничего не изучается · в запасе {g.TechPool} из {g.TechPoolCap} очков")
             : "Всё доступное изучено";
         _study.AddThemeColorOverride("font_color", r >= 0 ? Pal.Tx : g.ResearchIdle ? Pal.Warn : Pal.Mu);
         _canvas.QueueRedraw();
