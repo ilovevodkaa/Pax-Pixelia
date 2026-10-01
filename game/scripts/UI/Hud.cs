@@ -25,6 +25,7 @@ public partial class Hud : CanvasLayer
     TechScreen _tech;
     PolicyCard _policy;
     WondersCard _wonders;
+    DiplomacyCard _diplo;
     Toast _toast;
     TipCard _tip;
     ChapterCard _loading;
@@ -34,8 +35,8 @@ public partial class Hud : CanvasLayer
     int _tipProvince = -1;
     bool _tipDirty;
     // heavy refreshes are coalesced: fog/ownership events may arrive every tick at speed 5
-    bool _miniDirty, _leadDirty, _liveDirty, _techDirty, _policyDirty, _wondersDirty;
-    double _miniCooldown, _leadCooldown, _liveCooldown, _miniHeld, _policyCooldown, _wondersCooldown;
+    bool _miniDirty, _leadDirty, _liveDirty, _techDirty, _policyDirty, _wondersDirty, _diploDirty;
+    double _miniCooldown, _leadCooldown, _liveCooldown, _miniHeld, _policyCooldown, _wondersCooldown, _diploCooldown;
 
     /// <summary>Debug hooks (UiDebug): a fixed mouse position for screenshots and the control whose tip is forced.</summary>
     internal Vector2? FakeMouse;
@@ -62,9 +63,15 @@ public partial class Hud : CanvasLayer
     internal PolicyCard Policy => _policy;
     internal void DebugToggleWonders() => ToggleWonders();
     internal WondersCard WondersView => _wonders;
+    internal void DebugToggleDiplomacy() => ToggleDiplomacy();
+    internal DiplomacyCard DiplomacyView => _diplo;
+
+    /// <summary>The HUD in the tree (a skin change builds a new one), for the panels that open a card of another.</summary>
+    internal static Hud I { get; private set; }
 
     public override void _Ready()
     {
+        I = this;
         Layer = 10;
         _root = new Control
         {
@@ -81,6 +88,7 @@ public partial class Hud : CanvasLayer
         _top.TechToggled += ToggleTech;
         _top.PolicyToggled += TogglePolicy;
         _top.WondersToggled += ToggleWonders;
+        _top.DiplomacyToggled += ToggleDiplomacy;
         _top.PauseClicked += TogglePause;
         _root.AddChild(_top);
 
@@ -105,6 +113,8 @@ public partial class Hud : CanvasLayer
         _root.AddChild(_policy);
         _wonders = new WondersCard();
         _root.AddChild(_wonders);
+        _diplo = new DiplomacyCard();
+        _root.AddChild(_diplo);
         _tech = new TechScreen { Hud = this };
         _root.AddChild(_tech);
         _events = new EventWindow();
@@ -233,7 +243,7 @@ public partial class Hud : CanvasLayer
     void OnCycleTick()
     {
         _top.OnCycleTick();
-        _liveDirty = _leadDirty = _techDirty = _policyDirty = _wondersDirty = true;   // top bar + panel live values, coalesced in _Process
+        _liveDirty = _leadDirty = _techDirty = _policyDirty = _wondersDirty = _diploDirty = true;   // top bar + panel live values, coalesced in _Process
     }
 
     /// <summary>The date moves every tick (months/days): the clock follows at once, the heavier live values
@@ -293,7 +303,19 @@ public partial class Hud : CanvasLayer
         if (keep != _lead && _lead.Visible) ToggleLeaderboard();
         if (keep != _policy && _policy.Visible) TogglePolicy();
         if (keep != _wonders && _wonders.Visible) ToggleWonders();
+        if (keep != _diplo && _diplo.Visible) ToggleDiplomacy();
     }
+
+    internal void ToggleDiplomacy()
+    {
+        if (!Game.I.IsReady && !_diplo.Visible) return;
+        if (!_diplo.Visible) CloseOthers(_diplo);
+        bool open = _diplo.Toggle();
+        _top.SetDiplomacyOpen(open);
+        if (open) { _diploCooldown = .5; PlaceDiplomacy(); }
+    }
+
+    void PlaceDiplomacy() => _diplo.Place(_top.DiplomacyButton.GetGlobalRect(), _root.Size);
 
     void ToggleWonders()
     {
@@ -374,6 +396,7 @@ public partial class Hud : CanvasLayer
         if (_lead.Visible) ToggleLeaderboard();
         if (_policy.Visible) TogglePolicy();
         if (_wonders.Visible) ToggleWonders();
+        if (_diplo.Visible) ToggleDiplomacy();
         if (_tech.Visible) ToggleTech();
         _toast.HideNow();
         _loading.ShowNow();
@@ -405,6 +428,7 @@ public partial class Hud : CanvasLayer
                 else if (_lead.Visible) ToggleLeaderboard();
                 else if (_policy.Visible) TogglePolicy();
                 else if (_wonders.Visible) ToggleWonders();
+                else if (_diplo.Visible) ToggleDiplomacy();
                 else if (_panel.Visible) Game.I.Select(-1);
                 else if (Game.I.IsReady && !_loading.Visible) PauseMenu.Open();
                 else return;
@@ -428,6 +452,7 @@ public partial class Hud : CanvasLayer
         if (_lead.Visible) Callable.From(PlaceLeaderboard).CallDeferred();
         if (_policy.Visible) Callable.From(PlacePolicy).CallDeferred();
         if (_wonders.Visible) Callable.From(PlaceWonders).CallDeferred();
+        if (_diplo.Visible) Callable.From(PlaceDiplomacy).CallDeferred();
     }
 
     // ---------------- tooltip ----------------
@@ -440,6 +465,12 @@ public partial class Hud : CanvasLayer
         // while a capture fill runs on the map the minimap keeps its old colours and snaps when it ends (at most 1.2 s late)
         if (_miniDirty && Game.I.CaptureFillsRunning && _miniHeld < 1.2) _miniHeld += delta;
         else if (_miniDirty && _miniCooldown <= 0) { _miniDirty = false; _miniHeld = 0; _miniCooldown = .25; _mini.View.Recolor(); }
+        if (_diplo.Visible)
+        {
+            _diploCooldown -= delta;
+            if (_diploDirty && _diploCooldown <= 0) { _diploDirty = false; _diploCooldown = .5; _diplo.Refresh(); }
+            PlaceDiplomacy();
+        }
         if (_wonders.Visible)
         {
             _wondersCooldown -= delta;

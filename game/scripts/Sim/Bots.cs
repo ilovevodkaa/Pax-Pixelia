@@ -29,6 +29,7 @@ public static class Bots
             Wonders.BotChoose(w, s, n, cycle);
             Wonders.BotInvest(w, s, n, cycle);
             Unrest.BotCare(w, s, n, cycle);
+            Diplomacy.BotAct(w, s, n, cycle, sink);
         }
     }
 

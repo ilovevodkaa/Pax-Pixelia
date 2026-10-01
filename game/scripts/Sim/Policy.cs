@@ -153,10 +153,10 @@ public static class Policy
     }
 
     /// <summary>The budget of nation n per cycle, line by line (hundredths): what the treasury tooltip and the policy card show.</summary>
-    public readonly record struct Budget(long Taxes, long Buildings, long Admin, long Edicts)
+    public readonly record struct Budget(long Taxes, long Buildings, long Admin, long Edicts, long Pacts = 0, long TributeIn = 0, long TributeOut = 0)
     {
-        public long Upkeep => Buildings + Admin + Edicts;
-        public long Net => Taxes - Upkeep;
+        public long Upkeep => Buildings + Admin + Edicts + TributeOut;
+        public long Net => Taxes + Pacts + TributeIn - Upkeep;
     }
 
     public static Budget BudgetOf(GameState s, int n)
@@ -172,6 +172,16 @@ public static class Policy
             if (Cities.IsCity(s, p)) cities++;
         }
         var nat = s.Nat[n];
-        return new Budget(taxes, bld, AdminUpkeep(prov, AdminLimit(nat, cities)), EdictCost(nat, taxes));
+        long pacts = s.Pact != null ? Diplomacy.PactBonus(s, n, taxes) : 0;
+        long tOut = s.TributeTo != null && s.TributeTo[n] >= 0 ? Diplomacy.TributeOf(taxes + pacts) : 0, tIn = 0;
+        if (s.TributeTo != null)
+            for (int m = 0; m < s.Nat.Length; m++)
+            {
+                if (s.TributeTo[m] != n) continue;
+                long tm = 0;
+                for (int p = 0; p < s.Owner.Length; p++) if (s.Owner[p] == m) tm += Rules.ProvinceTax(s, p);
+                tIn += Diplomacy.TributeOf(tm + Diplomacy.PactBonus(s, m, tm));
+            }
+        return new Budget(taxes, bld, AdminUpkeep(prov, AdminLimit(nat, cities)), EdictCost(nat, taxes + pacts), pacts, tIn, tOut);
     }
 }

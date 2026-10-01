@@ -162,6 +162,101 @@ public partial class Game : ISimSink
         Notify("building-bank", on ? $"Издан указ «{d.Name}»: {d.Effect.ToLowerInvariant()}" : $"Указ «{d.Name}» отменён");
     }
 
+    // ------------------------------------------------------------------ diplomacy
+
+    public int OpinionOf(int who, int about) => IsReady ? Diplomacy.Opinion(State, who, about) : 0;
+    public bool PactWith(int m) => IsReady && Diplomacy.HasPact(State, Viewer, m);
+    public int TributeTo(int n) => IsReady ? State.TributeTo[n] : -1;
+    public int DemandFrom => IsReady ? State.DemandFrom[Viewer] : -1;
+    public double DemandSeconds => IsReady && State.DemandFrom[Viewer] >= 0 ? CyclesToSeconds(System.Math.Max(0, State.DemandUntil[Viewer] - Clock.CycleOf(State.Tick))) : 0;
+    public int GiftPrice(int m) => IsReady ? Diplomacy.GiftPrice(State, m) : 0;
+    public bool Borders(int m) => IsReady && Diplomacy.Borders(World, State, Viewer, m);
+
+    /// <summary>Provinces leaning over the border: ours to m, and m's to us.</summary>
+    public (int ours, int theirs) Leaning(int m)
+    {
+        int a = 0, b = 0;
+        if (!IsReady) return (0, 0);
+        for (int p = 0; p < State.Owner.Length; p++)
+        {
+            if (State.Pull[p] == 0) continue;
+            int o = State.Owner[p];
+            if (o != Viewer && o != m) continue;
+            int to = -1, best = 0;
+            foreach (int q in World.Adj[p])
+            {
+                int k = State.Owner[q];
+                if (k >= 0 && k != o && State.Mood[q] > best) { best = State.Mood[q]; to = k; }
+            }
+            if (o == Viewer && to == m) a++;
+            else if (o == m && to == Viewer) b++;
+        }
+        return (a, b);
+    }
+
+    static string DiploText(DiploError e) => e switch
+    {
+        DiploError.None => null,
+        DiploError.NoContact => "Мы с ними ещё не знакомы",
+        DiploError.NoGold => "Не хватает золота на дары",
+        DiploError.Disliked => "Они нам пока не друзья: нужно расположение 30+ (дары помогут)",
+        DiploError.Already => "Это уже сделано",
+        DiploError.NotStronger => "Требовать дань можно с того, кто вдвое слабее",
+        DiploError.Refused => "Они отказали",
+        DiploError.NothingToAnswer => "Не на что отвечать",
+        _ => "Нельзя",
+    };
+
+    public string GiftProblem(int m) => !IsReady ? "Мир ещё не создан" : DiploText(Diplomacy.CheckGift(World, State, Viewer, m));
+    public string PactProblem(int m) => !IsReady ? "Мир ещё не создан" : DiploText(Diplomacy.CheckPact(World, State, Viewer, m));
+    public string DemandProblem(int m) => !IsReady ? "Мир ещё не создан" : DiploText(Diplomacy.CheckDemand(World, State, Viewer, m));
+
+    void Diplo(Cmd c, string ok)
+    {
+        int r = Issue(c);
+        if (r != 0) { ShowRefusal(DiploText((DiploError)r)); return; }
+        if (ok != null) Notify("affiliate", ok);
+    }
+
+    public void Gift(int m)
+    {
+        var why = GiftProblem(m);
+        if (why != null) { ShowRefusal(why); return; }
+        int price = GiftPrice(m);
+        Diplo(Cmd.Gift(Viewer, m), $"Дары отправлены: {Nations[m].Name} благодарит (−{price} золота, расположение +{Diplomacy.GiftOpinion})");
+    }
+
+    public void ProposePact(int m)
+    {
+        var why = PactProblem(m);
+        if (why != null) { ShowRefusal(why); return; }
+        Diplo(Cmd.Pact(Viewer, m, true), $"Договор о дружбе с державой {Nations[m].Name}: торговля +{Diplomacy.PactTaxPermille / 10}% налогов, граница спокойна");
+    }
+
+    public void BreakPact(int m) => Diplo(Cmd.Pact(Viewer, m, false), $"Договор с державой {Nations[m].Name} разорван. Там обижены");
+
+    public void DemandTribute(int m)
+    {
+        var why = DemandProblem(m);
+        if (why != null) { ShowRefusal(why); return; }
+        Diplo(Cmd.DemandTribute(Viewer, m), null);
+    }
+
+    public void AnswerDemand(bool pay)
+    {
+        int d = DemandFrom;
+        if (d < 0) return;
+        Diplo(Cmd.AnswerDemand(Viewer, pay), pay ? $"Платим дань державе {Nations[d].Name}: {Diplomacy.TributePct}% налогов. Зато их люди нас не трогают"
+                                                  : $"Отказали державе {Nations[d].Name} в дани. Они в ярости: их люди будут мутить наши границы");
+    }
+
+    public void StopTribute()
+    {
+        int r = TributeTo(Viewer);
+        if (r < 0) return;
+        Diplo(Cmd.StopTribute(Viewer), $"Больше не платим дань державе {Nations[r].Name}. Им это не понравилось");
+    }
+
     // ------------------------------------------------------------------ unrest and the plague
 
     public UnrestStage UnrestStageOf(int p) => IsReady && Valid(p) ? Unrest.StageOf(State, p) : UnrestStage.Calm;

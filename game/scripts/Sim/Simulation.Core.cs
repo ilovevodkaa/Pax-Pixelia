@@ -59,6 +59,7 @@ public static partial class Simulation
         Wonders.Refresh(s);
         for (int n = 0; n < s.Nat.Length; n++) Eurekas.Baseline(w, s, n);
         Unrest.Init(w, s);
+        Diplomacy.Init(s);
         for (int n = 0; n < s.Nat.Length; n++)
         {
             var nat = s.Nat[n];
@@ -113,6 +114,7 @@ public static partial class Simulation
         List<int> changed = null;
         Unrest.Plague(w, s, cycle, sink);
         Unrest.Cycle(w, s, sink, ref changed);
+        Diplomacy.Cycle(w, s, cycle, sink, ref changed);
         for (int n = 0; n < s.Nat.Length; n++) Queue(s, n, sink, ref changed);
         Cities.Grow(w, s, sink, ref changed);
         Bots.Act(w, s, cycle, sc, sink, ref changed);
@@ -148,14 +150,23 @@ public static partial class Simulation
             sc.Materials[o] += Rules.ProvinceMaterials(s, p);
             foreach (var b in s.Buildings[p]) if (b == Bld.Shrine) sc.Shrines[o]++;
         }
-        for (int n = 0; n < s.Nat.Length; n++)   // the administration (its overextension) and the edicts take their share (Policy)
+        for (int n = 0; n < s.Nat.Length; n++)   // pacts trade, the administration (its overextension) and the edicts take their share (Policy)
         {
             var nat = s.Nat[n];
+            if (s.Pact != null) sc.Taxes[n] += Diplomacy.PactBonus(s, n, sc.Taxes[n]);
             int limit = Policy.AdminLimit(nat, sc.CityN[n]);
             sc.OverPct[n] = Policy.OverPct(sc.Provinces[n], limit);
             sc.Upkeep[n] += Policy.AdminUpkeep(sc.Provinces[n], limit) + Policy.EdictCost(nat, sc.Taxes[n]);
             if (Policy.MaterialsPct(nat) > 0) sc.Materials[n] += (sc.Materials[n] * Policy.MaterialsPct(nat) + 50) / 100;   // rounded: a small store still feels it
         }
+        if (s.TributeTo != null)
+            for (int n = 0; n < s.Nat.Length; n++)   // tribute: a tenth of the payer's taxes goes to the receiver
+            {
+                int r = s.TributeTo[n];
+                if (r < 0) continue;
+                long t = Diplomacy.TributeOf(sc.Taxes[n]);
+                sc.Upkeep[n] += t; sc.Taxes[r] += t;
+            }
         return sc;
     }
 

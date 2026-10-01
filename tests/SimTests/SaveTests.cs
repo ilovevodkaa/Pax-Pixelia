@@ -257,8 +257,8 @@ public static class SaveTests
         var known = new (Type Type, string[] Saved, string[] Derived)[]
         {
             (typeof(GameState), new[] { "Tick", "Day256", "DateTarget", "DateStep", "Pace", "Speed", "Paused", "Nations", "Nat", "NationCapital",
-                "Owner", "Controller", "Pop", "Religion", "Mood", "Slots", "Buildings", "Ore", "OreFound", "CapitalOf", "IsTown", "Unrest", "Plague", "City", "Growth", "SphereNoted", "Routes",
-                "FogEnabled", "Scouts", "ScoutSeq", "Events", "WonderOwner", "WonderFlag", "FirstHolder", "FirstCycle" }, new[] { "Scratch" }),
+                "Owner", "Controller", "Pop", "Religion", "Mood", "Slots", "Buildings", "Ore", "OreFound", "CapitalOf", "IsTown", "Unrest", "Plague", "Pull", "City", "Growth", "SphereNoted", "Routes",
+                "FogEnabled", "Scouts", "ScoutSeq", "Events", "WonderOwner", "WonderFlag", "Opinion", "Pact", "TributeTo", "DemandFrom", "DemandUntil", "FirstHolder", "FirstCycle" }, new[] { "Scratch" }),
             (typeof(NationState), new[] { "Control", "Treasury", "LastTaxes", "LastUpkeep", "Progress", "ScienceRate", "Era", "ProjectIndex",
                 "QueuePct", "ProjectsDone", "EventCount", "Materials", "LastMaterials", "TechsDone", "Researching", "TechPts", "TechPool", "Camp", "CampPath", "CampStep", "CampSub", "Supplies", "TribePop", "Legends", "Myth", "Edicts", "Fog",
                 "CharA", "CharB", "CharLevel", "CharHeld", "CharTraits", "FirstTechs", "Glory", "Wonder", "WonderGold", "WonderMats", "Eurekas", "ChallengeKind", "ChallengeGoal", "ChallengeEnd", "ChallengesWon" }, new[] { "CharFx", "WonderFx", "Firsts" }),

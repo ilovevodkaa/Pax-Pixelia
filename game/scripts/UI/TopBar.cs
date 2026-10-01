@@ -20,6 +20,7 @@ public partial class TopBar : PanelContainer
     public event Action TechToggled;
     public event Action PolicyToggled;
     public event Action WondersToggled;
+    public event Action DiplomacyToggled;
     public Button TechButton => _screenBtns[0];
     public event Action PauseClicked;
 
@@ -110,6 +111,7 @@ public partial class TopBar : PanelContainer
             {
                 0 => Ui.IconButton(icon, "Ib", 36, 34, 2, () => TechToggled?.Invoke()),
                 1 => Ui.IconButton(icon, "Ib", 36, 34, 2, () => PolicyToggled?.Invoke()),
+                3 => Ui.IconButton(icon, "Ib", 36, 34, 2, () => DiplomacyToggled?.Invoke()),
                 _ => Ui.IconButton(icon, "Ib", 36, 34, 2, () => Game.I.ShowToast($"Экран «{name}» — нарисуем следующим")),
             };
             b.MouseFilter = MouseFilterEnum.Stop;
@@ -132,6 +134,15 @@ public partial class TopBar : PanelContainer
                 t.Kv("Провинции", $"{prov} из {limit}", over > 0 ? Pal.Bad : Pal.Hi);
                 if (over > 0) t.Kv("Перерасширение", $"{over}%", Pal.Bad);
                 t.Kv("Указы", $"{g.EdictsActive} из {g.EdictSlots}", g.EdictsActive < g.EdictSlots ? Pal.Warn : Pal.Hi);
+            });
+            else if (i == 3) b.Tip(t =>
+            {
+                t.Title("Дипломатия").Mu("Отношения, дары, дружба и дань с теми, кого вы встретили");
+                var g = Game.I;
+                if (!g.IsReady) return;
+                if (g.DemandFrom >= 0) t.Kv("Требуют дань", g.Nations[g.DemandFrom].Name, Pal.Bad);
+                int pays = g.TributeTo(g.Viewer);
+                if (pays >= 0) t.Kv("Мы платим дань", g.Nations[pays].Name, Pal.Warn);
             });
             else b.Tip(name, null, "Экран в разработке");
             _screens.AddChild(b);
@@ -388,6 +399,13 @@ public partial class TopBar : PanelContainer
     }
 
     public Button PolicyButton => _screenBtns[1];
+    public Button DiplomacyButton => _screenBtns[3];
+
+    public void SetDiplomacyOpen(bool open)
+    {
+        DiplomacyButton.ThemeTypeVariation = open ? "IbOn" : "Ib";
+        DiplomacyButton.Icon = Icons.Get("affiliate", 2, !open);
+    }
     public Button WondersButton { get; private set; }
 
     public void SetWondersOpen(bool open)

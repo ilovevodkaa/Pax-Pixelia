@@ -60,6 +60,9 @@ public partial class PolicyCard : Control
         _body.AddChild(Line("Управление", Fmt.Signed(-b.Admin / 100.0, 1), over > 0 ? Pal.Bad : Pal.Mu,
             $"{Policy.AdminPerProvince / 100.0:0.00} за каждую провинцию и ещё {Policy.AdminPerOver / 100.0:0.00} за каждую сверх предела"));
         _body.AddChild(Line("Указы", Fmt.Signed(-b.Edicts / 100.0, 1), b.Edicts > 0 ? Pal.Bad : Pal.Mu, "Доля налогов, которую забирают действующие указы"));
+        if (b.Pacts > 0) _body.AddChild(Line("Договоры", Fmt.Signed(b.Pacts / 100.0, 1), Pal.Ok, $"Торговля с друзьями: +{Diplomacy.PactTaxPermille / 10}% налогов за каждый договор"));
+        if (b.TributeIn > 0) _body.AddChild(Line("Дань нам", Fmt.Signed(b.TributeIn / 100.0, 1), Pal.Ok, $"Слабые соседи платят {Diplomacy.TributePct}% своих налогов"));
+        if (b.TributeOut > 0) _body.AddChild(Line("Наша дань", Fmt.Signed(-b.TributeOut / 100.0, 1), Pal.Bad, $"{Diplomacy.TributePct}% налогов уходит сильному соседу"));
         _body.AddChild(Line("Итого", Fmt.Signed(b.Net / 100.0, 1), b.Net >= 0 ? Pal.Ok : Pal.Bad, null, true));
 
         _body.AddChild(Ui.Gap(0, 10));

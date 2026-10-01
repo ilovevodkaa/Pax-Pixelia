@@ -104,6 +104,7 @@ public sealed partial class GameState
     public short[] CapitalOf;               // nation index if capital else -1
     public bool[] IsTown;
     public byte[] Unrest;                   // cycles of rising towards secession, 0..Unrest.RevoltAt (Unrest.cs)
+    public byte[] Pull;                     // cycles a border province has leaned to a happier neighbour, 0..Diplomacy.PullAt
     public byte[] Plague;                   // 0 healthy; 1..: steps of sickness left (×PlagueStep cycles); from Unrest.ImmuneBase: immune
 
     // ---- trade routes: province paths ----
@@ -112,6 +113,13 @@ public sealed partial class GameState
     // ---- world firsts (Firsts.cs): who took each, and in which rules cycle ----
     public short[] FirstHolder;             // per first: nation index or -1 while open
     public int[] FirstCycle;
+
+    // ---- diplomacy (Diplomacy.cs): nN×nN matrices, row = who, column = about whom ----
+    public sbyte[] Opinion;                 // −100…100
+    public bool[] Pact;                     // symmetric
+    public sbyte[] TributeTo;               // per nation: whom it pays tribute, -1 none
+    public sbyte[] DemandFrom;              // per nation: who demands tribute from it (a human's open question), -1 none
+    public int[] DemandUntil;               // per nation: the rules cycle the answer is due
 
     // ---- wonders of the world (Wonders.cs): one of each in the world ----
     public sbyte[] WonderOwner;             // per wonder: nation index or -1 while nobody has finished it

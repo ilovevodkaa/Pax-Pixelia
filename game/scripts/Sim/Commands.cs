@@ -29,6 +29,9 @@ public enum CmdType : byte
     WonderStart, WonderInvest,
     // «Раздать хлеб» in province A
     Relief,
+    // diplomacy with nation A: a gift; a pact (B = 1) or breaking it (B = 0); demanding tribute; answering a demand
+    // (A = 1 pay, 0 refuse); stopping one's own tribute
+    Gift, Pact, DemandTribute, AnswerDemand, StopTribute,
 }
 
 /// <summary>
@@ -56,6 +59,11 @@ public readonly record struct Cmd(int Tick, byte Nation, ushort Seq, CmdType Typ
     public static Cmd Edict(int n, int edict, bool on) => new(0, (byte)n, 0, CmdType.Edict, edict, on ? 1 : 0);
     public static Cmd WonderStart(int n, int wonder) => new(0, (byte)n, 0, CmdType.WonderStart, wonder);
     public static Cmd Relief(int n, int province) => new(0, (byte)n, 0, CmdType.Relief, province);
+    public static Cmd Gift(int n, int to) => new(0, (byte)n, 0, CmdType.Gift, to);
+    public static Cmd Pact(int n, int with, bool on) => new(0, (byte)n, 0, CmdType.Pact, with, on ? 1 : 0);
+    public static Cmd DemandTribute(int n, int from) => new(0, (byte)n, 0, CmdType.DemandTribute, from);
+    public static Cmd AnswerDemand(int n, bool pay) => new(0, (byte)n, 0, CmdType.AnswerDemand, pay ? 1 : 0);
+    public static Cmd StopTribute(int n) => new(0, (byte)n, 0, CmdType.StopTribute);
     public static Cmd WonderInvest(int n, int gold = -1, int mats = -1) => new(0, (byte)n, 0, CmdType.WonderInvest, gold, mats);
 
     public bool IsSession => Type is CmdType.Pause or CmdType.Unpause or CmdType.SetSpeed;
@@ -180,6 +188,35 @@ public static class Commands
                 Wonders.Start(s, n, c.A);
                 return 0;
             }
+            case CmdType.Gift:
+            {
+                var e = Diplomacy.CheckGift(w, s, n, c.A);
+                if (e != DiploError.None) return (int)e;
+                Diplomacy.Gift(s, n, c.A);
+                return 0;
+            }
+            case CmdType.Pact:
+                if (c.B == 0)
+                {
+                    if ((uint)c.A >= (uint)s.Nat.Length || !Diplomacy.HasPact(s, n, c.A)) return (int)DiploError.NothingToAnswer;
+                    Diplomacy.BreakPact(s, n, c.A);
+                    return 0;
+                }
+                else
+                {
+                    var e = Diplomacy.CheckPact(w, s, n, c.A);
+                    if (e != DiploError.None) return (int)e;
+                    Diplomacy.MakePact(s, n, c.A);
+                    return 0;
+                }
+            case CmdType.DemandTribute:
+            {
+                var e = Diplomacy.CheckDemand(w, s, n, c.A);
+                if (e != DiploError.None) return (int)e;
+                return Diplomacy.Demand(s, n, c.A, Clock.CycleOf(s.Tick), sink) || s.Nat[c.A].Human ? 0 : (int)DiploError.Refused;
+            }
+            case CmdType.AnswerDemand: return (int)Diplomacy.Answer(s, n, c.A != 0);
+            case CmdType.StopTribute: return (int)Diplomacy.StopTribute(s, n);
             case CmdType.Relief:
             {
                 var e = Unrest.CheckRelief(s, c.A, n);

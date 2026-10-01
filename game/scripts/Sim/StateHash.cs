@@ -82,6 +82,13 @@ public sealed partial class GameState
             if (!Eurekas.IsBlank(x)) foreach (ulong v in x.Eurekas) nat.Add(v);   // none struck yet hashes as before
         if (!Firsts.IsBlank(this))   // no first taken yet hashes as the layouts before them did
             for (int f = 0; f < FirstHolder.Length; f++) { nat.Add(FirstHolder[f]); nat.Add(FirstCycle[f]); }
+        if (!Diplomacy.IsBlank(this))   // no opinion, pact, tribute or pull yet: hashes as before diplomacy
+        {
+            foreach (sbyte o in Opinion) nat.Add(o);
+            foreach (bool b in Pact) nat.Add(b);
+            for (int k = 0; k < TributeTo.Length; k++) { nat.Add(TributeTo[k]); nat.Add(DemandFrom[k]); nat.Add(DemandUntil[k]); }
+            foreach (byte b in Pull) nat.Add(b);
+        }
         if (!Wonders.IsBlank(this))  // no glory, no wonder: hashes as before wonders
         {
             foreach (var x in Nat) { nat.Add(x.Glory); nat.Add(x.Wonder); nat.Add(x.WonderGold); nat.Add(x.WonderMats); }

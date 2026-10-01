@@ -22,7 +22,7 @@ namespace PaxPixelia.Sim;
 public sealed partial class GameState
 {
     /// <summary>Layout version of the snapshot (the save file carries it; older layouts are read field by field).</summary>
-    public const int SnapshotVersion = 12;   // 2: materials · 3: technologies · 4: the nomad phase · 5: techs past 64 · 6: character · 7: edicts · 8: world firsts · 9: wonders and glory · 10: eurekas · 11: unrest · 12: challenges
+    public const int SnapshotVersion = 13;   // 2: materials · 3: technologies · 4: the nomad phase · 5: techs past 64 · 6: character · 7: edicts · 8: world firsts · 9: wonders and glory · 10: eurekas · 11: unrest · 12: challenges · 13: diplomacy
 
     const int MaxNations = 255;
 
@@ -140,6 +140,13 @@ public sealed partial class GameState
 
         // ---- the leader's challenges (12) ----
         foreach (var x in Nat) { w.Write(x.ChallengeKind); w.Write(x.ChallengeGoal); w.Write(x.ChallengeEnd); w.Write(x.ChallengesWon); }
+
+        // ---- diplomacy (13) ----
+        Sim.Diplomacy.Init(this);
+        foreach (sbyte o in Opinion) w.Write(o);
+        foreach (bool b in Pact) w.Write(b);
+        for (int n = 0; n < nN; n++) { w.Write(TributeTo[n]); w.Write(DemandFrom[n]); w.Write(DemandUntil[n]); }
+        WriteBytes(w, Pull);
     }
 
     /// <summary>
@@ -349,6 +356,20 @@ public sealed partial class GameState
                 x.ChallengeKind = r.ReadInt32(); x.ChallengeGoal = r.ReadInt64(); x.ChallengeEnd = r.ReadInt32(); x.ChallengesWon = r.ReadInt32();
                 Require(x.ChallengeKind >= -1 && x.ChallengeKind < Sim.Challenges.All.Length && x.ChallengesWon >= 0, "challenge");
             }
+
+        Sim.Diplomacy.Init(s);
+        if (version >= 13)
+        {
+            for (int k = 0; k < nN * nN; k++) s.Opinion[k] = r.ReadSByte();
+            for (int k = 0; k < nN * nN; k++) s.Pact[k] = r.ReadBoolean();
+            for (int n = 0; n < nN; n++)
+            {
+                s.TributeTo[n] = r.ReadSByte(); s.DemandFrom[n] = r.ReadSByte(); s.DemandUntil[n] = r.ReadInt32();
+                Require(s.TributeTo[n] >= -1 && s.TributeTo[n] < nN && s.TributeTo[n] != n && s.DemandFrom[n] >= -1 && s.DemandFrom[n] < nN, "diplomacy");
+            }
+            s.Pull = ReadBytes(r, P);
+            foreach (byte b in s.Pull) Require(b <= Sim.Diplomacy.PullAt, "pull");
+        }
         return s;
     }
 

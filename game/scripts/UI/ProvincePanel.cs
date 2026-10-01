@@ -406,7 +406,7 @@ public partial class ProvincePanel : PanelContainer
         {
             var st = g.UnrestStageOf(p);
             bool sick = g.IsSick(p);
-            box.Visible = st != UnrestStage.Calm || sick;
+            box.Visible = st != UnrestStage.Calm || sick || g.State.Pull[p] > 0;
             if (!box.Visible) return;
             var parts = new List<string>();
             if (st != UnrestStage.Calm)
@@ -416,8 +416,9 @@ public partial class ProvincePanel : PanelContainer
                 if (secs >= 0) parts.Add($"до отделения ≈ {(int)System.Math.Ceiling(secs)} с");
             }
             if (sick) parts.Add($"мор: умирают люди, довольство −{Unrest.PlagueMood}");
+            if (g.State.Pull[p] > 0) parts.Add($"засматривается на соседей: {g.State.Pull[p] * 100 / Diplomacy.PullAt}% до перехода к ним");
             if (g.InDebt) parts.Add($"казна пуста: довольство −{Unrest.DebtMood}");
-            title.Text = st != UnrestStage.Calm ? Unrest.StageName(st) + (sick ? " · мор" : "") : "Мор";
+            title.Text = st != UnrestStage.Calm ? Unrest.StageName(st) + (sick ? " · мор" : "") : sick ? "Мор" : "Тянется к соседям";
             line.Text = string.Join("; ", parts);
             if (bread is TextButton tb) tb.Caption = $"Раздать хлеб · {g.ReliefPrice(p)} золота";
             bread.Visible = st != UnrestStage.Calm || g.State.Mood[p] < Unrest.GrumbleBelow + 10;
@@ -433,10 +434,12 @@ public partial class ProvincePanel : PanelContainer
         var n = Game.I.Nations[o];
         if (stale) flow.Add(Kit.Stale(), 0, 10);
         flow.Add(Kit.Own(Kit.Tag(n.Gov)));
-        var relation = o == 1 ? Kit.Value("Настороженные", Pal.Warn) : Kit.Value("Нейтральные", Pal.Mu);
+        int op = Game.I.OpinionOf(o, GameState.LocalPlayer);
+        string rel = Diplomacy.Mood(op);
+        var relation = Kit.Value(char.ToUpper(rel[0]) + rel[1..], op <= Diplomacy.Hostile ? Pal.Bad : op >= Diplomacy.Friendly ? Pal.Ok : Pal.Mu);
         flow.Add(Kit.Grid(("Население", LivePop(p, stale)), ("Отношения", relation), ("Вера", Kit.Faith(s.Religion[p])), ("Культура", Kit.Value(n.CultureAdj))), 12);
         flow.Add(Kit.Acts(
-            Ui.Button("Предложить сделку", "scale", null, () => Game.I.ShowToast("Окно сделки — отдельный экран, нарисуем следующим")),
+            Ui.Button("Дипломатия", "affiliate", null, () => Hud.I?.ToggleDiplomacy()),
             Ui.Button("Торговый путь", "route", null, () => Game.I.ShowToast("Торговый путь будет проложен по суше и морю"))), 14);
     }
 
