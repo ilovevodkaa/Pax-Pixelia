@@ -87,6 +87,8 @@ public sealed partial class GameState
             foreach (var x in Nat) { nat.Add(x.Glory); nat.Add(x.Wonder); nat.Add(x.WonderGold); nat.Add(x.WonderMats); }
             for (int k = 0; k < WonderOwner.Length; k++) { nat.Add(WonderOwner[k]); nat.Add(WonderFlag[k]); }
         }
+        foreach (var x in Nat)   // no challenge yet hashes as before challenges
+            if (x.ChallengeKind >= 0 || x.ChallengesWon > 0) { nat.Add(-12L); nat.Add(x.ChallengeKind); nat.Add(x.ChallengeGoal); nat.Add(x.ChallengeEnd); nat.Add(x.ChallengesWon); }
 
         var prov = new Fnv(); var bld = new Fnv();
         for (int p = 0; p < Owner.Length; p++)

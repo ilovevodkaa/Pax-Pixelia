@@ -61,6 +61,11 @@ public sealed class NationState
     public long WonderGold, WonderMats; // put into it so far (gold in hundredths, materials whole)
     public int[] WonderFx;              // derived: bonuses of the wonders this nation owns per TechFx (Wonders.Refresh), never saved
     public ulong[] Eurekas;             // bit e: Eurekas.All[e] has struck (or its technology was known before the deed)
+    // ---- the leader's challenge (Challenges.cs) ----
+    public int ChallengeKind = -1;      // Challenges.All index under way, -1 = none
+    public long ChallengeGoal;          // the measure to reach
+    public int ChallengeEnd;            // rules cycle it must be met by
+    public int ChallengesWon;
     public NationFog Fog;
 
     public bool Human => Control == NationControl.Human;

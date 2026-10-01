@@ -192,6 +192,11 @@ public partial class TopBar : PanelContainer
             var n = Game.I.Nations[GameState.LocalPlayer];
             t.Title(n.Name).Line($"{n.Gov} · {Game.I.EraName}");
             if (Game.I.IsReady) CharacterTip.Fill(t, Game.I.State.Nat[GameState.LocalPlayer]);
+            if (Game.I.IsReady && Challenges.Text(Game.I.State, GameState.LocalPlayer) is { } challenge)
+            {
+                int left = Challenges.CyclesLeft(Game.I.State, GameState.LocalPlayer, Clock.CycleOf(Game.I.State.Tick));
+                t.Line($"Вызов лидеру · {challenge}. Осталось ≈{Fmt.Duration(Math.Max(1, (int)(Game.I.CyclesToSeconds(left) / 60)))}");
+            }
             t.Mu("Нажмите, чтобы показать столицу");
         });
         _res[0].Root.Tip(t =>

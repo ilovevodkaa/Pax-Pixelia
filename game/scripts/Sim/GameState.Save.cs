@@ -22,7 +22,7 @@ namespace PaxPixelia.Sim;
 public sealed partial class GameState
 {
     /// <summary>Layout version of the snapshot (the save file carries it; older layouts are read field by field).</summary>
-    public const int SnapshotVersion = 11;   // 2: materials · 3: technologies · 4: the nomad phase · 5: techs past 64 · 6: character · 7: edicts · 8: world firsts · 9: wonders and glory · 10: eurekas · 11: unrest
+    public const int SnapshotVersion = 12;   // 2: materials · 3: technologies · 4: the nomad phase · 5: techs past 64 · 6: character · 7: edicts · 8: world firsts · 9: wonders and glory · 10: eurekas · 11: unrest · 12: challenges
 
     const int MaxNations = 255;
 
@@ -137,6 +137,9 @@ public sealed partial class GameState
         // ---- unrest (11) ----
         WriteBytes(w, Unrest ?? new byte[P]);
         WriteBytes(w, Plague ?? new byte[P]);
+
+        // ---- the leader's challenges (12) ----
+        foreach (var x in Nat) { w.Write(x.ChallengeKind); w.Write(x.ChallengeGoal); w.Write(x.ChallengeEnd); w.Write(x.ChallengesWon); }
     }
 
     /// <summary>
@@ -339,6 +342,13 @@ public sealed partial class GameState
             foreach (byte u in s.Plague) Require(u <= Sim.Unrest.PlagueCycles / Sim.Unrest.PlagueStep + 1 || u >= Sim.Unrest.ImmuneBase, "plague");
         }
         else { s.Unrest = new byte[P]; s.Plague = new byte[P]; }
+
+        if (version >= 12)
+            foreach (var x in s.Nat)
+            {
+                x.ChallengeKind = r.ReadInt32(); x.ChallengeGoal = r.ReadInt64(); x.ChallengeEnd = r.ReadInt32(); x.ChallengesWon = r.ReadInt32();
+                Require(x.ChallengeKind >= -1 && x.ChallengeKind < Sim.Challenges.All.Length && x.ChallengesWon >= 0, "challenge");
+            }
         return s;
     }
 
