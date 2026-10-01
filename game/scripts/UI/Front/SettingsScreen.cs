@@ -166,7 +166,7 @@ public partial class SettingsScreen : FrontScreen
             "Без интро и переливов, шторки короче. Карта и время живут как обычно.",
             i => S.Set(Settings.Ui, "reduced_motion", i == 1));
         Row("Статус в Discord", OnOff, S.Get<bool>(Settings.Ui, "discord") ? 1 : 0,
-            "Друзья в Discord видят «Играет в Pax Pixelia»: державу, эпоху и дату. Нужен запущенный Discord.",
+            "Друзья в Discord видят «Играет в Pax Pixelia»: державу, эпоху и чем она занята. Нужен запущенный Discord.",
             i => S.Set(Settings.Ui, "discord", i == 1));
     }
 
