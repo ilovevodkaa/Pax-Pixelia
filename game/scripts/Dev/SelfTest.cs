@@ -527,8 +527,10 @@ public partial class SelfTest : Node
         await Frames(3);
         await Shot("regen_done");
 
-        // three more worlds in a row: nodes, objects and memory must not pile up
-        var (objects0, nodes0, managed0) = Footprint();
+        // three more worlds in a row: nodes, objects and memory must not pile up. A world is ~70 MB, and right after a
+        // regen the previous one could still be reachable for a moment (flaky +76 MB readings), so both readings are
+        // taken after a settle; a real leak keeps every world and never settles (3 kept worlds read +150 MB)
+        var (objects0, nodes0, managed0) = await SettledFootprint(_ => true);
         for (int k = 0; k < 3; k++)
         {
             ready = _worldReady;
@@ -537,9 +539,26 @@ public partial class SelfTest : Node
             while (_worldReady == ready && Time.GetTicksMsec() - t0 < 15000) await Frames(2);
             await Seconds(.6);
         }
-        var (objects1, nodes1, managed1) = Footprint();
+        t0 = Time.GetTicksMsec();
+        var (objects1, nodes1, managed1) = await SettledFootprint(f => f.objects - objects0 < 200 && f.nodes - nodes0 < 20 && f.managedMb - managed0 < 40);
         Check("regen ×3: nothing piles up", objects1 - objects0 < 200 && nodes1 - nodes0 < 20 && managed1 - managed0 < 40,
-            $"objects {objects0} → {objects1}, nodes {nodes0} → {nodes1}, managed {managed0:F0} → {managed1:F0} MB");
+            $"objects {objects0} → {objects1}, nodes {nodes0} → {nodes1}, managed {managed0:F0} → {managed1:F0} MB, settled in {Time.GetTicksMsec() - t0} ms");
+    }
+
+    /// <summary>Footprint once <paramref name="ok"/> holds and managed memory reads the same twice in a row (±2 MB),
+    /// or the last reading after 5 s.</summary>
+    async Task<(int objects, int nodes, double managedMb)> SettledFootprint(Func<(int objects, int nodes, double managedMb), bool> ok)
+    {
+        var f = Footprint();
+        for (var t0 = Time.GetTicksMsec(); Time.GetTicksMsec() - t0 < 5000;)
+        {
+            await Seconds(.25);
+            var next = Footprint();
+            bool steady = Math.Abs(next.managedMb - f.managedMb) < 2;
+            f = next;
+            if (steady && ok(f)) break;
+        }
+        return f;
     }
 
     static (int objects, int nodes, double managedMb) Footprint()
