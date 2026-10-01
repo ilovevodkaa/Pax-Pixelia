@@ -32,6 +32,8 @@ public enum CmdType : byte
     // diplomacy with nation A: a gift; a pact (B = 1) or breaking it (B = 0); demanding tribute; answering a demand
     // (A = 1 pay, 0 refuse); stopping one's own tribute
     Gift, Pact, DemandTribute, AnswerDemand, StopTribute,
+    // dig the ruins of province A (Archaeology)
+    Excavate,
 }
 
 /// <summary>
@@ -64,6 +66,7 @@ public readonly record struct Cmd(int Tick, byte Nation, ushort Seq, CmdType Typ
     public static Cmd DemandTribute(int n, int from) => new(0, (byte)n, 0, CmdType.DemandTribute, from);
     public static Cmd AnswerDemand(int n, bool pay) => new(0, (byte)n, 0, CmdType.AnswerDemand, pay ? 1 : 0);
     public static Cmd StopTribute(int n) => new(0, (byte)n, 0, CmdType.StopTribute);
+    public static Cmd Excavate(int n, int province) => new(0, (byte)n, 0, CmdType.Excavate, province);
     public static Cmd WonderInvest(int n, int gold = -1, int mats = -1) => new(0, (byte)n, 0, CmdType.WonderInvest, gold, mats);
 
     public bool IsSession => Type is CmdType.Pause or CmdType.Unpause or CmdType.SetSpeed;
@@ -217,6 +220,14 @@ public static class Commands
             }
             case CmdType.AnswerDemand: return (int)Diplomacy.Answer(s, n, c.A != 0);
             case CmdType.StopTribute: return (int)Diplomacy.StopTribute(s, n);
+            case CmdType.Excavate:
+            {
+                var e = Archaeology.Check(w, s, c.A, n);
+                if (e != ExcavateError.None) return (int)e;
+                Archaeology.Dig(w, s, c.A, n);
+                Changed(w, s, c.A, sink, batch, fog: false);
+                return 0;
+            }
             case CmdType.Relief:
             {
                 var e = Unrest.CheckRelief(s, c.A, n);

@@ -94,6 +94,7 @@ public sealed partial class GameState
             foreach (var x in Nat) { nat.Add(x.Glory); nat.Add(x.Wonder); nat.Add(x.WonderGold); nat.Add(x.WonderMats); }
             for (int k = 0; k < WonderOwner.Length; k++) { nat.Add(WonderOwner[k]); nat.Add(WonderFlag[k]); }
         }
+        if (RuinsDug != null && Array.Exists(RuinsDug, v => v != 0)) { nat.Add(-14L); foreach (ulong v in RuinsDug) nat.Add(v); }   // nothing dug hashes as before
         foreach (var x in Nat)   // no challenge yet hashes as before challenges
             if (x.ChallengeKind >= 0 || x.ChallengesWon > 0) { nat.Add(-12L); nat.Add(x.ChallengeKind); nat.Add(x.ChallengeGoal); nat.Add(x.ChallengeEnd); nat.Add(x.ChallengesWon); }
 

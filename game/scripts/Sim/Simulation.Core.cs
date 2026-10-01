@@ -124,6 +124,7 @@ public static partial class Simulation
         Firsts.Cycle(w, s, cycle, sink);
         Wonders.Cycle(w, s, cycle, sink);
         Challenges.Cycle(w, s, cycle, sink);
+        Archaeology.Cycle(w, s, cycle, sink);
         Eurekas.Cycle(w, s, cycle, sink);
         PlanDate(s);
 

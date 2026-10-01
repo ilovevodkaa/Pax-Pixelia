@@ -258,6 +258,31 @@ public partial class ProvincePanel : PanelContainer
         if (Commons.Describe(Game.I.LandHits[p]) is { } harm) flow.Add(Kit.Para(harm, true, UiFonts.Small), 8);   // floods, overgrazing
     }
 
+    /// <summary>«Древние руины»: who left them (a story only), the dig and what it found (Sim/Archaeology).</summary>
+    void RuinSection(Flow flow, int p)
+    {
+        var g = Game.I;
+        if (!g.HasRuins(p)) return;
+        flow.Add(Kit.H4("Древние руины"), 20, 10);
+        flow.Add(Kit.Para(g.RuinTitle(p), false), 0, 6);
+        if (g.RuinsDug(p)) { flow.Add(Kit.Para($"Раскопано: {Archaeology.FindAt(g.World, p)}.", true, UiFonts.Small), 0); return; }
+        if (g.State.Owner[p] != GameState.LocalPlayer)
+        {
+            flow.Add(Kit.Para("Под травой лежат камни старых стен. Раскопать их может только хозяин этих земель.", true, UiFonts.Small), 0);
+            return;
+        }
+        var dig = Ui.Button($"Раскопать · {Archaeology.Cost} золота", "shovel", "Pri", () => g.Excavate(p), 1, 34);
+        flow.Add(Kit.Acts(dig), 8);
+        void Sync()
+        {
+            var why = g.ExcavateProblem(p);
+            Ui.Enable(dig, why == null);
+            dig.TooltipText = why ?? $"Слава +{Archaeology.Glory}, знания +{Archaeology.Knowledge} к следующему изучению";
+        }
+        Sync();
+        _live.Add(Sync);
+    }
+
     void SeaBody(Flow flow, int p, bool stale)
     {
         var w = Game.I.World; var s = Game.I.State;
@@ -274,6 +299,7 @@ public partial class ProvincePanel : PanelContainer
         if (stale) flow.Add(Kit.Stale(), 0, 10);
         flow.Add(Kit.Grid(("Кочевые племена", LivePop(p, stale)), ("Плодородие", Kit.Fertility(Game.I.LandFert[p] / 1000f))), 0);
         ClimateLine(flow, p);
+        RuinSection(flow, p);
         if (Game.I.IsNomad) { SiteSection(flow, p, here: false); return; }   // no land to claim from yet: a place for the hearth
         flow.Add(Kit.H4("Присоединение"), 20, 10);
 
@@ -462,6 +488,7 @@ public partial class ProvincePanel : PanelContainer
         _live.Add(SyncStats);
         flow.Add(Kit.Grid(("Население", pop), ("Довольство", mood), ("Плодородие", Kit.Fertility(Game.I.LandFert[p] / 1000f)), ("Налоги", Kit.ValueUnit(tax, "за цикл"))), 0);
         ClimateLine(flow, p);
+        RuinSection(flow, p);
         UnrestSection(flow, p);
         CitySection(flow, p);
 

@@ -22,7 +22,7 @@ namespace PaxPixelia.Sim;
 public sealed partial class GameState
 {
     /// <summary>Layout version of the snapshot (the save file carries it; older layouts are read field by field).</summary>
-    public const int SnapshotVersion = 13;   // 2: materials · 3: technologies · 4: the nomad phase · 5: techs past 64 · 6: character · 7: edicts · 8: world firsts · 9: wonders and glory · 10: eurekas · 11: unrest · 12: challenges · 13: diplomacy
+    public const int SnapshotVersion = 14;   // 2: materials · 3: technologies · 4: the nomad phase · 5: techs past 64 · 6: character · 7: edicts · 8: world firsts · 9: wonders and glory · 10: eurekas · 11: unrest · 12: challenges · 13: diplomacy · 14: ruins dug
 
     const int MaxNations = 255;
 
@@ -147,6 +147,10 @@ public sealed partial class GameState
         foreach (bool b in Pact) w.Write(b);
         for (int n = 0; n < nN; n++) { w.Write(TributeTo[n]); w.Write(DemandFrom[n]); w.Write(DemandUntil[n]); }
         WriteBytes(w, Pull);
+
+        // ---- archaeology (14) ----
+        w.Write(RuinsDug?.Length ?? 0);
+        if (RuinsDug != null) foreach (ulong v in RuinsDug) w.Write(v);
     }
 
     /// <summary>
@@ -369,6 +373,13 @@ public sealed partial class GameState
             }
             s.Pull = ReadBytes(r, P);
             foreach (byte b in s.Pull) Require(b <= Sim.Diplomacy.PullAt, "pull");
+        }
+
+        if (version >= 14)
+        {
+            int words = r.ReadInt32();
+            Require(words >= 0 && words <= 1024, "ruins");
+            if (words > 0) { s.RuinsDug = new ulong[words]; for (int i = 0; i < words; i++) s.RuinsDug[i] = r.ReadUInt64(); }
         }
         return s;
     }

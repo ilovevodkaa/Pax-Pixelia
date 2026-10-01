@@ -34,6 +34,7 @@ public partial class MapView : Node2D
     LabelOverlay _labels;
     ScoutOverlay _scouts;
     RumorOverlay _rumors;
+    RuinOverlay _ruins;
     int _climateKey = int.MinValue;
     ShaderMaterial _mapMat, _riverCasingMat, _riverMat, _routeCasingMat, _routeMat;
     readonly List<ShaderMaterial> _mats = new();       // all map materials: they share the province/fog uniforms
@@ -74,7 +75,8 @@ public partial class MapView : Node2D
         _labels = new LabelOverlay { Name = "Labels", Map = this };
         _scouts = new ScoutOverlay { Name = "Scouts", Map = this };
         _rumors = new RumorOverlay { Name = "Rumors", Map = this };
-        AddChild(_sprites); AddChild(_life); AddChild(_names); AddChild(_labels); AddChild(_rumors); AddChild(_scouts);
+        _ruins = new RuinOverlay { Name = "Ruins", Map = this };
+        AddChild(_sprites); AddChild(_life); AddChild(_names); AddChild(_labels); AddChild(_ruins); AddChild(_rumors); AddChild(_scouts);
 
         var g = Game.I;
         g.WorldReady += OnWorldReady;

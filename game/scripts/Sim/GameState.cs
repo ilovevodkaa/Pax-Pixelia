@@ -106,6 +106,7 @@ public sealed partial class GameState
     public byte[] Unrest;                   // cycles of rising towards secession, 0..Unrest.RevoltAt (Unrest.cs)
     public byte[] Pull;                     // cycles a border province has leaned to a happier neighbour, 0..Diplomacy.PullAt
     public byte[] Plague;                   // 0 healthy; 1..: steps of sickness left (×PlagueStep cycles); from Unrest.ImmuneBase: immune
+    public ulong[] RuinsDug;                // bit i: the ruins of Archaeology.Ruins(world)[i] are dug (null = none yet)
 
     // ---- trade routes: province paths ----
     public List<int[]> Routes = new();
