@@ -29,6 +29,10 @@ internal sealed class SimScratch
     // cities (Cities.cs): nearest-city BFS, sphere BFS with a touched list so it resets in O(sphere), per-city counts
     public readonly int[] Dist, Dist2, Queue, Touched, CityCount;
     public int TouchedCount;
+    // world firsts (Firsts.Cycle): per-nation provinces, mines, peoples met (contact masks), and people per city
+    public int[] FirstProvinces = System.Array.Empty<int>(), FirstMines = System.Array.Empty<int>(), FirstPeoples = System.Array.Empty<int>();
+    public ulong[] Contact = System.Array.Empty<ulong>();
+    public readonly long[] CityPop;
     int _stamp, _seenStamp;
 
     public SimScratch(int p)
@@ -39,7 +43,7 @@ internal sealed class SimScratch
         for (int r = 0; r < Buckets.Length; r++) Buckets[r] = new List<int>(256);
         A = new Bfs(p); B = new Bfs(p);
         Mark = new int[p]; Seen = new int[p]; Stack = new int[p];
-        Dist = new int[p]; Dist2 = new int[p]; Queue = new int[p]; Touched = new int[p]; CityCount = new int[p];
+        Dist = new int[p]; Dist2 = new int[p]; Queue = new int[p]; Touched = new int[p]; CityCount = new int[p]; CityPop = new long[p];
         Array.Fill(Dist2, -1);
     }
 

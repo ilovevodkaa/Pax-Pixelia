@@ -32,6 +32,8 @@ public static class CharacterTip
                 }
         for (int i = 0; i < Character.Traits.Length; i++)
             if (Character.Has(nat, i)) t.Kv("Черта", Character.Traits[i].Name, Pal.Hi).Mu(Character.Traits[i].Effect);
+        for (int f = 0; f < Firsts.Count; f++)
+            if (Firsts.Has(nat, f)) t.Kv("Первенство", Firsts.All[f].Name, Pal.Hi).Mu(Firsts.All[f].Effect);
         return t.Mu("Характер складывается из дел: фермы, рынки, святилища, открытия, разведка. Старые дела забываются примерно за 20 минут");
     }
 }

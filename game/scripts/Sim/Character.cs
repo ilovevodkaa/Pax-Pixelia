@@ -353,6 +353,7 @@ public static class Character
             }
         }
         for (int t = 0; t < Traits.Length; t++) if (Has(nat, t)) Add(nat, Traits[t].Fx);
+        for (int f = 0; f < Sim.Firsts.Count; f++) if (Sim.Firsts.Has(nat, f)) Add(nat, Sim.Firsts.All[f].Fx);
     }
 
     static void Add(NationState nat, (TechFx Fx, int Amount)[] fx)

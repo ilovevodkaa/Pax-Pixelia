@@ -70,6 +70,35 @@ public partial class Leaderboard : Control
             r.MouseFilter = MouseFilterEnum.Pass;
             _rows.AddChild(r);
         }
+        AddFirsts();
+    }
+
+    /// <summary>Мировые первенства: every first with its holder as the player knows it, or «свободно».</summary>
+    void AddFirsts()
+    {
+        var s = Game.I.State;
+        var kick = Ui.Text("Мировые первенства", "Kick");
+        kick.Uppercase = true;
+        _rows.AddChild(Ui.Margin(kick, 14, 12, 14, 4));
+        for (int f = 0; f < Firsts.Count; f++)
+        {
+            var d = Firsts.All[f];
+            int holder = Firsts.Holder(s, f);
+            bool ours = holder == GameState.LocalPlayer;
+            string who = Firsts.HolderText(s, f, GameState.LocalPlayer);
+            bool gone = holder < 0 && f == Firsts.Hearth && !s.AnyNomads;   // every tribe has settled: the race is over
+            var right = Ui.Text(ours ? "мы" : who ?? (gone ? "не разыгрывалось" : "свободно"), ours ? "Semi" : "SmallMu");
+            var row = Ui.Margin(Ui.HBox(8, Ui.Icon(d.Icon, 1, ours ? Pal.Ac : holder >= 0 || gone ? Pal.Mu : Pal.Hi),
+                                        Ui.Text(d.Name, ours ? "Semi" : holder >= 0 || gone ? "SmallMu" : null), Ui.Expand(), right), 14, 5, 14, 5);
+            row.MouseFilter = MouseFilterEnum.Pass;
+            row.Tip(t =>
+            {
+                t.Title(d.Name).Line($"Достаётся тому, кто первым в мире {d.Deed}").Kv("Награда навсегда", d.Effect, Pal.Ok);
+                if (holder >= 0) t.Kv("Взяли", ours ? "мы" : who, ours ? Pal.Hi : Pal.Mu);
+                else t.Mu(gone ? "Все племена уже осели: этого первенства в партии не будет" : "Ещё никто: первенство открыто для всех");
+            });
+            _rows.AddChild(row);
+        }
     }
 
     /// <summary>A row: rank · colour · name · score, a 2px share bar underneath; the player's row is lifted with the accent bar.</summary>

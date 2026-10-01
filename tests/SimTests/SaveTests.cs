@@ -258,10 +258,10 @@ public static class SaveTests
         {
             (typeof(GameState), new[] { "Tick", "Day256", "DateTarget", "DateStep", "Pace", "Speed", "Paused", "Nations", "Nat", "NationCapital",
                 "Owner", "Controller", "Pop", "Religion", "Mood", "Slots", "Buildings", "Ore", "OreFound", "CapitalOf", "IsTown", "City", "Growth", "SphereNoted", "Routes",
-                "FogEnabled", "Scouts", "ScoutSeq", "Events" }, new[] { "Scratch" }),
+                "FogEnabled", "Scouts", "ScoutSeq", "Events", "FirstHolder", "FirstCycle" }, new[] { "Scratch" }),
             (typeof(NationState), new[] { "Control", "Treasury", "LastTaxes", "LastUpkeep", "Progress", "ScienceRate", "Era", "ProjectIndex",
                 "QueuePct", "ProjectsDone", "EventCount", "Materials", "LastMaterials", "TechsDone", "Researching", "TechPts", "TechPool", "Camp", "CampPath", "CampStep", "CampSub", "Supplies", "TribePop", "Legends", "Myth", "Edicts", "Fog",
-                "CharA", "CharB", "CharLevel", "CharHeld", "CharTraits", "FirstTechs" }, new[] { "CharFx" }),
+                "CharA", "CharB", "CharLevel", "CharHeld", "CharTraits", "FirstTechs" }, new[] { "CharFx", "Firsts" }),
             (typeof(NationFog), new[] { "Fog", "Explored", "KnownOwner", "Met" }, Array.Empty<string>()),
             (typeof(GameState.Scout), new[] { "Id", "Nation", "Path", "Step", "Sub", "Auto", "Steps", "MaxSteps", "Found" }, new[] { "Progress" }),
             (typeof(EventMemory), new[] { "Nation", "Bot", "NextDue", "NextChoice", "ReadyAt", "FiredCount", "Flags", "ThreadEra", "GuaranteedThreads",

@@ -78,6 +78,8 @@ public sealed partial class GameState
             nat.Add(NationCapital[n]);
             if (Events?.Mem[n] is { } m) { nat.Add(m.Total); nat.Add(m.NextDue); nat.Add(m.NextChoice); nat.Add(m.Pending?.Event ?? -1); }
         }
+        if (!Firsts.IsBlank(this))   // no first taken yet hashes as the layouts before them did
+            for (int f = 0; f < FirstHolder.Length; f++) { nat.Add(FirstHolder[f]); nat.Add(FirstCycle[f]); }
 
         var prov = new Fnv(); var bld = new Fnv();
         for (int p = 0; p < Owner.Length; p++)

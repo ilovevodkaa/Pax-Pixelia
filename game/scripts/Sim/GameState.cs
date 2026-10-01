@@ -53,7 +53,8 @@ public sealed class NationState
     public short[] CharHeld;            // per scale: cycles the essence has held (hardens at Character.HardenCycles)
     public int CharTraits;              // bit t: Character.Traits[t] earned; from bit Character.HardenedBit: hardened poles
     public int FirstTechs;              // technologies this nation learned first in the world
-    public int[] CharFx;                // derived: the bonuses of the above per TechFx (Character.Refresh), never saved
+    public int[] CharFx;                // derived: the bonuses of the above and of the world firsts per TechFx (Character.Refresh), never saved
+    public int Firsts;                  // derived: bit f = this nation holds Firsts.All[f] (from GameState.FirstHolder)
     public NationFog Fog;
 
     public bool Human => Control == NationControl.Human;
@@ -94,6 +95,10 @@ public sealed partial class GameState
 
     // ---- trade routes: province paths ----
     public List<int[]> Routes = new();
+
+    // ---- world firsts (Firsts.cs): who took each, and in which rules cycle ----
+    public short[] FirstHolder;             // per first: nation index or -1 while open
+    public int[] FirstCycle;
 
     /// <summary>false = observer mode: a view switch only, the fog is still computed underneath.</summary>
     public bool FogEnabled = true;

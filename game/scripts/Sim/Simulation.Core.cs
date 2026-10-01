@@ -54,6 +54,7 @@ public static partial class Simulation
         FogOfWar.Init(w, s);
         Cities.Init(w, s);
         for (int n = 0; n < s.Nat.Length; n++) { Character.Init(s.Nat[n]); Character.SeedFromLand(w, s, n); }
+        Firsts.Init(s);
         for (int n = 0; n < s.Nat.Length; n++)
         {
             var nat = s.Nat[n];
@@ -110,6 +111,7 @@ public static partial class Simulation
         s.Events?.Cycle(cycle, sink);
         Policy.Deeds(s);   // governing by edicts shapes the people, like any deed
         Character.Cycle(w, s, cycle, sink);
+        Firsts.Cycle(w, s, cycle, sink);
         PlanDate(s);
 
         if (changed != null)
@@ -233,7 +235,7 @@ public static partial class Simulation
             long before = nat.Progress;
             nat.Progress += nat.ScienceRate;
             int learned = Techs.Advance(w.Seed, n, nat, Techs.ResearchRate(nat), s.Pace);
-            if (learned >= 0) Character.OnLearn(s, n, learned);
+            if (learned >= 0) { Character.OnLearn(s, n, learned); Firsts.OnLearn(w, s, n, learned, sink); }
             if (learned >= 0 && nat.Human && sink != null)
             {
                 var d = Techs.All[learned];

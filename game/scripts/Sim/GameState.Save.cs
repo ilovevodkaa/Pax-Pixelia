@@ -22,7 +22,7 @@ namespace PaxPixelia.Sim;
 public sealed partial class GameState
 {
     /// <summary>Layout version of the snapshot (the save file carries it; older layouts are read field by field).</summary>
-    public const int SnapshotVersion = 7;   // 2: materials · 3: technologies · 4: the nomad phase · 5: techs past 64 · 6: character · 7: edicts
+    public const int SnapshotVersion = 8;   // 2: materials · 3: technologies · 4: the nomad phase · 5: techs past 64 · 6: character · 7: edicts · 8: world firsts
 
     const int MaxNations = 255;
 
@@ -114,6 +114,11 @@ public sealed partial class GameState
             for (int k = 0; k < Character.Count; k++) { w.Write(x.CharA[k]); w.Write(x.CharB[k]); w.Write(x.CharLevel[k]); w.Write(x.CharHeld[k]); }
             w.Write(x.CharTraits); w.Write(x.FirstTechs);
         }
+
+        // ---- world firsts (8) ----
+        Sim.Firsts.Init(this);
+        w.Write(FirstHolder.Length);
+        for (int f = 0; f < FirstHolder.Length; f++) { w.Write(FirstHolder[f]); w.Write(FirstCycle[f]); }
     }
 
     /// <summary>
@@ -265,6 +270,20 @@ public sealed partial class GameState
                 Character.Refresh(x);
             }
         }
+
+        Sim.Firsts.Init(s);
+        if (version >= 8)
+        {
+            int firsts = r.ReadInt32();
+            Require(firsts >= 0 && firsts <= 256, "firsts");
+            for (int f = 0; f < firsts; f++)
+            {
+                short h = r.ReadInt16(); int c = r.ReadInt32();
+                Require(h >= -1 && h < nN && c >= 0, "firsts");
+                if (f < s.FirstHolder.Length) { s.FirstHolder[f] = h; s.FirstCycle[f] = c; }   // a newer build's extra firsts dropped
+            }
+        }
+        Sim.Firsts.Sync(s);
         return s;
     }
 

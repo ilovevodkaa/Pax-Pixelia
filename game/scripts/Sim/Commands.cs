@@ -107,6 +107,7 @@ public static class Commands
                 if (e != SurveyError.None) return (int)e;
                 Rules.Survey(s, c.A, n);
                 Character.OnSurvey(s, n);
+                Firsts.OnSurvey(w, s, n, c.A, sink);
                 Changed(w, s, c.A, sink, batch, fog: false);
                 return 0;
             }
@@ -126,6 +127,7 @@ public static class Commands
                 if (e != FoundError.None) return (int)e;
                 Cities.Found(w, s, c.A, n);
                 Character.OnFound(s, n);
+                Firsts.OnFound(w, s, n, sink);
                 Changed(w, s, c.A, sink, batch, fog: true);
                 return 0;
             }
