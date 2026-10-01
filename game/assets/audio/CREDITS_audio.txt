@@ -1,4 +1,9 @@
 # «Авторы» → ЗВУКИ: one line each (CreditsScreen reads this file; lines starting with # are skipped).
-# Files: assets/audio/{sfx,ui,world,stingers}; sources and licence: sfx/LICENSE_Kenney.txt.
+# Files: assets/audio/{sfx,ui,ui/skin,world,stingers}; every file with its sources: sources.json. All CC0.
 Звук: Kenney (kenney.nl), CC0
 Interface Sounds · UI Audio · RPG Audio · Impact Sounds · Music Jingles
+OwlishMedia (opengameart.org), CC0
+202 More Sound Effects · Sound Effects Pack
+rubberduck (opengameart.org), CC0
+100 CC0 metal and wood SFX
+Joseph SARDIN — BigSoundBank.com, CC0

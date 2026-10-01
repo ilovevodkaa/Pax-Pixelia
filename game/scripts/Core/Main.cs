@@ -30,6 +30,7 @@ public partial class Main : Node
         Camera = new MapCamera { Name = "MapCamera" };
         AddChild(Camera);
         EraSkin.Apply(EraSkin.ForGroup(0));   // the HUD wears its era's skin (a loaded save may switch it at WorldReady)
+        Audio.SoundBank.Group = 1;
         _skinGroup = 0;
         Hud = new Hud { Name = "Hud" };
         AddChild(Hud);
@@ -90,6 +91,7 @@ public partial class Main : Node
         if (g == _skinGroup) return;
         _skinGroup = g;
         EraSkin.Apply(EraSkin.ForGroup(g));
+        Audio.SoundBank.Group = g + 1;   // the sounds with a material follow the same era group
         if (Hud == null) return;
         int at = Hud.GetIndex();
         var old = Hud;

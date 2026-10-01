@@ -49,20 +49,21 @@ public static class SoundBank
         Add(new("toast", Files("ui/ui_toast_1", "ui/ui_toast_2"), ui, Info, Jitter: .04f, MinMs: 250, Poly: 1));
         Add(new("toast_important", Files("ui/ui_toast_important_1"), ui, Info, Jitter: .02f, MinMs: 500, Poly: 1));
         Add(new("note", Files("ui/ui_note_1", "ui/ui_note_2"), ui, Info, Jitter: .04f, MinMs: 500, Poly: 1));
-        Add(new("page", Files("ui/ui_page_1", "ui/ui_page_2"), ui, Info, Jitter: .04f, MinMs: 400, Poly: 1));
+        Add(new("page", Files("ui/ui_page_1", "ui/ui_page_2", "ui/ui_page_3", "ui/ui_page_4"), ui, Info, Jitter: .04f, MinMs: 400, Poly: 1));
         Add(new("book_open", Files("ui/ui_book_open_1"), ui, Book, Jitter: .03f, MinMs: 300, Poly: 1));
         Add(new("book_close", Files("ui/ui_book_close_1"), ui, Book, Jitter: .03f, MinMs: 300, Poly: 1));
-        Add(new("coins", Files("ui/ui_coins_1", "ui/ui_coins_2"), ui, Book, Jitter: .04f, MinMs: 300, Poly: 1));
-        Add(new("pause", Files("ui/ui_pause_1"), ui, Book, Jitter: .02f, MinMs: 100, Poly: 1));
-        Add(new("unpause", Files("ui/ui_pause_1"), ui, Book, Db: -1f, Jitter: .02f, MinMs: 100, Poly: 1));
+        Add(new("coins", Files("ui/ui_coins_1", "ui/ui_coins_2", "ui/ui_coins_3", "ui/ui_coins_4", "ui/ui_coins_5"), ui, Book, Jitter: .04f, MinMs: 300, Poly: 1));
+        Add(new("pause", Files("ui/ui_pause_1", "ui/ui_pause_2", "ui/ui_pause_3"), ui, Book, Jitter: .02f, MinMs: 100, Poly: 1));
+        Add(new("unpause", Files("ui/ui_pause_1", "ui/ui_pause_2", "ui/ui_pause_3"), ui, Book, Db: -1f, Jitter: .02f, MinMs: 100, Poly: 1));
         for (int s = 1; s <= 5; s++)   // one physical switch per speed, light → heavy
             Add(new($"speed_{s}", Files($"ui/ui_speed_{s}"), ui, Book, Jitter: .02f, MinMs: 60, Poly: 1));
 
         // ---- the map: a table-top diorama (AUDIO.md §1 p.2) ----
         // «фишка»: ±2 % pitch and ±1.5 dB so a hundred clicks a game never turn into a machine gun
-        Add(new("piece", Files("world/world_piece_1", "world/world_piece_2", "world/world_piece_3", "world/world_piece_4"),
+        Add(new("piece", Files("world/world_piece_1", "world/world_piece_2", "world/world_piece_3", "world/world_piece_4",
+                               "world/world_piece_5", "world/world_piece_6", "world/world_piece_7"),
             world, World, Jitter: .02f, DbJitter: 1.5f, MinMs: 40, Poly: 2));
-        Add(new("build", Files("world/world_build_1", "world/world_build_2"), world, World, Jitter: .03f, MinMs: 250));
+        Add(new("build", Files("world/world_build_1", "world/world_build_2", "world/world_build_3"), world, World, Jitter: .03f, MinMs: 250));
         Add(new("built", Files("world/world_built_1"), world, World, Jitter: .02f, MinMs: 600, Poly: 1));
         Add(new("survey", Files("world/world_survey_1", "world/world_survey_2"), world, World, Jitter: .03f, MinMs: 300, Poly: 1));
         Add(new("ore", Files("world/world_ore_1"), world, World, Jitter: .03f, MinMs: 300, Poly: 1));
@@ -81,6 +82,37 @@ public static class SoundBank
             Add(new($"stinger_era_{g}", Files($"stingers/stinger_era_{g}"), sting, Action, Jitter: 0f));
         return d;
     }
+
+    /// <summary>
+    /// Era skins of the keys with a material (AUDIO.md §2.2): in era group g the key plays ui/skin/g{g}_{key}_{n}.ogg
+    /// instead of its everyday files — hand drum and wood in Костёр, crockery and papyrus in Глина, pencil and parchment
+    /// in Перо, typewriter and clock in Латунь, electronics in Сигнал. Hover, click and the rest never change.
+    /// </summary>
+    public static readonly IReadOnlyDictionary<(int Group, string Key), string[]> Skins = BuildSkins();
+
+    static Dictionary<(int, string), string[]> BuildSkins()
+    {
+        var takes = new (int g, string key, int n)[]
+        {
+            (1, "confirm", 2), (1, "page", 1), (1, "pause", 1), (1, "book_open", 1), (1, "book_close", 1),
+            (2, "confirm", 2), (2, "page", 1), (2, "pause", 1), (2, "book_open", 1),
+            (3, "confirm", 2), (3, "page", 2), (3, "pause", 1),
+            (4, "confirm", 1), (4, "page", 2), (4, "pause", 1), (4, "book_open", 1), (4, "book_close", 1),
+            (5, "confirm", 2), (5, "page", 2), (5, "pause", 1), (5, "book_open", 1), (5, "book_close", 1),
+        };
+        var d = new Dictionary<(int, string), string[]>();
+        foreach (var (g, key, n) in takes)
+        {
+            var f = new string[n];
+            for (int i = 0; i < n; i++) f[i] = $"ui/skin/g{g}_{key}_{i + 1}.ogg";
+            d[(g, key)] = f;
+            if (key == "pause") d[(g, "unpause")] = f;   // the same latch, one dB softer (the unpause def)
+        }
+        return d;
+    }
+
+    /// <summary>The era group whose skin plays now (1…5; Main sets it with the HUD's skin).</summary>
+    public static int Group { get; set; } = 1;
 
     /// <summary>Paths under <see cref="Root"/>; a stem without an extension is an .ogg (give «x.wav» for a WAV).</summary>
     static string[] Files(params string[] stems)

@@ -43,6 +43,7 @@ public partial class Sfx : Node
 
     readonly Dictionary<string, AudioStream> _synth = new();
     readonly Dictionary<string, List<(AudioStream stream, string file)>> _files = new();
+    readonly Dictionary<(int, string), List<(AudioStream stream, string file)>> _skinFiles = new();   // era skins (SoundBank.Skins)
     readonly Dictionary<string, ulong> _last = new();
     readonly Dictionary<string, int> _lastVariant = new();
     readonly Dictionary<string, List<Voice>> _voices = new();
@@ -143,7 +144,7 @@ public partial class Sfx : Node
         var def = SoundBank.Defs.GetValueOrDefault(c.Key);
         AudioStream stream;
         string file, bus = def?.Bus ?? AudioBuses.Ui;
-        if (_files.TryGetValue(c.Key, out var variants))
+        if (_skinFiles.TryGetValue((SoundBank.Group, c.Key), out var variants) || _files.TryGetValue(c.Key, out variants))
         {
             var v = variants[PickVariant(c.Key, variants.Count)];
             stream = v.stream; file = v.file;
@@ -246,6 +247,13 @@ public partial class Sfx : Node
             foreach (var f in def.Files)
                 if (LoadOgg(SoundBank.Root + f) is { } s) list.Add((s, f)); else missing.Add(f);
             if (list.Count > 0) _files[key] = list;
+        }
+        foreach (var (gk, files) in SoundBank.Skins)
+        {
+            var list = new List<(AudioStream, string)>();
+            foreach (var f in files)
+                if (LoadOgg(SoundBank.Root + f) is { } s) list.Add((s, f)); else missing.Add(f);
+            if (list.Count > 0) _skinFiles[gk] = list;
         }
         if (missing.Count > 0) GD.PushWarning($"Sfx: {missing.Count} sound files missing in {SoundBank.Root} ({string.Join(", ", missing)}); synthesised stand-ins or silence");
     }

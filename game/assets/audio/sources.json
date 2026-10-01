@@ -529,5 +529,366 @@
   "sec": 1.16,
   "rms": -16.0,
   "peak": -3.6
+ },
+ {
+  "file": "ui/ui_coins_3.ogg",
+  "from": [
+   "OwlishMedia 202 More Sound Effects: Money/Money_05.wav"
+  ],
+  "sec": 0.34,
+  "rms": -24.0,
+  "peak": -4.5
+ },
+ {
+  "file": "ui/ui_coins_4.ogg",
+  "from": [
+   "OwlishMedia 202 More Sound Effects: Money/Money_15.wav"
+  ],
+  "sec": 0.29,
+  "rms": -24.0,
+  "peak": -4.8
+ },
+ {
+  "file": "ui/ui_coins_5.ogg",
+  "from": [
+   "OwlishMedia 202 More Sound Effects: Money/Money_29.wav"
+  ],
+  "sec": 0.31,
+  "rms": -24.0,
+  "peak": -1.7
+ },
+ {
+  "file": "ui/ui_page_3.ogg",
+  "from": [
+   "OwlishMedia Sound Effects Pack: Paper/pageturn1.wav"
+  ],
+  "sec": 0.52,
+  "rms": -25.0,
+  "peak": -5.9
+ },
+ {
+  "file": "ui/ui_page_4.ogg",
+  "from": [
+   "OwlishMedia Sound Effects Pack: Paper/pageturn2.wav"
+  ],
+  "sec": 0.6,
+  "rms": -25.0,
+  "peak": -8.5
+ },
+ {
+  "file": "ui/ui_pause_2.ogg",
+  "from": [
+   "OwlishMedia 202 More Sound Effects: Keys, Locks, Door/Key_Lock_Door_30.wav"
+  ],
+  "sec": 0.24,
+  "rms": -22.0,
+  "peak": -1.1
+ },
+ {
+  "file": "ui/ui_pause_3.ogg",
+  "from": [
+   "OwlishMedia 202 More Sound Effects: Keys, Locks, Door/Key_Lock_Door_51.wav"
+  ],
+  "sec": 0.35,
+  "rms": -22.0,
+  "peak": -1.6
+ },
+ {
+  "file": "world/world_piece_5.ogg",
+  "from": [
+   "rubberduck 100 CC0 metal and wood SFX: wood_hit_01.ogg"
+  ],
+  "sec": 0.22,
+  "rms": -22.5,
+  "peak": -1.0
+ },
+ {
+  "file": "world/world_piece_6.ogg",
+  "from": [
+   "rubberduck 100 CC0 metal and wood SFX: wood_hit_04.ogg"
+  ],
+  "sec": 0.25,
+  "rms": -20.9,
+  "peak": -1.0
+ },
+ {
+  "file": "world/world_piece_7.ogg",
+  "from": [
+   "rubberduck 100 CC0 metal and wood SFX: wood_hit_07.ogg"
+  ],
+  "sec": 0.24,
+  "rms": -20.0,
+  "peak": -4.7
+ },
+ {
+  "file": "world/world_build_3.ogg",
+  "from": [
+   "rubberduck 100 CC0 metal and wood SFX: wood_hammer_01.ogg",
+   "rubberduck 100 CC0 metal and wood SFX: wood_hammer_02.ogg"
+  ],
+  "sec": 0.66,
+  "rms": -20.0,
+  "peak": -1.7
+ },
+ {
+  "file": "ui/skin/g1_confirm_1.ogg",
+  "from": [
+   "OwlishMedia Sound Effects Pack: Impacts/djembe1.wav"
+  ],
+  "sec": 0.18,
+  "rms": -20.0,
+  "peak": -6.6
+ },
+ {
+  "file": "ui/skin/g1_confirm_2.ogg",
+  "from": [
+   "OwlishMedia Sound Effects Pack: Impacts/djembe2.wav"
+  ],
+  "sec": 0.21,
+  "rms": -20.0,
+  "peak": -5.2
+ },
+ {
+  "file": "ui/skin/g1_page_1.ogg",
+  "from": [
+   "BigSoundBank (Joseph Sardin): 1022.ogg"
+  ],
+  "sec": 0.45,
+  "rms": -25.0,
+  "peak": -3.1
+ },
+ {
+  "file": "ui/skin/g1_pause_1.ogg",
+  "from": [
+   "BigSoundBank (Joseph Sardin): 0466.ogg"
+  ],
+  "sec": 0.22,
+  "rms": -22.0,
+  "peak": -5.1
+ },
+ {
+  "file": "ui/skin/g1_book_open_1.ogg",
+  "from": [
+   "BigSoundBank (Joseph Sardin): 1489.ogg"
+  ],
+  "sec": 0.3,
+  "rms": -21.0,
+  "peak": -1.9
+ },
+ {
+  "file": "ui/skin/g1_book_close_1.ogg",
+  "from": [
+   "rubberduck 100 CC0 metal and wood SFX: wood_close_01.ogg"
+  ],
+  "sec": 0.33,
+  "rms": -22.0,
+  "peak": -2.3
+ },
+ {
+  "file": "ui/skin/g2_confirm_1.ogg",
+  "from": [
+   "OwlishMedia Sound Effects Pack: Impacts/clamour7.wav"
+  ],
+  "sec": 0.28,
+  "rms": -20.0,
+  "peak": -1.8
+ },
+ {
+  "file": "ui/skin/g2_confirm_2.ogg",
+  "from": [
+   "OwlishMedia Sound Effects Pack: Impacts/clamour11.wav"
+  ],
+  "sec": 0.35,
+  "rms": -20.0,
+  "peak": -1.0
+ },
+ {
+  "file": "ui/skin/g2_page_1.ogg",
+  "from": [
+   "OwlishMedia Sound Effects Pack: Paper/pageturn1.wav"
+  ],
+  "sec": 0.52,
+  "rms": -25.0,
+  "peak": -5.9
+ },
+ {
+  "file": "ui/skin/g2_pause_1.ogg",
+  "from": [
+   "rubberduck 100 CC0 metal and wood SFX: wood_misc_02.ogg"
+  ],
+  "sec": 0.3,
+  "rms": -22.0,
+  "peak": -1.1
+ },
+ {
+  "file": "ui/skin/g2_book_open_1.ogg",
+  "from": [
+   "OwlishMedia Sound Effects Pack: Paper/pageturn2.wav"
+  ],
+  "sec": 0.6,
+  "rms": -21.0,
+  "peak": -4.5
+ },
+ {
+  "file": "ui/skin/g3_confirm_1.ogg",
+  "from": [
+   "BigSoundBank (Joseph Sardin): 3236.ogg"
+  ],
+  "sec": 0.5,
+  "rms": -20.0,
+  "peak": -3.4
+ },
+ {
+  "file": "ui/skin/g3_confirm_2.ogg",
+  "from": [
+   "BigSoundBank (Joseph Sardin): 0221.ogg"
+  ],
+  "sec": 0.45,
+  "rms": -20.0,
+  "peak": -4.5
+ },
+ {
+  "file": "ui/skin/g3_page_1.ogg",
+  "from": [
+   "BigSoundBank (Joseph Sardin): 0785.ogg"
+  ],
+  "sec": 0.5,
+  "rms": -25.0,
+  "peak": -3.2
+ },
+ {
+  "file": "ui/skin/g3_page_2.ogg",
+  "from": [
+   "OwlishMedia Sound Effects Pack: Paper/pageturn2.wav"
+  ],
+  "sec": 0.6,
+  "rms": -25.0,
+  "peak": -8.5
+ },
+ {
+  "file": "ui/skin/g3_pause_1.ogg",
+  "from": [
+   "OwlishMedia 202 More Sound Effects: Keys, Locks, Door/Key_Lock_Door_51.wav"
+  ],
+  "sec": 0.35,
+  "rms": -22.0,
+  "peak": -1.6
+ },
+ {
+  "file": "ui/skin/g4_confirm_1.ogg",
+  "from": [
+   "BigSoundBank (Joseph Sardin): 2844.ogg"
+  ],
+  "sec": 0.6,
+  "rms": -20.0,
+  "peak": -4.9
+ },
+ {
+  "file": "ui/skin/g4_page_1.ogg",
+  "from": [
+   "BigSoundBank (Joseph Sardin): 2842.ogg"
+  ],
+  "sec": 0.18,
+  "rms": -28.2,
+  "peak": -1.0
+ },
+ {
+  "file": "ui/skin/g4_page_2.ogg",
+  "from": [
+   "BigSoundBank (Joseph Sardin): 2843.ogg"
+  ],
+  "sec": 0.2,
+  "rms": -25.0,
+  "peak": -4.5
+ },
+ {
+  "file": "ui/skin/g4_pause_1.ogg",
+  "from": [
+   "BigSoundBank (Joseph Sardin): 0007.ogg"
+  ],
+  "sec": 0.5,
+  "rms": -22.0,
+  "peak": -4.6
+ },
+ {
+  "file": "ui/skin/g4_book_open_1.ogg",
+  "from": [
+   "rubberduck 100 CC0 metal and wood SFX: metal_open_01.ogg"
+  ],
+  "sec": 0.45,
+  "rms": -21.6,
+  "peak": -1.0
+ },
+ {
+  "file": "ui/skin/g4_book_close_1.ogg",
+  "from": [
+   "rubberduck 100 CC0 metal and wood SFX: metal_close_01.ogg"
+  ],
+  "sec": 0.45,
+  "rms": -22.3,
+  "peak": -1.0
+ },
+ {
+  "file": "ui/skin/g5_confirm_1.ogg",
+  "from": [
+   "OwlishMedia Sound Effects Pack: UI/UI_023.wav"
+  ],
+  "sec": 0.45,
+  "rms": -24.4,
+  "peak": -1.0
+ },
+ {
+  "file": "ui/skin/g5_confirm_2.ogg",
+  "from": [
+   "OwlishMedia Sound Effects Pack: UI/UI_024.wav"
+  ],
+  "sec": 0.45,
+  "rms": -20.4,
+  "peak": -1.0
+ },
+ {
+  "file": "ui/skin/g5_page_1.ogg",
+  "from": [
+   "OwlishMedia Sound Effects Pack: UI/UI_035.wav"
+  ],
+  "sec": 0.4,
+  "rms": -25.8,
+  "peak": -1.0
+ },
+ {
+  "file": "ui/skin/g5_page_2.ogg",
+  "from": [
+   "OwlishMedia Sound Effects Pack: UI/UI_037.wav"
+  ],
+  "sec": 0.4,
+  "rms": -28.0,
+  "peak": -1.0
+ },
+ {
+  "file": "ui/skin/g5_pause_1.ogg",
+  "from": [
+   "OwlishMedia Sound Effects Pack: UI/UI_033.wav"
+  ],
+  "sec": 0.45,
+  "rms": -27.5,
+  "peak": -1.0
+ },
+ {
+  "file": "ui/skin/g5_book_open_1.ogg",
+  "from": [
+   "OwlishMedia Sound Effects Pack: UI/UI_026.wav"
+  ],
+  "sec": 0.5,
+  "rms": -23.1,
+  "peak": -1.0
+ },
+ {
+  "file": "ui/skin/g5_book_close_1.ogg",
+  "from": [
+   "OwlishMedia Sound Effects Pack: UI/UI_036.wav"
+  ],
+  "sec": 0.45,
+  "rms": -24.8,
+  "peak": -1.0
  }
 ]

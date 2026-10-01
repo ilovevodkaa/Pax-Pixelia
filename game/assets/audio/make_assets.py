@@ -1,5 +1,7 @@
-# Builds the game's sound files from the Kenney CC0 packs in <repo>/audio_src/kenney (AUDIO.md §6.3; the packs are
-# not in git: Interface Sounds, UI Audio, RPG Audio, Impact Sounds, Music Jingles from kenney.nl):
+# Builds the game's sound files from CC0 packs in <repo>/audio_src (AUDIO.md §6.3; not in git): Kenney (Interface
+# Sounds, UI Audio, RPG Audio, Impact Sounds, Music Jingles from kenney.nl) in audio_src/kenney, OwlishMedia's
+# «202 More Sound Effects» and «Sound Effects Pack» (opengameart.org) in audio_src/owlish/{more,big}, rubberduck's
+# «100 CC0 metal and wood SFX» (opengameart.org) in audio_src/rubberduck/wm, BigSoundBank OGGs in audio_src/bigsoundbank:
 # trims silence (Kenney files carry long silent tails), mixes the few composites (hammer blows, footsteps,
 # bells, the claim stinger, the era ladder), levels every file to its layer's RMS (AUDIO.md §1 p.4: one
 # normalisation for all sources, peaks ≤ −1 dBFS) and encodes OGG Vorbis q5 at 44.1 kHz.
@@ -17,13 +19,17 @@ PACK = {
     'IS': 'kenney_interface-sounds/Audio', 'UA': 'kenney_ui-audio/Audio', 'RPG': 'kenney_rpg-audio/Audio',
     'IMP': 'kenney_impact-sounds/Audio', 'PIZ': 'kenney_music-jingles/Audio/Pizzicato jingles',
     'HIT': 'kenney_music-jingles/Audio/Hit jingles', 'NES': 'kenney_music-jingles/Audio/8-Bit jingles',
+    # other recorded CC0 sources, next to the Kenney packs in audio_src (not in git): so the game is not one author
+    'OWL': '../owlish/more', 'OWB': '../owlish/big', 'RD': '../rubberduck/wm', 'BSB': '../bigsoundbank',
 }
 PACK_NAME = {'IS': 'Interface Sounds', 'UA': 'UI Audio', 'RPG': 'RPG Audio', 'IMP': 'Impact Sounds',
-             'PIZ': 'Music Jingles', 'HIT': 'Music Jingles', 'NES': 'Music Jingles'}
+             'PIZ': 'Music Jingles', 'HIT': 'Music Jingles', 'NES': 'Music Jingles',
+             'OWL': 'OwlishMedia 202 More Sound Effects', 'OWB': 'OwlishMedia Sound Effects Pack',
+             'RD': 'rubberduck 100 CC0 metal and wood SFX', 'BSB': 'BigSoundBank (Joseph Sardin)'}
 SR = 44100
 
 def load(ref):
-    pack, name = ref.split(':')
+    pack, name = ref.split(':', 1)
     x, sr = sf.read(os.path.join(SRC, PACK[pack], name), always_2d=True, dtype='float64')
     if sr != SR: x = resample_poly(x, SR // 100, sr // 100, axis=0)
     return x
@@ -90,6 +96,14 @@ def level(x, target, max_limit_db=6.0):
     return y, total
 
 def src(ref, **kw): return trim(load(ref), **kw)
+
+def cut(ref, max_s, fade=.04, **kw):
+    """The first max_s seconds of a trimmed source with a short fade: one knock of a drumstick pair, one stroke of
+    a typewriter, one tick of a clock."""
+    y = src(ref, **kw)
+    n = min(len(y), int(max_s * SR)); y = y[:n].copy()
+    f = min(n, int(fade * SR)); y[-f:] *= np.linspace(1, 0, f)[:, None]
+    return y
 
 # ------------------------------------------------------------------ the sound list
 # (output path under assets/audio, target RMS dBFS, mono?, builder, sources for the licence manifest)
@@ -225,6 +239,62 @@ add('stingers/stinger_era_4.ogg', -16, False, lambda: era([(src('PIZ:jingles_PIZ
 add('stingers/stinger_era_5.ogg', -16, False, lambda: era([(src('NES:jingles_NES12.ogg'), .28, -3)]),
     ['HIT:jingles_HIT15.ogg', 'NES:jingles_NES12.ogg'])
 
+# MORE SOURCES (recorded, CC0): extra takes of the everyday keys, so a click, a page or a coin is not always the
+# same author's — OwlishMedia (coins, latches, pages), rubberduck (wood), BigSoundBank (writing, clock, typewriter)
+for i, r in enumerate(['OWL:Money/Money_05.wav', 'OWL:Money/Money_15.wav', 'OWL:Money/Money_29.wav'], 3):
+    add(f'ui/ui_coins_{i}.ogg', -24, True, (lambda r=r: cut(r, .45)), [r])
+for i, r in enumerate(['OWB:Paper/pageturn1.wav', 'OWB:Paper/pageturn2.wav'], 3):
+    add(f'ui/ui_page_{i}.ogg', -25, True, (lambda r=r: cut(r, .6)), [r])
+for i, r in enumerate(['OWL:Keys, Locks, Door/Key_Lock_Door_30.wav', 'OWL:Keys, Locks, Door/Key_Lock_Door_51.wav'], 2):
+    add(f'ui/ui_pause_{i}.ogg', -22, True, (lambda r=r: cut(r, .35)), [r])
+for i, r in enumerate(['RD:wood_hit_01.ogg', 'RD:wood_hit_04.ogg', 'RD:wood_hit_07.ogg'], 5):
+    add(f'world/world_piece_{i}.ogg', -20, True, (lambda r=r: cut(r, .25)), [r])
+add('world/world_build_3.ogg', -20, True,
+    lambda: mix([(cut('RD:wood_hammer_01.ogg', .2), 0, -4), (cut('RD:wood_hammer_02.ogg', .2), .19, -3),
+                 (cut('RD:wood_hammer_01.ogg', .3), .38, 0)], 1), ['RD:wood_hammer_01.ogg', 'RD:wood_hammer_02.ogg'])
+
+# ERA SKINS (AUDIO.md §2.2): the keys with a material — confirm, page, book, pause — sound of their era group;
+# hover, click and the rest stay the same all game (the hand gets used to them). ui/skin/g<G>_<key>_<n>.ogg
+SKIN = {
+    1: {  # Костёр: hand drum, wood, stone
+        'confirm': [('OWB:Impacts/djembe1.wav', .3), ('OWB:Impacts/djembe2.wav', .3)],
+        'page': [('BSB:1022.ogg', .45)],
+        'pause': [('BSB:0466.ogg', .22)],
+        'book_open': [('BSB:1489.ogg', .3)],
+        'book_close': [('RD:wood_close_01.ogg', .45)],
+    },
+    2: {  # Глина: crockery, papyrus
+        'confirm': [('OWB:Impacts/clamour7.wav', .3), ('OWB:Impacts/clamour11.wav', .35)],
+        'page': [('OWB:Paper/pageturn1.wav', .55)],
+        'pause': [('RD:wood_misc_02.ogg', .3)],
+        'book_open': [('OWB:Paper/pageturn2.wav', .6)],
+    },
+    3: {  # Перо: the quill (a pencil stands in) and parchment, an iron latch
+        'confirm': [('BSB:3236.ogg', .5), ('BSB:0221.ogg', .45)],
+        'page': [('BSB:0785.ogg', .5), ('OWB:Paper/pageturn2.wav', .6)],
+        'pause': [('OWL:Keys, Locks, Door/Key_Lock_Door_51.wav', .35)],
+    },
+    4: {  # Латунь: the typewriter, the clock, sprung metal
+        'confirm': [('BSB:2844.ogg', .6)],
+        'page': [('BSB:2842.ogg', .18), ('BSB:2843.ogg', .2)],
+        'pause': [('BSB:0007.ogg', .5)],
+        'book_open': [('RD:metal_open_01.ogg', .45)],
+        'book_close': [('RD:metal_close_01.ogg', .45)],
+    },
+    5: {  # Сигнал: glass and electronics
+        'confirm': [('OWB:UI/UI_023.wav', .45), ('OWB:UI/UI_024.wav', .45)],
+        'page': [('OWB:UI/UI_035.wav', .4), ('OWB:UI/UI_037.wav', .4)],
+        'pause': [('OWB:UI/UI_033.wav', .45)],
+        'book_open': [('OWB:UI/UI_026.wav', .5)],
+        'book_close': [('OWB:UI/UI_036.wav', .45)],
+    },
+}
+SKIN_LEVEL = {'confirm': -20, 'page': -25, 'pause': -22, 'book_open': -21, 'book_close': -22}
+for g, keys in SKIN.items():
+    for key, takes in keys.items():
+        for i, (r, mx) in enumerate(takes, 1):
+            add(f'ui/skin/g{g}_{key}_{i}.ogg', SKIN_LEVEL[key], True, (lambda r=r, mx=mx: cut(r, mx)), [r])
+
 # ------------------------------------------------------------------ build
 def encode(x, path):
     os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -246,7 +316,7 @@ def main(roots):
         print(f"{path:38s} {dur:4.2f}s rms {active_rms(x):6.1f} pk {20*np.log10(np.abs(x).max()):5.1f}  <- {', '.join(refs)}")
     for r in roots:
         with open(os.path.join(r, 'assets/audio/sources.json'), 'w', encoding='utf-8', newline=chr(10)) as f:
-            json.dump([{'file': p, 'from': [f"{PACK_NAME[x.split(':')[0]]}: {x.split(':')[1]}" for x in refs], 'sec': d, 'rms': rm, 'peak': pk}
+            json.dump([{'file': p, 'from': [f"{PACK_NAME[x.split(':', 1)[0]]}: {x.split(':', 1)[1]}" for x in refs], 'sec': d, 'rms': rm, 'peak': pk}
                        for p, refs, d, rm, pk in manifest], f, ensure_ascii=False, indent=1)
             f.write(chr(10))
 

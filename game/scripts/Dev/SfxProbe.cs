@@ -105,6 +105,8 @@ public partial class SfxProbe : Node
     async Task CommandFlow()
     {
         var w = G.World; var s = G.State;
+        G.Issue(Cmd.CheatTech(Me, -1));   // building and geologists need the first era's knowledge
+        await Settle();
         await Expect("gold: cheat gold → coins", () => G.Issue(Cmd.CheatGold(Me, 2000)), "coins");
         int p = First(G.CanClaim);
         if (p >= 0) await Expect("claim → the claim stinger, no note", () => G.Claim(p), "claim");
@@ -187,6 +189,13 @@ public partial class SfxProbe : Node
         await Expect($"era {era} → {key}, the era note silent", () => G.Issue(Cmd.CheatEra(Me, era)), key);
         var fanfare = _played.FirstOrDefault(x => x.Key == key);
         Check("era: a breath of silence (≥ 0.35 s) before the fanfare", fanfare.Key != null && fanfare.Time - t0 >= .35, Inv($"{fanfare.Time - t0:0.00} s"));
+        // the sounds with a material follow the era group: the pause latch of Глина now
+        await Seconds(.3);
+        bool was = G.State.Paused;
+        await Expect("era skin: pause sounds of its era group", () => G.SetPaused(!was), was ? "unpause" : "pause");
+        var latch = _played.LastOrDefault(x => x.Key is "pause" or "unpause");
+        Check("era skin: the file is the group's own", latch.File != null && latch.File.Contains($"skin/g{SoundBank.EraGroup(era)}_"), latch.File ?? "none");
+        G.SetPaused(was);
     }
 
     async Task UiFlow()
