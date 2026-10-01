@@ -60,16 +60,24 @@ public partial class Game
     /// its own camp). Refusals come as toasts; false when nothing was ordered.</summary>
     public bool OrderUnit(int p)
     {
-        if (!IsReady || !SelectedUnit.Any || IsReplay || BlitzOver || (uint)p >= (uint)World.P) return false;
+        if (!IsReady || !SelectedUnit.Any || (uint)p >= (uint)World.P) return false;
+        if (OrderLock is { } locked) { ShowRefusal(locked); return false; }
         switch (SelectedUnit.Kind)
         {
             case UnitSel.Scout: return RedirectScout(SelectedUnit.Id, p);
             case UnitSel.Tribe:
                 if (p == Camp && Me.CampPath != null) { HaltTribe(); return true; }
+                if (Me.CampPath != null && Me.CampPath[^1] == p) return true;   // already on its way there
                 return MoveTribe(p);
         }
         return false;
     }
+
+    /// <summary>Why no order can be given at all now (watching a replay, the blitz is over), or null.</summary>
+    string OrderLock => IsReplay ? "Это повтор чужой партии: приказы идут из файла" : BlitzOver ? "Блиц окончен: время вышло" : null;
+
+    /// <summary>p is under the clouds: a pick there must not tell land from sea.</summary>
+    bool Hidden(int p) => State.FogEnabled && State.Fog[p] == 0;
 
     /// <summary>Turn party id to p; it finishes the hop under way first.</summary>
     public bool RedirectScout(int id, int p)
@@ -88,13 +96,16 @@ public partial class Game
     public string OrderProblem(int p)
     {
         if (!IsReady || !SelectedUnit.Any || (uint)p >= (uint)World.P) return null;
+        if (OrderLock is { } locked) return locked;
         if (SelectedUnit.Kind == UnitSel.Scout)
         {
             var e = Scouts.CheckRedirect(World, State, Viewer, SelectedUnit.Id, p, out _);
+            if (Hidden(p) && e is ScoutError.Sea or ScoutError.Far) return null;   // under the clouds every pick looks fine
             return e == ScoutError.None ? null : RedirectText(e, p);
         }
         if (p == Camp && Me.CampPath != null) return null;   // halt
         var m = Nomads.CheckMove(World, State, Viewer, p, out _);
+        if (Hidden(p) && m is TribeMoveError.Sea or TribeMoveError.Far) m = TribeMoveError.Unexplored;
         return m == TribeMoveError.None ? null : MoveText(m);
     }
 
@@ -115,7 +126,7 @@ public partial class Game
     public int[] PreviewOrder(int p, out bool ok)
     {
         ok = false;
-        if (!IsReady || !SelectedUnit.Any || (uint)p >= (uint)World.P) return null;
+        if (!IsReady || !SelectedUnit.Any || (uint)p >= (uint)World.P || OrderLock != null) return null;
         long key = UnitKey();
         if (_preview.u == SelectedUnit && _preview.p == p && _preview.key == key) { ok = _preview.ok; return _preview.path; }
         int[] path = null;
@@ -127,6 +138,8 @@ public partial class Game
                 ok = Nomads.CheckMove(World, State, Viewer, p, out path) == TribeMoveError.None;
                 break;
         }
+        // under the clouds: no route, no flag, no cross — a party may try anywhere, the tribe never goes there
+        if (Hidden(p) && !(SelectedUnit.Kind == UnitSel.Tribe && p == Camp)) { path = null; ok = SelectedUnit.Kind == UnitSel.Scout; }
         _preview = (SelectedUnit, p, key, path, ok);
         return path;
     }
@@ -140,7 +153,8 @@ public partial class Game
             int cur = Scouts.Current(sc), next = sc.Sub > 0 && sc.Step + 1 < sc.Path.Length ? sc.Path[sc.Step + 1] : -1;
             return ((long)cur << 40) ^ ((long)(next + 1) << 20) ^ slow;
         }
-        return ((long)Camp << 40) ^ slow;
+        var me = Me;
+        return ((long)Camp << 40) ^ ((me.CampPath != null ? 1L : 0L) << 39) ^ ((me.CampPath?[^1] ?? -1) + 1L << 20) ^ ((me.CampSub > 0 ? 1L : 0L) << 38) ^ slow;
     }
 
     /// <summary>Fraction of the next tick already shown (units glide between ticks; 0 while paused).</summary>

@@ -64,6 +64,24 @@ public partial class SimDriver : Node
             g.Claim(best);
         }
 
+        // --sites[=N]: N buildings going up in the player's provinces (construction screenshots), --sites-pct=P their progress
+        if (Cli.Has("sites"))
+        {
+            g.Issue(Cmd.CheatGold(g.Viewer, 100_000));
+            g.Issue(Cmd.CheatTech(g.Viewer, -1));
+            int want = Math.Max(1, Cli.Int("sites", 4)), made = 0;
+            for (int p = 0; p < w.P && made < want; p++)
+            {
+                if (s.Owner[p] != g.Viewer) continue;
+                var opts = Rules.BuildOptions(w, s, p, g.Viewer);
+                if (opts.Count == 0) continue;
+                g.Build(p, opts[0]);
+                made++;
+            }
+            int pct = Math.Clamp(Cli.Int("sites-pct", 50), 0, 99);
+            foreach (var j in s.Builds) if (j.Nation == g.Viewer) j.Work = (int)((long)j.Total * pct / 100);   // debug only: screenshots
+        }
+
         if (Cli.Has("speed")) g.SetSpeed(Cli.Int("speed", 2));
         if (Cli.Str("research") is { } study && Techs.Index(study) is var t and >= 0) g.Issue(Cmd.Research(g.Viewer, t));
 

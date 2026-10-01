@@ -27,6 +27,7 @@ public static class MaterialTests
         {
             nat.Materials = 0;
             Check(Commands.Apply(w, s, Cmd.Build(Me, lumberAt, Bld.Lumber), null) == 0, "a lumber mill is built with an empty store (it costs no materials)");
+            for (int k = 0; k < 2000 && !s.Buildings[lumberAt].Contains(Bld.Lumber); k++) Simulation.Step(w, s, null);
             int before = Rules.ProvinceMaterials(s, lumberAt);
             Check(before >= Rules.LumberMaterials, $"the lumber mill yields +{Rules.LumberMaterials} a cycle");
             long m0 = nat.Materials;

@@ -42,6 +42,13 @@ public static class Rules
     public static int BuildMaterials(Bld b, NationState nat) =>
         (int)((long)MaterialCost[(int)b] * Policy.EraPermille(nat.Era) / 1000 * (100 - Math.Min(90, Techs.Sum(nat, TechFx.MaterialDiscount))) / 100);
 
+    /// <summary>The gold nation n pays for b in p now: dearer while other jobs stand there (Construction.SurchargePct).</summary>
+    public static int BuildPriceAt(GameState s, int p, Bld b, int n) =>
+        (int)((long)BuildPrice(b, s.Nat[n]) * (100 + Construction.SurchargePct(s, p)) / 100);
+
+    public static int BuildMaterialsAt(GameState s, int p, Bld b, int n) =>
+        (int)((long)BuildMaterials(b, s.Nat[n]) * (100 + Construction.SurchargePct(s, p)) / 100);
+
     // ---------------------------------------------------------------- materials and ore
 
     /// <summary>Materials every nation starts with, and what sources yield per rules cycle (whole units).</summary>
@@ -130,13 +137,14 @@ public static class Rules
         foreach (var b in MenuOrder) if (f.Allows(p, b)) into.Add(b);
     }
 
-    /// <summary>Buildings nation n can start in p now: owned, a free slot, allowed by terrain and knowledge, not built yet.</summary>
+    /// <summary>Buildings nation n can start in p now: owned, a free slot, allowed by terrain and knowledge, neither
+    /// standing nor going up there.</summary>
     public static List<Bld> BuildOptions(WorldData w, GameState s, int p, int n)
     {
         var list = new List<Bld>(8);
-        if (p < 0 || p >= w.P || s.Owner[p] != n || s.Buildings[p].Count >= s.Slots[p]) return list;
+        if (p < 0 || p >= w.P || s.Owner[p] != n || Construction.Occupied(s, p) >= s.Slots[p]) return list;
         TerrainOptions(w, p, list);
-        list.RemoveAll(b => s.Buildings[p].Contains(b) || !Techs.Allows(s.Nat[n], b));
+        list.RemoveAll(b => s.Buildings[p].Contains(b) || Construction.Has(s, p, b) || !Techs.Allows(s.Nat[n], b));
         return list;
     }
 
@@ -144,9 +152,9 @@ public static class Rules
     public static List<Bld> LockedOptions(WorldData w, GameState s, int p, int n)
     {
         var list = new List<Bld>(8);
-        if (p < 0 || p >= w.P || s.Owner[p] != n || s.Buildings[p].Count >= s.Slots[p]) return list;
+        if (p < 0 || p >= w.P || s.Owner[p] != n || Construction.Occupied(s, p) >= s.Slots[p]) return list;
         TerrainOptions(w, p, list);
-        list.RemoveAll(b => s.Buildings[p].Contains(b) || Techs.Allows(s.Nat[n], b));
+        list.RemoveAll(b => s.Buildings[p].Contains(b) || Construction.Has(s, p, b) || Techs.Allows(s.Nat[n], b));
         return list;
     }
 
@@ -154,20 +162,23 @@ public static class Rules
     {
         if (p < 0 || p >= w.P || s.Owner[p] != n) return BuildError.NotOwned;
         if ((uint)b >= (uint)Cost.Length) return BuildError.NotAllowed;
-        if (s.Buildings[p].Count >= s.Slots[p]) return BuildError.NoSlot;
-        if (s.Buildings[p].Contains(b)) return BuildError.AlreadyBuilt;
+        if (Construction.Occupied(s, p) >= s.Slots[p]) return BuildError.NoSlot;
+        if (s.Buildings[p].Contains(b) || Construction.Has(s, p, b)) return BuildError.AlreadyBuilt;
         if (!WorldFacts.Of(w).Allows(p, b)) return BuildError.NotAllowed;
         if (!Techs.Allows(s.Nat[n], b)) return BuildError.NeedTech;
-        if (s.Nat[n].Treasury < BuildPrice(b, s.Nat[n]) * Cents) return BuildError.NoGold;
-        if (s.Nat[n].Materials < BuildMaterials(b, s.Nat[n])) return BuildError.NoMaterials;
+        if (s.Nat[n].Treasury < BuildPriceAt(s, p, b, n) * Cents) return BuildError.NoGold;
+        if (s.Nat[n].Materials < BuildMaterialsAt(s, p, b, n)) return BuildError.NoMaterials;
         return BuildError.None;
     }
 
+    /// <summary>Pay for b in p and lay its foundation: it stands when Construction says so.</summary>
     public static void Build(GameState s, int p, Bld b, int n)
     {
-        s.Nat[n].Treasury -= BuildPrice(b, s.Nat[n]) * Cents;
-        s.Nat[n].Materials -= BuildMaterials(b, s.Nat[n]);
-        s.Buildings[p].Add(b);
+        long gold = BuildPriceAt(s, p, b, n) * Cents;
+        int mats = BuildMaterialsAt(s, p, b, n);
+        s.Nat[n].Treasury -= gold;
+        s.Nat[n].Materials -= mats;
+        Construction.Start(s, p, b, n, gold, mats);
     }
 
     // ---------------------------------------------------------------- geology

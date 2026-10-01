@@ -513,14 +513,18 @@ public partial class ProvincePanel : PanelContainer
         flow.Add(Kit.Kv(("Культура", Game.I.Nations[GameState.LocalPlayer].CultureAdj, null),
             ("Вера", rel >= 0 ? Data.Religions[rel].Name : "—", rel >= 0 ? Pal.Religion(rel) : null)), 10);
 
-        // buildings
+        // buildings: those standing, then those going up (a bar each, live), then a free plot
         var blds = s.Buildings[p];
-        flow.Add(Kit.H4("Постройки", $"{blds.Count} / {s.Slots[p]}"), 20, 10);
+        var jobs = Game.I.BuildJobs(p);
+        flow.Add(Kit.H4("Постройки", $"{blds.Count + jobs.Count} / {s.Slots[p]}"), 20, 10);
         foreach (var b in blds)
             flow.Add(Kit.Row(BuildingIcon(b), Data.BldName[(int)b], BuildingEffect(s, p, b)), 0, 5);
-        if (blds.Count < s.Slots[p])
+        foreach (var job in jobs) AddJob(flow, p, job);
+        if (blds.Count + jobs.Count < s.Slots[p])
         {
-            flow.Add(Kit.Slot("Свободный участок — построить", () => { _buildOpen = !_buildOpen; Rebuild(); }), 0, 5);
+            int extra = Game.I.BuildSurcharge(p);
+            flow.Add(Kit.Slot(extra > 0 ? $"Ещё участок — строить рядом дороже на {extra}% и медленнее" : "Свободный участок — построить",
+                () => { _buildOpen = !_buildOpen; Rebuild(); }), 0, 5);
             if (_buildOpen)
             {
                 var buttons = new List<Button>();
@@ -529,16 +533,18 @@ public partial class ProvincePanel : PanelContainer
                 menu.AddRange(Game.I.LockedBuildOptions(p));   // not known yet: shown greyed with what opens them
                 foreach (var b in menu)
                 {
-                    if (blds.Contains(b)) continue;
+                    if (blds.Contains(b) || jobs.Exists(j => j.Building == b)) continue;
                     var bb = b;
                     bool locked = !open.Contains(b);
-                    int cost = Game.I.BuildCost(b), mat = Game.I.BuildMaterials(b);
+                    int cost = Game.I.BuildCost(p, b), mat = Game.I.BuildMaterials(p, b);
                     var btn = Ui.Button(Data.BldName[(int)b], BuildingIcon(b), "Menu", () => { _buildOpen = false; Game.I.Build(p, bb); Rebuild(); }, 1, 28);
                     btn.Tip(t =>
                     {
                         var st = Game.I.State;
                         t.Title(Data.BldName[(int)bb]).Line(BuildingEffect(st, p, bb, full: true)).Kv("Стоимость", mat > 0 ? $"{cost} золота · {mat} материалов" : $"{cost} золота");
                         if (locked) { t.Kv("Закрыто", Game.I.BuildProblem(p, bb) ?? "", Pal.Bad); return; }
+                        t.Kv("Строить", $"≈{Game.I.BuildSeconds(p, bb)} с");
+                        if (Game.I.BuildSurcharge(p) is int sur and > 0) t.Kv("Рядом стройка", $"дороже на {sur}%, все идут медленнее", Pal.Warn);
                         t.Kv("В казне", Fmt.Int(st.Gold), st.Gold >= cost ? Pal.Ok : Pal.Bad);
                         if (mat > 0) t.Kv("На складе", Fmt.Int(st.Materials), st.Materials >= mat ? Pal.Ok : Pal.Bad);
                     });
@@ -594,6 +600,28 @@ public partial class ProvincePanel : PanelContainer
             SyncQueue();
             _live.Add(SyncQueue);
         }
+    }
+
+    /// <summary>A building going up: its row (how far, how long, call off) and a bar, both updated live.</summary>
+    void AddJob(Flow flow, int p, GameState.BuildJob job)
+    {
+        var b = job.Building;
+        var meta = Ui.Text("", "SmallMu");
+        var cancel = Ui.IconButton("x", "Ib", 26, 26, 1, () => { Game.I.CancelBuild(p, b); Rebuild(); });
+        cancel.Tip(t => t.Title("Отменить стройку").Line($"Вернётся половина: {job.Gold * Construction.RefundPct / 100 / Rules.Cents} золота"
+            + (job.Materials > 0 ? $" и {job.Materials * Construction.RefundPct / 100} материалов" : "")));
+        var name = Ui.Text(Data.BldName[(int)b], "Strong");
+        flow.Add(Kit.Row(BuildingIcon(b), null, textLabel: name, metaLabel: meta, action: cancel), 0, 5);
+        var bar = flow.Add(new Progress(), 7);
+        void Sync()
+        {
+            int pm = Construction.PermilleDone(job);
+            bool strike = Game.I.IsReady && !Unrest.Works(Game.I.State, p);
+            meta.Text = strike ? $"{pm / 10}% · стоит: забастовка" : $"{pm / 10}% · ≈{Game.I.BuildJobSeconds(job)} с";
+            bar.Value = pm / 1000f;
+        }
+        Sync();
+        _live.Add(Sync);
     }
 
     /// <summary>Capital-only «Разведчики» section: header, one row per party, and the two buttons, which stay the same

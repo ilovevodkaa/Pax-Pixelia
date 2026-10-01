@@ -395,6 +395,7 @@ public partial class Hud : CanvasLayer
     {
         var g = Game.I;
         if (!g.IsReady) return;
+        _tipDirty = true;   // the hover tip may tell what a right click does with the tribe
         int home = Sim.Scouts.Capital(g.State, g.Viewer);
         if (_panel.Visible && home >= 0 && _panel.Province != home && (g.State.Nat[g.Viewer].Camp >= 0 || g.Selected == home))
         {

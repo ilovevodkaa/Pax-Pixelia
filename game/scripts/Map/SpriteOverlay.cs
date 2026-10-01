@@ -13,8 +13,6 @@ namespace PaxPixelia.Map;
 /// </summary>
 internal partial class SpriteOverlay : ChunkedOverlay
 {
-    readonly List<Rect2> _keep = new();        // level px boxes buildings keep clear of, per province (reused)
-
     public override void _Ready() => TextureFilter = TextureFilterEnum.Nearest;
 
     protected override bool Wants(int p)
@@ -35,8 +33,7 @@ internal partial class SpriteOverlay : ChunkedOverlay
             foreach (int p in Members[c.Index])
             {
                 if (!KnownAt(p)) continue;
-                bool cap = mem.CapitalOf(p) >= 0;
-                bool city = cap ? plan.Sprite[p] || level < 2 : plan.Sprite[p] || (level is 1 or 2 && mem.IsTown(p));
+                bool city = BuildingPlacement.CityShown(mem, plan, level, p, out bool cap);
                 int nation = mem.Colours(p), era = mem.Era(p);
                 float cx = (w.PCX[p] + .5f) * z - origin.X, cy = (w.PCY[p] + .5f) * z - origin.Y;
                 if (level >= 5) DrawBuildings(c, pass, p, nation, cap, city, plan, origin);
@@ -57,36 +54,14 @@ internal partial class SpriteOverlay : ChunkedOverlay
     {
         var list = Map.Memory.Buildings(p);
         if (list.Count == 0) return;
-        var w = Game.I.World; var labels = Map.Labels;
-        int level = plan.Level, bs = Lod.BuildingScale(level);
-        float z = plan.Z, half = 5 * bs + 1;                 // icon 10×10 sprite px
-        _keep.Clear();
-        if (city) _keep.Add(labels.SpriteRect(w, p, cap, level, z).Grow(2));
-        if (plan.Name[p]) _keep.Add((city ? labels.NameRect(w, p, cap, level, z) : labels.ProvRect(w, p, z)).Grow(1));
-        var plots = Map.Plots.Of(p);
-        Span<bool> used = stackalloc bool[plots.Length];
-        for (int k = 0; k < list.Count; k++)
+        int bs = Lod.BuildingScale(plan.Level);
+        float z = plan.Z;
+        Span<Vector2> at = stackalloc Vector2[Math.Min(list.Count, 32)];
+        int placed = BuildingPlacement.Place(Map, p, cap, city, plan, list, at);
+        for (int k = 0; k < placed; k++)
         {
-            int best = -1; float bestScore = float.MinValue;
-            for (int i = 0; i < plots.Length; i++)
-            {
-                if (used[i]) continue;
-                var q = plots[i];
-                float dx = q.X - w.PCX[p], dy = q.Y - w.PCY[p];
-                float s = BuildingPlots.Score(list[k], q, MathF.Sqrt(dx * dx + dy * dy));
-                if (s <= bestScore) continue;
-                var box = new Rect2((q.X + .5f) * z - half, (q.Y + .5f) * z - half, half * 2, half * 2);
-                bool clear = true;
-                foreach (var r in _keep) if (box.Intersects(r)) { clear = false; break; }
-                if (!clear) continue;
-                best = i; bestScore = s;
-            }
-            if (best < 0) return;                            // a crowded little province shows what fits
-            used[best] = true;
-            var pl = plots[best];
-            _keep.Add(new Rect2((pl.X + .5f) * z - half, (pl.Y + .5f) * z - half, half * 2, half * 2));
             int id = MapAtlas.Building((int)list[k]);
-            float x = (pl.X + .5f) * z - origin.X, y = (pl.Y + .5f) * z - origin.Y;
+            float x = at[k].X * z - origin.X, y = at[k].Y * z - origin.Y;
             if (pass == 0) MapAtlas.DrawShadow(c, id, x, y, bs);
             else MapAtlas.DrawSprite(c, id, nation, x, y, bs);
         }

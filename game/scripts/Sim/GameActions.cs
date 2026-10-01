@@ -423,6 +423,36 @@ public partial class Game : ISimSink
     public IReadOnlyList<Data.Bld> BuildOptions(int p) => IsReady ? Rules.BuildOptions(World, State, p, Viewer) : Array.Empty<Data.Bld>();
     public int BuildCost(Data.Bld b) => IsReady ? Rules.BuildPrice(b, State.Nat[Viewer]) : Rules.BuildCost(b);
     public int BuildMaterials(Data.Bld b) => IsReady ? Rules.BuildMaterials(b, State.Nat[Viewer]) : Rules.BuildMaterials(b);
+    /// <summary>What b costs in p now: dearer while other buildings go up there.</summary>
+    public int BuildCost(int p, Data.Bld b) => IsReady && (uint)p < (uint)World.P ? Rules.BuildPriceAt(State, p, b, Viewer) : BuildCost(b);
+    public int BuildMaterials(int p, Data.Bld b) => IsReady && (uint)p < (uint)World.P ? Rules.BuildMaterialsAt(State, p, b, Viewer) : BuildMaterials(b);
+    /// <summary>The surcharge (%) a new job in p pays for the jobs already under way there.</summary>
+    public int BuildSurcharge(int p) => IsReady && (uint)p < (uint)World.P ? Construction.SurchargePct(State, p) : 0;
+    /// <summary>Seconds at the current speed a new b in p would take.</summary>
+    public int BuildSeconds(int p, Data.Bld b) => IsReady && (uint)p < (uint)World.P ? (int)Math.Ceiling(CyclesToSeconds(Construction.CyclesFor(State, p, b))) : 0;
+
+    /// <summary>The buildings going up in p, in the order they were ordered.</summary>
+    public List<GameState.BuildJob> BuildJobs(int p)
+    {
+        var list = new List<GameState.BuildJob>();
+        if (!IsReady) return list;
+        foreach (var j in State.Builds) if (j.Province == p) list.Add(j);
+        return list;
+    }
+
+    /// <summary>Seconds left for job j at the current speed (strikes aside).</summary>
+    public int BuildJobSeconds(GameState.BuildJob j) => IsReady ? (int)Math.Ceiling(CyclesToSeconds(Construction.CyclesLeft(State, j))) : 0;
+
+    /// <summary>Call off the building going up: half of what it cost comes back.</summary>
+    public void CancelBuild(int p, Data.Bld b)
+    {
+        if (!IsReady) return;
+        var j = Construction.Find(State, p, b);
+        if (j == null) return;
+        long gold = j.Gold * Construction.RefundPct / 100 / Rules.Cents; int mat = j.Materials * Construction.RefundPct / 100;
+        if (Issue(Cmd.CancelBuild(Viewer, p, b)) != 0) { ShowRefusal("Эту стройку уже не отменить"); return; }
+        Notify("hammer", $"{World.PName[p]}: стройка «{Data.BldName[(int)b]}» отменена (+{gold} золота{(mat > 0 ? $", +{mat} материалов" : "")})");
+    }
 
     /// <summary>Where the local nation's materials come from: lumber mills, quarries, mines on metal veins, the capital.</summary>
     public (int lumber, int quarry, int mines, int capital) MaterialSources()
@@ -440,14 +470,14 @@ public partial class Game : ISimSink
         return (l, q, m, c);
     }
 
-    string BuildText(BuildError e, Data.Bld b) => e switch
+    string BuildText(BuildError e, Data.Bld b, int p = -1) => e switch
     {
         BuildError.NotOwned => "Строить можно только в своих провинциях",
         BuildError.NoSlot => "Свободных участков не осталось",
-        BuildError.AlreadyBuilt => "Такая постройка здесь уже есть",
+        BuildError.AlreadyBuilt => "Такая постройка здесь уже есть или строится",
         BuildError.NotAllowed => "Местность не подходит для этой постройки",
-        BuildError.NoGold => $"Не хватает золота: нужно {BuildCost(b)}",
-        BuildError.NoMaterials => $"Не хватает материалов: нужно {BuildMaterials(b)}. Постройте лесопилку или каменоломню",
+        BuildError.NoGold => $"Не хватает золота: нужно {BuildCost(p, b)}",
+        BuildError.NoMaterials => $"Не хватает материалов: нужно {BuildMaterials(p, b)}. Постройте лесопилку или каменоломню",
         BuildError.NeedTech => Techs.For(b) is int t and >= 0 ? $"Нужна технология «{Techs.All[t].Name}»" : "Нужна технология",
         _ => "Строительство невозможно",
     };
@@ -457,7 +487,7 @@ public partial class Game : ISimSink
     {
         if (!IsReady) return "Мир ещё не создан";
         var e = Rules.CheckBuild(World, State, p, b, Viewer);
-        return e == BuildError.None ? null : BuildText(e, b);
+        return e == BuildError.None ? null : BuildText(e, b, p);
     }
 
     /// <summary>Buildings the land of p allows that the nation does not know yet (shown locked in the build menu).</summary>
@@ -467,11 +497,13 @@ public partial class Game : ISimSink
     {
         if (!IsReady) return;
         var err = Rules.CheckBuild(World, State, p, b, Viewer);
-        if (err != BuildError.None) { ShowRefusal(BuildText(err, b)); return; }
-        int gold = BuildCost(b), mat = BuildMaterials(b);
+        if (err != BuildError.None) { ShowRefusal(BuildText(err, b, p)); return; }
+        int gold = BuildCost(p, b), mat = BuildMaterials(p, b);
         int r = Issue(Cmd.Build(Viewer, p, b));
-        if (r != 0) { ShowRefusal(BuildText((BuildError)r, b)); return; }
-        Notify("hammer", $"{World.PName[p]}: заложена постройка «{Data.BldName[(int)b]}» (−{gold} золота{(mat > 0 ? $", −{mat} материалов" : "")})");
+        if (r != 0) { ShowRefusal(BuildText((BuildError)r, b, p)); return; }
+        var job = Construction.Find(State, p, b);
+        int secs = job != null ? BuildJobSeconds(job) : 0;
+        Notify("hammer", $"{World.PName[p]}: заложена постройка «{Data.BldName[(int)b]}» (−{gold} золота{(mat > 0 ? $", −{mat} материалов" : "")}), достроят через ≈{secs} с");
     }
 
     string SurveyText(SurveyError e) => e switch

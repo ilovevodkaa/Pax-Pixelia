@@ -180,16 +180,13 @@ internal partial class ScoutOverlay : MapOverlay
         }
         else _pts.Clear();
         var at = new Vector2(w.PCX[p] + .5f, w.PCY[p] + .5f);
-        var anchor = _pts.Count > 0 ? _pts[0] : at;
         float sy = v.ScreenY(at.Y);
         if (sy < -40 || sy > v.Screen.Y + 40) return;
-        // the end mark sits on the hovered province: its copy nearest the start across the world wrap
-        float ex = at.X;
-        while (ex - anchor.X > w.W / 2f) ex -= w.W;
-        while (anchor.X - ex > w.W / 2f) ex += w.W;
-        for (float sx0 = v.FirstX(anchor.X, 400); sx0 < v.Screen.X + 400; sx0 += v.WZ)
+        // copies wrap on the route's end, the hovered province (on screen): the unit itself may be far off screen
+        float endX = _pts.Count > 1 ? _pts[^1].X : at.X;
+        for (float sx0 = v.FirstX(endX, 400); sx0 < v.Screen.X + 400; sx0 += v.WZ)
         {
-            var off = new Vector2(sx0 - anchor.X * z, v.Origin.Y);
+            var off = new Vector2(sx0 - endX * z, v.Origin.Y);
             if (_pts.Count > 1)
             {
                 BuildDashes(off, z, lw, dashOffset);
@@ -200,7 +197,7 @@ internal partial class ScoutOverlay : MapOverlay
                     DrawMultiline(span, ok ? Pick : PickBad, lw);
                 }
             }
-            var e = new Vector2(ex * z + off.X, at.Y * z + off.Y);
+            var e = new Vector2(sx0, at.Y * z + off.Y);
             if (ok && _pts.Count > 1) DrawSprite(MapAtlas.TargetFlag, GameState.LocalPlayer, e.X + pz * 2, e.Y - pz * 3, pz);
             else if (!ok) DrawCross(e, Math.Max(5, pz * 3));
         }

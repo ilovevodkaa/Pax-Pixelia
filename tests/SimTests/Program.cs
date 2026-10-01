@@ -48,6 +48,7 @@ public static class Program
         FirstsTests.Run(w);
         EurekaTests.Run(w);
         MaterialTests.Run(w);
+        ConstructionTests.Run(w);
         PolicyTests.Run(w);
         WonderTests.Run(w);
         UnrestTests.Run(w);

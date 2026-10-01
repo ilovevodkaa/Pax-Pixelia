@@ -57,6 +57,29 @@ public static class ScoutOrderTests
         while (s.Scouts.Count > 0 && guard++ < 4000) Simulation.Step(w, s, rec);
         Check(s.Scouts.Count == 0 && rec.Notes.Any(n => n.text.Contains(w.PName[back])), $"the party reached {w.PName[back]} and came home with its maps");
 
+        Section("unit orders: a walking tribe turns without a jump back");
+        var t = NationGen.CreateInitialState(w);
+        t.Nat[Me].Control = NationControl.Human;
+        Nomads.Start(w, t);
+        Simulation.Begin(w, t);
+        var me = t.Nat[Me];
+        var near = new SimScratch.Bfs(w.P);
+        near.RunLand(w, new[] { me.Camp });
+        int two = Enumerable.Range(0, w.P).Where(p => near.Dist[p] == 2 && me.Fog.Explored[p]).OrderBy(p => p).FirstOrDefault(-1);
+        int other = Enumerable.Range(0, w.P).Where(p => near.Dist[p] == 2 && me.Fog.Explored[p] && p != two).OrderBy(p => p).FirstOrDefault(-1);
+        if (two >= 0 && other >= 0)
+        {
+            Check(Commands.Apply(w, t, Cmd.TribeTo(Me, two), null) == 0, "the tribe sets out two provinces away");
+            for (int k = 0; k < 6; k++) Simulation.Step(w, t, null);
+            int camp = me.Camp, stepTo = me.CampPath[me.CampStep + 1], tsub = me.CampSub;
+            Check(tsub > 0 && Commands.Apply(w, t, Cmd.TribeTo(Me, other), null) == 0, $"sent elsewhere mid-step ({tsub} of {Nomads.StepTicks})");
+            Check(me.Camp == camp && me.CampSub == tsub && me.CampStep == 0 && me.CampPath[0] == camp && me.CampPath[1] == stepTo && me.CampPath[^1] == other,
+                "it keeps the camp and the step under way, then heads for the new place");
+            Check(Commands.Apply(w, t, Cmd.TribeTo(Me, camp), null) == 0 && me.CampPath[1] == stepTo && me.CampPath[^1] == camp,
+                "back to the camp mid-step: one step on and one back, never a jump");
+        }
+        else Check(true, "no explored land two steps from the camp (skip)");
+
         Section("unit orders: the journal");
         var c = Cmd.ScoutMove(Me, 12, 345);
         var line = c.ToLine();

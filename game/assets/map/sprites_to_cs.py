@@ -17,6 +17,7 @@ import pp                                   # noqa: E402
 from city_sprites import ERAS               # noqa: E402
 from building_sprites import BUILDINGS      # noqa: E402
 import unit_sprites as U                    # noqa: E402
+from site_sprites import SITES, PUFF          # noqa: E402
 
 
 def cs_rows(rows, indent):
@@ -66,6 +67,12 @@ def main():
         parts.append(cs_sprite_list(name.capitalize(), [('frame %d' % i, f) for i, f in enumerate(frames)],
                                     '%s: 4 frames facing right (+1 px outline when baked).' % name.capitalize()))
         parts.append('')
+    parts.append(cs_sprite_list('Sites', [('%s frame %d' % (name, i), f) for name, fr in SITES for i, f in enumerate(fr)],
+                                'Construction scaffold per era (10×12, era-major: 4 frames each; +1 px outline when baked).'))
+    parts.append('')
+    parts.append(cs_sprite_list('Puff', [('frame %d' % i, f) for i, f in enumerate(PUFF)],
+                                'The dust of a finished building: 2 frames, no outline (10×12).'))
+    parts.append('')
     parts.append('}')
     with open(OUT, 'w', encoding='utf-8', newline='\n') as f:
         f.write('\n'.join(parts) + '\n')

@@ -27,7 +27,7 @@ internal static class MapAtlas
     }
 
     static readonly List<Def> Defs = new();
-    static readonly int Bld0, Unit0, Idle0, Flag0, TargetFlagId, RhombusId, DotId;
+    static readonly int Bld0, Unit0, Idle0, Flag0, TargetFlagId, RhombusId, DotId, Site0, Puff0;
 
     static MapAtlas()
     {
@@ -57,6 +57,10 @@ internal static class MapAtlas
         Add(new[] { "..A..", ".ANN.", "ANNND", ".NDD.", "..D.." }, true);
         DotId = Defs.Count;
         Add(new[] { "p" }, true);
+        Site0 = Defs.Count;
+        foreach (var rows in SpriteData.Sites) Add(rows, true);
+        Puff0 = Defs.Count;
+        foreach (var rows in SpriteData.Puff) Add(rows, true);
     }
 
     // ---------------------------------------------------------------- ids
@@ -69,6 +73,10 @@ internal static class MapAtlas
     public static int TargetFlag => TargetFlagId;
     public static int Rhombus => RhombusId;
     public static int Dot => DotId;
+    /// <summary>The construction scaffold of an era (frame 0..3), 10×12 + outline: the building's icon rises inside it.</summary>
+    public static int Site(int era, int frame) => Site0 + Math.Clamp(era, 0, Eras - 1) * 4 + (frame & 3);
+    /// <summary>The dust of a building just finished (frame 0..1).</summary>
+    public static int Puff(int frame) => Puff0 + (frame & 1);
 
     public static Vector2I Size(int id) { var d = Defs[id]; return new Vector2I(d.W, d.H); }
     /// <summary>Topmost solid pixel of a sprite (in sprite px from its top-left corner).</summary>
@@ -247,6 +255,21 @@ internal static class MapAtlas
 
     public static void DrawSprite(CanvasItem ci, int id, int n, float cx, float cy, int ps) =>
         ci.DrawTextureRectRegion(Texture, Dest(id, cx, cy, ps), Region(id, n + 1));
+
+    /// <summary>Only the bottom `rows` sprite rows of id (a building rising on its plot), where the whole sprite would
+    /// stand, with their drop shadow.</summary>
+    public static void DrawBottom(CanvasItem ci, int id, int n, float cx, float cy, int ps, int rows)
+    {
+        var d = Defs[id];
+        rows = Math.Clamp(rows, 0, d.H);
+        if (rows == 0) return;
+        int cut = d.H - rows;
+        var r = Dest(id, cx, cy, ps);
+        var dst = new Rect2(r.Position.X, r.Position.Y + cut * ps, r.Size.X, rows * ps);
+        Rect2 Src(int col) { var s = Region(id, col); return new Rect2(s.Position.X, s.Position.Y + cut, s.Size.X, rows); }
+        ci.DrawTextureRectRegion(Texture, new Rect2(dst.Position + new Vector2(ps, ps), dst.Size), Src(0), ShadowTint);
+        ci.DrawTextureRectRegion(Texture, dst, Src(n + 1));
+    }
 
     /// <summary>A 1 px rim round the silhouette (4 offsets): a figure standing on a label, a capital's nation rim.</summary>
     public static void DrawRim(CanvasItem ci, int id, float cx, float cy, int ps, Color color, int px = 1)

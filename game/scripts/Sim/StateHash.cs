@@ -115,6 +115,15 @@ public sealed partial class GameState
             bld.Add(Slots[p]); bld.Add(Ore[p]); bld.Add(OreFound[p]); bld.Add(Buildings[p].Count);
             foreach (var b in Buildings[p]) bld.Add((long)b);
         }
+        if (Builds.Count > 0)   // nothing going up hashes as before construction took time
+        {
+            bld.Add(-16L);
+            foreach (var j in Builds)
+            {
+                bld.Add(j.Province); bld.Add((long)j.Building); bld.Add(j.Nation); bld.Add(j.Era);
+                bld.Add(j.Work); bld.Add(j.Total); bld.Add(j.Gold); bld.Add(j.Materials);
+            }
+        }
 
         var fog = new Fnv();
         for (int n = 0; n < Nat.Length; n++)

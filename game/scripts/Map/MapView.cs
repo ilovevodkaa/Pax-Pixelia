@@ -33,6 +33,7 @@ public partial class MapView : Node2D
     NameOverlay _names;
     LabelOverlay _labels;
     ScoutOverlay _scouts;
+    SiteOverlay _sites;
     RumorOverlay _rumors;
     RuinOverlay _ruins;
     int _climateKey = int.MinValue;
@@ -70,13 +71,14 @@ public partial class MapView : Node2D
         _world.AddChild(_riverCasing); _world.AddChild(_riverWater); _world.AddChild(_routeCasing); _world.AddChild(_routeDash);
 
         _sprites = new SpriteOverlay { Name = "Sprites", Map = this };
+        _sites = new SiteOverlay { Name = "Sites", Map = this };
         _life = new LifeOverlay { Name = "Life", Map = this };
         _names = new NameOverlay { Name = "Names", Map = this };
         _labels = new LabelOverlay { Name = "Labels", Map = this };
         _scouts = new ScoutOverlay { Name = "Scouts", Map = this };
         _rumors = new RumorOverlay { Name = "Rumors", Map = this };
         _ruins = new RuinOverlay { Name = "Ruins", Map = this };
-        AddChild(_sprites); AddChild(_life); AddChild(_names); AddChild(_labels); AddChild(_ruins); AddChild(_rumors); AddChild(_scouts);
+        AddChild(_sprites); AddChild(_sites); AddChild(_life); AddChild(_names); AddChild(_labels); AddChild(_ruins); AddChild(_rumors); AddChild(_scouts);
 
         var g = Game.I;
         g.WorldReady += OnWorldReady;
@@ -280,7 +282,7 @@ public partial class MapView : Node2D
         View = v;
         _world.Transform = new Transform2D(new Vector2(v.Zoom, 0), new Vector2(0, v.Zoom), v.Origin);
         if (zoomChanged) foreach (var m in _mats) m.SetShaderParameter(UZoom, v.Zoom);
-        _sprites.UpdateView(); _names.UpdateView(); _labels.QueueRedraw(); _scouts.QueueRedraw(); _rumors.QueueRedraw();
+        _sprites.UpdateView(); _names.UpdateView(); _labels.QueueRedraw(); _scouts.QueueRedraw(); _rumors.QueueRedraw(); _sites.QueueRedraw();
     }
 
     /// <summary>The player's unit (scout party, tribe) drawn under a screen point, or none.</summary>

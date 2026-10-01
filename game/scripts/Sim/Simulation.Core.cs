@@ -116,6 +116,7 @@ public static partial class Simulation
         Unrest.Plague(w, s, cycle, sink);
         Unrest.Cycle(w, s, sink, ref changed);
         Diplomacy.Cycle(w, s, cycle, sink, ref changed);
+        Construction.Cycle(w, s, sink, ref changed);
         for (int n = 0; n < s.Nat.Length; n++) Queue(s, n, sink, ref changed);
         Cities.Grow(w, s, sink, ref changed);
         Bots.Act(w, s, cycle, sc, sink, ref changed);
@@ -364,7 +365,7 @@ public static partial class Simulation
         int cap = s.NationCapital[n];
         if (pr.Building is Bld b)
         {
-            if (s.Buildings[cap].Count >= s.Slots[cap]) s.Slots[cap]++;   // the project brings its own plot
+            if (Construction.Occupied(s, cap) >= s.Slots[cap]) s.Slots[cap]++;   // the project brings its own plot
             s.Buildings[cap].Add(b);
             (changed ??= new List<int>()).Add(cap);
         }
@@ -392,7 +393,7 @@ public static partial class Simulation
     {
         int cap = s.NationCapital[n];
         foreach (var pr in Projects)
-            if (pr.Building is Bld b && !(cap >= 0 && s.Buildings[cap].Contains(b)) && !Techs.Allows(s.Nat[n], b)) return true;
+            if (pr.Building is Bld b && !(cap >= 0 && InHand(s, cap, b)) && !Techs.Allows(s.Nat[n], b)) return true;
         return false;
     }
 
@@ -419,8 +420,11 @@ public static partial class Simulation
     {
         if (Projects[i].Building is not Bld b) return (s.Nat[n].ProjectsDone & (1 << i)) == 0;
         int cap = s.NationCapital[n];
-        return !(cap >= 0 && s.Buildings[cap].Contains(b)) && Techs.Allows(s.Nat[n], b);
+        return !(cap >= 0 && InHand(s, cap, b)) && Techs.Allows(s.Nat[n], b);
     }
+
+    /// <summary>b stands in the capital or is going up there by hand: the queue moves on.</summary>
+    static bool InHand(GameState s, int cap, Bld b) => s.Buildings[cap].Contains(b) || Construction.Has(s, cap, b);
 
     /// <summary>World-wrapped distance between province anchors in whole pixels.</summary>
     public static int Distance(WorldData w, int a, int b)

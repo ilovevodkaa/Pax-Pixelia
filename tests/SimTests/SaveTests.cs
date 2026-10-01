@@ -47,7 +47,9 @@ public static class SaveTests
         var points = new (string Name, long Tick, Func<GameState, bool> Moment)[]
         {
             ("right after a claim, at its tick boundary", 40, s => s.Owner.Count(o => o == 0) > Fresh(w).Owner.Count(o => o == 0) && s.Tick == 40),
+            ("a recalled party mid-hop", 52, s => s.Scouts.Any(x => x.Nation == 0 && !x.Auto && x.Step == 0 && x.Sub > 0)),
             ("a scout mid-step", 103, s => s.Scouts.Any(x => x.Nation == 0 && x.Sub > 0 && x.Sub < Scouts.SubSteps)),
+            ("a building going up", 400, s => s.Builds.Any(j => j.Nation == 0 && j.Work > 0 && j.Work < j.Total)),
             ("paused", 700, s => s.Paused),
             ("an event choice open", choiceTick, s => s.Events.Pending(0) != null && s.Nat.Sum(n => n.EventCount) > 0),
             ("the last tick", End, s => true),
@@ -259,7 +261,8 @@ public static class SaveTests
         {
             (typeof(GameState), new[] { "Tick", "Day256", "DateTarget", "DateStep", "Pace", "Speed", "Paused", "Nations", "Nat", "NationCapital",
                 "Owner", "Controller", "Pop", "Religion", "Mood", "Slots", "Buildings", "Ore", "OreFound", "CapitalOf", "IsTown", "Unrest", "Plague", "Pull", "RuinsDug", "City", "Growth", "SphereNoted", "Routes",
-                "FogEnabled", "Scouts", "ScoutSeq", "Events", "WonderOwner", "WonderFlag", "Opinion", "Pact", "TributeTo", "DemandFrom", "DemandUntil", "FirstHolder", "FirstCycle" }, new[] { "Scratch" }),
+                "FogEnabled", "Scouts", "ScoutSeq", "Events", "WonderOwner", "WonderFlag", "Opinion", "Pact", "TributeTo", "DemandFrom", "DemandUntil", "FirstHolder", "FirstCycle", "Builds" }, new[] { "Scratch" }),
+            (typeof(GameState.BuildJob), new[] { "Province", "Building", "Nation", "Era", "Work", "Total", "Gold", "Materials" }, Array.Empty<string>()),
             (typeof(NationState), new[] { "Control", "Treasury", "LastTaxes", "LastUpkeep", "Progress", "ScienceRate", "Era", "ProjectIndex",
                 "QueuePct", "ProjectsDone", "EventCount", "Materials", "LastMaterials", "TechsDone", "Researching", "TechPts", "TechPool", "Camp", "CampPath", "CampStep", "CampSub", "Supplies", "TribePop", "Legends", "Myth", "Edicts", "Fog",
                 "CharA", "CharB", "CharLevel", "CharHeld", "CharTraits", "FirstTechs", "Glory", "Wonder", "WonderGold", "WonderMats", "Rulers", "RulerSeed", "RulerNumeral", "RulerStart", "RulerAge0", "RulerLife", "RulerTraits", "Dogmas", "Eurekas", "ChallengeKind", "ChallengeGoal", "ChallengeEnd", "ChallengesWon" }, new[] { "CharFx", "WonderFx", "LeaderFx", "FaithFx", "Firsts" }),

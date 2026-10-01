@@ -173,15 +173,23 @@ public static class ScenarioTests
         Check(opts.Count > 0 && opts.All(b => !s.Buildings[bp].Contains(b)), $"options offered: {string.Join(", ", opts.Select(b => Data.BldName[(int)b]))}");
         Check(opts.All(b => TerrainAllows(w, bp, b)), "options follow the terrain rules");
         Check(Enumerable.Range(0, w.P).Where(p => w.PLand[p] == 1).All(p => SameTerrainAsMockup(w, p)), "integer terrain facts match the float terrain rules everywhere");
-        s.Nat[Me].Treasury = 10_000 * Rules.Cents;
-        s.Nat[Me].Materials = 1000;
+        s.Nat[Me].Treasury = 100_000 * Rules.Cents;
+        s.Nat[Me].Materials = 10_000;
+        int built0 = s.Buildings[bp].Count, jobs = 0;
         while (Rules.BuildOptions(w, s, bp, Me) is { Count: > 0 } o)
         {
             long g0 = s.Nat[Me].Treasury, m0 = s.Nat[Me].Materials;
+            int bprice = Rules.BuildPriceAt(s, bp, o[0], Me), bmats = Rules.BuildMaterialsAt(s, bp, o[0], Me);
+            Check(bprice == Rules.BuildPrice(o[0], s.Nat[Me]) * (100 + Construction.ParallelPct * jobs) / 100, "each job already going up makes the next dearer", quietPass: true);
             if (!Check(Commands.Apply(w, s, Cmd.Build(Me, bp, o[0]), rec) == 0, $"can build {Data.BldName[(int)o[0]]}", quietPass: true)) break;
-            Check(s.Nat[Me].Treasury == g0 - Rules.BuildPrice(o[0], s.Nat[Me]) * Rules.Cents, "building costs gold", quietPass: true);
-            Check(s.Nat[Me].Materials == m0 - Rules.BuildMaterials(o[0], s.Nat[Me]), "building costs materials", quietPass: true);
+            jobs++;
+            Check(s.Nat[Me].Treasury == g0 - bprice * Rules.Cents, "building costs gold", quietPass: true);
+            Check(s.Nat[Me].Materials == m0 - bmats, "building costs materials", quietPass: true);
+            Check(!s.Buildings[bp].Contains(o[0]) && Construction.Has(s, bp, o[0]), "it goes up first: not standing yet", quietPass: true);
         }
+        Check(Construction.Occupied(s, bp) == s.Slots[bp] || opts.Count < s.Slots[bp], $"plots taken: {s.Buildings[bp].Count} standing, {jobs} going up, {s.Slots[bp]} plots");
+        for (int k = 0; k < 4000 && Construction.JobsIn(s, bp) > 0; k++) Simulation.Step(w, s, rec);
+        Check(Construction.JobsIn(s, bp) == 0 && s.Buildings[bp].Count == built0 + jobs, $"all {jobs} jobs stand at last");
         Check(s.Buildings[bp].Count == s.Slots[bp] || opts.Count < s.Slots[bp], "plots filled");
         var any = Enum.GetValues<Data.Bld>().First(b => TerrainAllows(w, bp, b));
         Check(Rules.CheckBuild(w, s, bp, any, Me) is BuildError.NoSlot or BuildError.AlreadyBuilt, "no building beyond the plots");

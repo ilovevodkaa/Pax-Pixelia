@@ -190,16 +190,18 @@ public partial class QaTest : Node
             G.Build(bp, b0);
             t0 = _toasts.Count;
             G.Build(bp, b0);
-            Check("build duplicate refused", s.Buildings[bp].Count(x => x == b0) == 1 && (ErrorSince(t0, "уже есть") || ErrorSince(t0, "участков")), ToastsSince(t0));
+            int copies = s.Buildings[bp].Count(x => x == b0) + G.State.Builds.Count(j => j.Province == bp && j.Building == b0);
+            Check("build duplicate refused", copies == 1 && (ErrorSince(t0, "уже есть") || ErrorSince(t0, "участков")), ToastsSince(t0));
             int guard = 0;
             while (G.BuildOptions(bp).Count > 0 && guard++ < 20) G.Build(bp, G.BuildOptions(bp)[0]);
-            Check("slots filled", s.Buildings[bp].Count == s.Slots[bp], $"{s.Buildings[bp].Count}/{s.Slots[bp]}");
-            var notBuilt = new List<Bld>(); Rules.TerrainOptions(w, bp, notBuilt); notBuilt.RemoveAll(s.Buildings[bp].Contains);
+            Check("slots filled (standing and going up)", Construction.Occupied(G.State, bp) == s.Slots[bp], $"{Construction.Occupied(G.State, bp)}/{s.Slots[bp]}");
+            var notBuilt = new List<Bld>(); Rules.TerrainOptions(w, bp, notBuilt);
+            notBuilt.RemoveAll(x => s.Buildings[bp].Contains(x) || Construction.Has(G.State, bp, x));
             if (notBuilt.Count > 0)
             {
-                t0 = _toasts.Count; int n0 = s.Buildings[bp].Count;
+                t0 = _toasts.Count; int n0 = Construction.Occupied(G.State, bp);
                 G.Build(bp, notBuilt[0]);
-                Check("build with full slots refused", s.Buildings[bp].Count == n0 && ErrorSince(t0, "участков"), ToastsSince(t0));
+                Check("build with full slots refused", Construction.Occupied(G.State, bp) == n0 && ErrorSince(t0, "участков"), ToastsSince(t0));
             }
             else Info("build full", "all terrain options built; cannot test NoSlot separately");
             G.Select(bp); await Frames(3); await Shot("build_full");
@@ -267,7 +269,7 @@ public partial class QaTest : Node
             G.RunTicks(Clock.CycleTicks);
             await Frames(2);
             bool lie = _notes.Skip(notes0).Any(n => n.text == Simulation.Projects[mk].DoneText);
-            int markets = s.Buildings[cap].Count(b => b == Bld.Shrine);
+            int markets = s.Buildings[cap].Count(b => b == Bld.Shrine) + G.State.Builds.Count(j => j.Province == cap && j.Building == Bld.Shrine);
             Check("queue: project already built by hand is not «completed» again", !lie, $"notes: {string.Join(" | ", _notes.Skip(notes0).Select(n => n.text))}; markets={markets}");
         }
 
@@ -1267,21 +1269,26 @@ public partial class QaTest : Node
     {
         var w = G.World; var s = G.State;
         if (s.Scouts.Count == 0) { Fail("unit orders", "no party walking"); return; }
-        G.SetPaused(true); await Frames(2);
+        G.SetPaused(true);
+        G.Select(-1);   // the province panel covers the middle of a small window
+        await Frames(2);
         var party = s.Scouts[0];
         int at = Scouts.Current(party), sel = G.Selected;
         G.JumpCamera(new Vector2(w.PCX[at], w.PCY[at])); await Seconds(.7);
         // the figure: search the overlay's hit boxes around the party's province
         var c = ScreenOf(at);
         Vector2? fig = null;
-        for (int r = 0; r <= 80 && fig == null; r += 4)
-            for (int dx = -r; dx <= r && fig == null; dx += 4)
-                foreach (int dy in new[] { -r, r })
-                    if (Map.UnitAt(c + new Vector2(dx, dy)) == new UnitRef(UnitSel.Scout, party.Id)) { fig = c + new Vector2(dx, dy); break; }
+        for (int r = 0; r <= 90 && fig == null; r += 4)
+            for (int k = -r; k <= r && fig == null; k += 4)
+                foreach (var d in new[] { new Vector2(k, -r), new Vector2(k, r), new Vector2(-r, k), new Vector2(r, k) })
+                    if (Map.UnitAt(c + d) == new UnitRef(UnitSel.Scout, party.Id)) { fig = c + d; break; }
         if (fig == null) { Fail("unit orders: the party's figure is clickable", $"none near {c}"); G.SetPaused(false); return; }
         Motion(fig.Value); await Frames(2);
+        var over = GetViewport().GuiGetHoveredControl();
+        if (over != null) { Info("unit orders", $"the party is under {over.GetPath()}: skipped"); G.SetPaused(false); return; }
         ClickAt(fig.Value); await Frames(3);
-        Check("left click on a walking party picks it", G.SelectedUnit == new UnitRef(UnitSel.Scout, party.Id), $"{G.SelectedUnit}");
+        Check("left click on a walking party picks it", G.SelectedUnit == new UnitRef(UnitSel.Scout, party.Id),
+            $"{G.SelectedUnit} at {fig.Value}, under the mouse: {(over == null ? "the map" : over.GetPath().ToString())}");
         Check("picking a party keeps the province panel", G.Selected == sel, $"selected {sel} → {G.Selected}");
         // land of the party's continent on the left part of the screen (clear of the panel and the bars), under the
         // clouds or not: a party may walk into the unknown

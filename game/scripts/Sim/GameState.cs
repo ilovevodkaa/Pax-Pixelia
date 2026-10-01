@@ -120,6 +120,21 @@ public sealed partial class GameState
     // ---- trade routes: province paths ----
     public List<int[]> Routes = new();
 
+    // ---- buildings going up (Construction.cs), in the order they were ordered ----
+    public List<BuildJob> Builds = new();
+
+    public sealed class BuildJob
+    {
+        public int Province;
+        public Data.Bld Building;
+        public int Nation;          // who ordered it: the job is lost if the province changes hands
+        public int Era;             // the nation's era when it was ordered: the scaffold's look on the map
+        public int Work;            // work done so far, Construction.Work a cycle for a lone job
+        public int Total;           // work it needs
+        public long Gold;           // what was paid (hundredths) and the materials, half of which a call-off gives back
+        public int Materials;
+    }
+
     // ---- world firsts (Firsts.cs): who took each, and in which rules cycle ----
     public short[] FirstHolder;             // per first: nation index or -1 while open
     public int[] FirstCycle;

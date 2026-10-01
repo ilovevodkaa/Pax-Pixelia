@@ -122,7 +122,7 @@ public static class Bots
         }
         if (spare < CheapestBuilding * Policy.EraPermille(nat.Era) / 1000 * Rules.Cents) return;
         var (p, b) = BestBuild(w, s, n, shrines);
-        if (p >= 0 && Rules.BuildPrice(b, nat) * Rules.Cents <= spare) Commands.Apply(w, s, Cmd.Build(n, p, b), sink, changed ??= new List<int>());
+        if (p >= 0 && Rules.BuildPriceAt(s, p, b, n) * Rules.Cents <= spare) Commands.Apply(w, s, Cmd.Build(n, p, b), sink, changed ??= new List<int>());
     }
 
     static readonly int CheapestBuilding = CheapestCost();
@@ -152,7 +152,8 @@ public static class Bots
         int best = -1; Bld bestB = default; long bs = 0;
         for (int p = 0; p < w.P; p++)
         {
-            if (s.Owner[p] != n || s.Buildings[p].Count >= s.Slots[p]) continue;
+            // one job at a time per province: building side by side is dearer and slower
+            if (s.Owner[p] != n || s.Buildings[p].Count >= s.Slots[p] || Construction.JobsIn(s, p) > 0) continue;
             int crowd = -1;   // pop ‰ of capacity, counted only when a food building is on the table
             for (int k = 0; k < Data.BldName.Length; k++)
             {

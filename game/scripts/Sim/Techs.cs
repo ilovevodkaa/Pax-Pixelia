@@ -418,7 +418,7 @@ public static class Techs
         if (nat.TechPts[r] < Cost(r, pace)) return -1;
         long spare = nat.TechPts[r] - Cost(r, pace);
         Learn(nat, r);
-        Bank(nat, spare, (long)PoolCycles * points);   // the overflow goes on to the next choice, within the pool's cap
+        nat.TechPool += spare;   // the overflow of a finished study (a eureka's surplus too) is earned: it goes on whole
         return r;
     }
 

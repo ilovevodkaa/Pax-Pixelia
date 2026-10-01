@@ -22,7 +22,7 @@ namespace PaxPixelia.Sim;
 public sealed partial class GameState
 {
     /// <summary>Layout version of the snapshot (the save file carries it; older layouts are read field by field).</summary>
-    public const int SnapshotVersion = 15;   // 2: materials · 3: technologies · 4: the nomad phase · 5: techs past 64 · 6: character · 7: edicts · 8: world firsts · 9: wonders and glory · 10: eurekas · 11: unrest · 12: challenges · 13: diplomacy · 14: ruins dug · 15: ruler and dogmas
+    public const int SnapshotVersion = 16;   // 2: materials · 3: technologies · 4: the nomad phase · 5: techs past 64 · 6: character · 7: edicts · 8: world firsts · 9: wonders and glory · 10: eurekas · 11: unrest · 12: challenges · 13: diplomacy · 14: ruins dug · 15: ruler and dogmas · 16: construction
 
     const int MaxNations = 255;
 
@@ -157,6 +157,14 @@ public sealed partial class GameState
         {
             w.Write(x.Rulers); w.Write(x.RulerSeed); w.Write(x.RulerNumeral); w.Write(x.RulerStart);
             w.Write(x.RulerAge0); w.Write(x.RulerLife); w.Write(x.RulerTraits); w.Write(x.Dogmas);
+        }
+
+        // ---- buildings going up (16) ----
+        w.Write(Builds.Count);
+        foreach (var j in Builds)
+        {
+            w.Write(j.Province); w.Write((byte)j.Building); w.Write((byte)j.Nation); w.Write((byte)j.Era);
+            w.Write(j.Work); w.Write(j.Total); w.Write(j.Gold); w.Write(j.Materials);
         }
     }
 
@@ -397,6 +405,23 @@ public sealed partial class GameState
                 Require(x.Rulers >= 0 && x.RulerNumeral >= 1 && x.RulerStart >= 0, "ruler");
                 x.RulerTraits &= (1 << Sim.Leader.Count) - 1; x.Dogmas &= (1 << Sim.Faith.Count) - 1;
             }
+
+        if (version >= 16)
+        {
+            int jobs = r.ReadInt32();
+            Require(jobs >= 0 && jobs <= P * 8, "builds");
+            for (int i = 0; i < jobs; i++)
+            {
+                var j = new BuildJob
+                {
+                    Province = r.ReadInt32(), Building = (Bld)r.ReadByte(), Nation = r.ReadByte(), Era = r.ReadByte(),
+                    Work = r.ReadInt32(), Total = r.ReadInt32(), Gold = r.ReadInt64(), Materials = r.ReadInt32(),
+                };
+                Require(j.Province >= 0 && j.Province < P && (int)j.Building < bldKinds && j.Nation < nN && j.Era < Eras.Count
+                        && j.Total > 0 && j.Work >= 0 && j.Work < j.Total && j.Gold >= 0 && j.Materials >= 0, "build job");
+                s.Builds.Add(j);
+            }
+        }
         foreach (var x in s.Nat) { Sim.Leader.Refresh(x); Sim.Faith.Refresh(x); }
         return s;
     }

@@ -38,6 +38,8 @@ public enum CmdType : byte
     Dogma,
     // turn the nation's scout party A (its Scout.Id) to province B
     ScoutMove,
+    // call off the building B going up in province A (half the price back)
+    CancelBuild,
 }
 
 /// <summary>
@@ -68,6 +70,7 @@ public readonly record struct Cmd(int Tick, byte Nation, ushort Seq, CmdType Typ
     public static Cmd Gift(int n, int to) => new(0, (byte)n, 0, CmdType.Gift, to);
     public static Cmd Dogma(int n, int dogma) => new(0, (byte)n, 0, CmdType.Dogma, dogma);
     public static Cmd ScoutMove(int n, int scoutId, int province) => new(0, (byte)n, 0, CmdType.ScoutMove, scoutId, province);
+    public static Cmd CancelBuild(int n, int province, Bld b) => new(0, (byte)n, 0, CmdType.CancelBuild, province, (int)b);
     public static Cmd Pact(int n, int with, bool on) => new(0, (byte)n, 0, CmdType.Pact, with, on ? 1 : 0);
     public static Cmd DemandTribute(int n, int from) => new(0, (byte)n, 0, CmdType.DemandTribute, from);
     public static Cmd AnswerDemand(int n, bool pay) => new(0, (byte)n, 0, CmdType.AnswerDemand, pay ? 1 : 0);
@@ -142,6 +145,15 @@ public static class Commands
                 return (int)Scouts.Send(w, s, n, -1, sink, out _);
             case CmdType.ScoutMove:
                 return (int)Scouts.Redirect(w, s, n, c.A, c.B);
+            case CmdType.CancelBuild:
+            {
+                var e = Construction.CheckCancel(s, c.A, (Bld)c.B, n);
+                if (e != CancelBuildError.None) return (int)e;
+                Construction.Cancel(s, c.A, (Bld)c.B, n);
+                Simulation.SyncQueue(s, n);   // the capital's queue may take the building up again
+                Changed(w, s, c.A, sink, batch, fog: false);
+                return 0;
+            }
             case CmdType.Pause: s.Paused = true; return 0;
             case CmdType.Unpause: s.Paused = false; return 0;
             case CmdType.SetSpeed: s.Speed = IntMath.Clamp(c.A, Clock.MinSpeed, Clock.MaxSpeed); return 0;

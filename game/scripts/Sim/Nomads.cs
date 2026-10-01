@@ -75,6 +75,7 @@ public static class Nomads
             s.OreFound[p] = false;
         }
         s.Routes.Clear();
+        s.Builds.Clear();
         for (int n = 0; n < s.Nat.Length; n++) Collect(w, s, n, null);   // the land the tribe starts on
     }
 
@@ -183,19 +184,30 @@ public static class Nomads
         if (nat.Human && !elders && s.Tick >= AutoTicks) return TribeMoveError.Elders;   // no walking away from the founding
         if (target < 0 || target >= w.P || w.PLand[target] != 1) return TribeMoveError.Sea;
         if (nat.Fog is { } f && !f.Explored[target]) return TribeMoveError.Unexplored;
-        if (target == nat.Camp) return TribeMoveError.Here;
+        // in the middle of a step the tribe first finishes it (path = [camp, next, …]): no jump back, the camp stays
+        bool hop = InHop(nat);
+        if (target == nat.Camp && !hop) return TribeMoveError.Here;
         var bfs = SimScratch.For(w, s).A;
-        bfs.RunLand(w, stackalloc int[] { nat.Camp });
-        path = bfs.Trace(target);
-        return path == null ? TribeMoveError.Far : TribeMoveError.None;
+        bfs.RunLand(w, stackalloc int[] { hop ? nat.CampPath[nat.CampStep + 1] : nat.Camp });
+        var route = bfs.Trace(target);
+        if (route == null) return TribeMoveError.Far;
+        if (!hop) { path = route; return TribeMoveError.None; }
+        path = new int[route.Length + 1];
+        path[0] = nat.Camp;
+        route.CopyTo(path, 1);
+        return TribeMoveError.None;
     }
+
+    static bool InHop(NationState nat) => nat.CampPath != null && nat.CampSub > 0 && nat.CampStep + 1 < nat.CampPath.Length;
 
     public static TribeMoveError MoveTo(WorldData w, GameState s, int n, int target, bool elders = false)
     {
         var e = CheckMove(w, s, n, target, out var path, elders);
         if (e != TribeMoveError.None) return e;
         var nat = s.Nat[n];
-        nat.CampPath = path; nat.CampStep = 0; nat.CampSub = 0;
+        bool hop = InHop(nat);
+        nat.CampPath = path; nat.CampStep = 0;
+        if (!hop) nat.CampSub = 0;   // a step under way keeps its progress: path[1] is where it was going
         return TribeMoveError.None;
     }
 

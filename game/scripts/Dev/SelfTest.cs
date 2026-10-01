@@ -288,13 +288,18 @@ public partial class SelfTest : Node
         G.Select(p);
         await Frames(2);
         double gold = s.Gold;
-        int buildPrice = G.BuildCost(b);
+        int buildPrice = G.BuildCost(p, b);
         G.Build(p, b);
         double charged = gold - s.Gold;
         await Frames(3);
-        Check("build: building added", s.Buildings[p].Contains(b), $"{Data.BldName[(int)b]} in {w.PName[p]}");
+        Check("build: the building goes up first", !s.Buildings[p].Contains(b) && Construction.Has(G.State, p, b), $"{Data.BldName[(int)b]} in {w.PName[p]}");
         Check("build: gold charged", Math.Abs(charged - buildPrice) < .01, $"−{charged:F0}");
         Check("build: chronicle entry", _notes.Skip(notes).Any(n => n.icon == "hammer"));
+        Check("build: the panel shows it going up", FindText(Hud.Panel, Data.BldName[(int)b]));
+        await Shot("building");
+        G.RunTicks((Construction.Cycles(b, G.State.Pace) + 1) * Clock.CycleTicks);
+        await Frames(3);
+        Check("build: it stands when its time is up", s.Buildings[p].Contains(b) && !Construction.Has(G.State, p, b));
         await Shot("built");
 
         int toasts = _toasts.Count;
