@@ -207,8 +207,17 @@ public partial class TechScreen : Control
                     Color c = state[t] == Game.TechState.Known ? Pal.Ac
                         : state[rq] == Game.TechState.Known && state[t] is Game.TechState.Open or Game.TechState.Studying ? Pal.Hi
                         : state[t] == Game.TechState.Closed ? Pal.Mu2 : Pal.Ln3;
-                    float mid = Mathf.Round(Math.Max(p0.X + 12, p1.X - GapX / 2f));
-                    var pts = new[] { p0, new Vector2(mid, p0.Y), new Vector2(mid, p1.Y), p1 };
+                    // straight along a row; otherwise down the column gaps and along the gutter between rows next to the
+                    // target, so a line never runs under somebody else's card
+                    Vector2[] pts;
+                    if (Mathf.IsEqualApprox(p0.Y, p1.Y)) pts = new[] { p0, p1 };
+                    else
+                    {
+                        float half = (RowH - CardH) / 2f;
+                        float gutter = p0.Y < p1.Y ? p1.Y - CardH / 2f - half : p1.Y + CardH / 2f + half;
+                        float x0 = p0.X + 10, x1 = p1.X - 12;
+                        pts = new[] { p0, new Vector2(x0, p0.Y), new Vector2(x0, gutter), new Vector2(x1, gutter), new Vector2(x1, p1.Y), p1 };
+                    }
                     DrawPolyline(pts, new Color(0, 0, 0, .5f), 4);
                     DrawPolyline(pts, c, 2);
                     DrawRect(new Rect2(p1.X - 5, p1.Y - 3, 5, 6), c);   // arrow stub

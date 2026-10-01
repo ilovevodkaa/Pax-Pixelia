@@ -145,9 +145,10 @@ public sealed partial class GameState
                 Require(k >= 0 && k <= 4096, "technologies");
                 for (int t = 0; t < k; t++) { long v = r.ReadInt64(); if (t < x.TechPts.Length) x.TechPts[t] = v; }   // a longer tree in a newer build: extra ids dropped
                 x.TechsDone &= Techs.AllMask;
+                x.TechsDone |= Techs.RootMask;   // «Огонь» is known by everyone (saves from before the root)
                 Require(x.Researching >= -1 && x.Researching < Techs.Count && x.TechPool >= 0, "research");
             }
-            else Techs.GrantBefore(x, x.Era + 1);   // an older save: everything up to its era counts as known
+            else { x.TechsDone = Techs.RootMask; Techs.GrantBefore(x, x.Era + 1); }   // an older save: everything up to its era counts as known
             if (version >= 4)
             {
                 x.Camp = r.ReadInt32(); x.CampStep = r.ReadInt32(); x.CampSub = r.ReadInt32(); x.Supplies = r.ReadInt32();

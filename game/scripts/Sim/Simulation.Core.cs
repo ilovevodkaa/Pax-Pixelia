@@ -218,7 +218,7 @@ public static partial class Simulation
             var nat = s.Nat[n];
             long before = nat.Progress;
             nat.Progress += nat.ScienceRate;
-            int learned = Techs.Advance(w.Seed, n, nat, nat.ScienceRate, s.Pace);
+            int learned = Techs.Advance(w.Seed, n, nat, Techs.ResearchRate(nat), s.Pace);
             if (learned >= 0 && nat.Human && sink != null)
             {
                 var d = Techs.All[learned];
@@ -247,7 +247,7 @@ public static partial class Simulation
     {
         int leaderEra = Science.LeaderEra(s);
         for (int n = 0; n < s.Nat.Length; n++)
-            s.Nat[n].ScienceRate = Science.Of(sc.Provinces[n], sc.Shrines[n], s.Nat[n].Era < leaderEra, Nomads.IsNomad(s.Nat[n]), Techs.Sum(s.Nat[n], TechFx.Science)).Total;
+            s.Nat[n].ScienceRate = Science.Of(sc.Provinces[n], sc.Shrines[n], s.Nat[n].Era < leaderEra, Nomads.IsNomad(s.Nat[n])).Total;   // the era stock: knowledge only speeds studies
     }
 
     internal static bool MetByHumanPublic(GameState s, int n) => MetByHuman(s, n);

@@ -72,6 +72,8 @@ public partial class Game
     /// <summary>The local player's science stock (progress points) and its gain per rules cycle.</summary>
     public long ScienceStock => State == null ? 0 : State.Nat[Viewer].Progress;
     public int ScienceRate => State == null ? 0 : State.Nat[Viewer].ScienceRate;
+    /// <summary>Research points a cycle: science plus what known technologies add (only the studies go faster).</summary>
+    public int ResearchRate => State == null ? 0 : Techs.ResearchRate(State.Nat[Viewer]);
     /// <summary>Where the science comes from (same formula as the rules): sages, lands, shrines, catch-up.</summary>
     public ScienceParts ScienceParts => State == null ? default : Science.Of(State, Viewer);
 

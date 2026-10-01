@@ -162,7 +162,7 @@ public static class ScenarioTests
         Section("buildings (commands)");
         int bp = Enumerable.Range(0, w.P).Where(p => s.Owner[p] == Me && s.Buildings[p].Count < s.Slots[p]).OrderBy(p => p).FirstOrDefault(-1);
         Check(bp >= 0, "an own province with a free plot");
-        if (s.Nat[Me].TechsDone == 0)
+        if (s.Nat[Me].TechsDone == Techs.RootMask)
         {
             Check(Rules.BuildOptions(w, s, bp, Me).Count == 0 && Rules.LockedOptions(w, s, bp, Me).Count > 0, "nothing to build before the first technology (the menu shows them locked)");
             Check(Commands.Apply(w, s, Cmd.CheatTech(Me, -1), rec) == 0 && s.Nat[Me].TechsDone == Techs.AllMask, "debug: every technology learned");

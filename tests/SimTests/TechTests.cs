@@ -17,8 +17,11 @@ public static class TechTests
         Section("technologies: the start");
         var s = Fresh(w);
         var nat = s.Nat[Me];
-        Check(nat.TechsDone == 0 && nat.Researching == -1 && nat.TechPts.Length == Techs.Count, $"a tribe knows none of the {Techs.Count} technologies");
-        Check(Techs.CountIn(0) == 6 && Techs.Required(0) == 4, "Первобытная: 6 technologies, 4 needed for the next era");
+        Check(nat.TechsDone == Techs.RootMask && nat.Researching == -1 && nat.TechPts.Length == Techs.Count, $"a tribe knows only the fire, the root of all {Techs.Count} technologies");
+        Check(Techs.CountIn(0) >= 12 && Techs.Required(0) < Techs.CountIn(0), $"Первобытная: {Techs.CountIn(0)} technologies, {Techs.Required(0)} needed for the next era");
+        Check(Enumerable.Range(0, Techs.Count).Where(t => t != Techs.Root).All(t => Techs.Requires(t).Length > 0), "every technology but the root grows from another: one tree");
+        Check(Enumerable.Range(0, Techs.Count).Count(t => Techs.Open(nat, t)) is >= 3 and <= 5, "from the fire a few first steps open, not everything");
+        Check(Techs.Count <= 63, "the tree fits the bit set");
         Check(Techs.CountIn(1) >= 10 && Techs.Required(1) > 0 && Techs.Required(1) < Techs.CountIn(1) - 2, $"Древний мир: {Techs.CountIn(1)} technologies, {Techs.Required(1)} needed");
         Check(Enumerable.Range(0, Techs.Count).All(t => Techs.Requires(t).All(r => r >= 0 && Techs.All[r].Era <= Techs.All[t].Era)), "every prerequisite exists and comes no later");
         Check(Enumerable.Range(0, Techs.Count).Select(t => (Techs.All[t].Era, Techs.All[t].Lane, Techs.All[t].Order)).Distinct().Count() == Techs.Count, "no two cards on one spot of the tree");
@@ -32,35 +35,40 @@ public static class TechTests
         Check(!Techs.Open(nat, Techs.Index("pottery")), "Древний мир technologies stay closed in Первобытная");
 
         Section("technologies: the pool, a choice, a switch");
+        int gath = Techs.Index("gathering"), tools = Techs.Index("stone_tools"), grain = Techs.Index("wild_grain");
+        Check(!Techs.Open(nat, grain) && Commands.Apply(w, s, Cmd.Research(Me, grain), null) == Commands.BadCommand, "«Дикие злаки» wait for «Собирательство»");
         int rate = nat.ScienceRate;
         Cycles(w, s, 5);
         Check(nat.TechPool == 5L * rate && rate > 0, $"5 cycles with nothing chosen: {nat.TechPool} points wait in the pool");
-        Check(Commands.Apply(w, s, Cmd.Research(Me, 0), null) == 0 && nat.Researching == 0 && nat.TechPts[0] == 5L * rate && nat.TechPool == 0,
+        Check(Commands.Apply(w, s, Cmd.Research(Me, gath), null) == 0 && nat.Researching == gath && nat.TechPts[gath] == 5L * rate && nat.TechPool == 0,
             "choosing moves the pool into the technology");
         Cycles(w, s, 3);
-        long a = nat.TechPts[0];
-        Check(Commands.Apply(w, s, Cmd.Research(Me, 1), null) == 0 && nat.Researching == 1 && nat.TechPts[0] == a, "a switch keeps what was put in");
+        long a = nat.TechPts[gath];
+        Check(Commands.Apply(w, s, Cmd.Research(Me, tools), null) == 0 && nat.Researching == tools && nat.TechPts[gath] == a, "a switch keeps what was put in");
         Check(Commands.Apply(w, s, Cmd.Research(Me, 99), null) == Commands.BadCommand && Commands.Apply(w, s, Cmd.Research(Me, -1), null) == Commands.BadCommand,
             "an unknown technology id is refused, not thrown");
-        Check(Commands.Apply(w, s, Cmd.Research(Me, 0), null) == 0, "and back");
+        Check(Commands.Apply(w, s, Cmd.Research(Me, gath), null) == 0, "and back");
         int guard = 0;
-        while (!Techs.Known(nat, 0) && guard++ < 5000) Simulation.Step(w, s, null);
-        Check(Techs.Known(nat, 0) && nat.Researching == -1 && nat.TechPts[0] == 0, $"«Дикие злаки» learned after {guard} ticks (≈ {guard / (double)Clock.TicksPerSecond[3]:0} s at speed 3)");
-        Check(guard / (double)Clock.TicksPerSecond[3] is > 60 and < 400, "one technology takes minutes, not seconds or hours");
+        while (!Techs.Known(nat, gath) && guard++ < 5000) Simulation.Step(w, s, null);
+        Check(Techs.Known(nat, gath) && nat.Researching == -1 && nat.TechPts[gath] == 0, $"«Собирательство» learned after {guard} ticks (≈ {guard / (double)Clock.TicksPerSecond[3]:0} s at speed 3)");
+        Check(guard / (double)Clock.TicksPerSecond[3] is > 20 and < 150, "a first-era technology takes about a minute");
+        Check(Techs.Open(nat, grain), "a branch grows: «Собирательство» opens «Дикие злаки»");
+        Techs.Learn(nat, grain);
         if (plot >= 0) Check(Rules.CheckBuild(w, s, plot, Bld.Farm, Me) is not BuildError.NeedTech, "the farm is open now");
-        Check(Commands.Apply(w, s, Cmd.Research(Me, 0), null) == Commands.BadCommand, "a known technology cannot be chosen again");
+        Check(Commands.Apply(w, s, Cmd.Research(Me, gath), null) == Commands.BadCommand, "a known technology cannot be chosen again");
 
         Section("technologies: the era gate");
         var g = Fresh(w);
         var gn = g.Nat[Me];
-        for (int t = 0; t < 3; t++) Techs.Learn(gn, t);
+        string[] firstSteps = { "gathering", "hunting", "stone_tools", "speech", "wild_grain", "flint", "stone_axe" };
+        foreach (var id in firstSteps) Techs.Learn(gn, Techs.Index(id));
         gn.Progress = Eras.Threshold(1, g.Pace) + 10;
         Cycles(w, g, 1);
-        Check(gn.Era == 0 && Techs.EraCap(gn) == 0, "enough science but 3 of 4 technologies: still Первобытная");
-        Techs.Learn(gn, 3);
+        Check(gn.Era == 0 && Techs.EraCap(gn) == 0, $"enough science but {Techs.KnownIn(gn, 0)} of {Techs.Required(0)} technologies: still Первобытная");
+        Techs.Learn(gn, Techs.Index("ancestors"));
         Cycles(w, g, 1);
-        Check(gn.Era == 1 && Techs.EraCap(gn) >= 1, "the 4th technology opens Древний мир");
-        Check(Techs.Open(gn, 4) && Techs.Open(gn, 5), "the rest of the first era can still be studied later");
+        Check(gn.Era == 1 && Techs.EraCap(gn) >= 1, $"the {Techs.Required(0)}th technology (the fire counts) opens Древний мир");
+        Check(Techs.Open(gn, Techs.Index("taming")) && Techs.Open(gn, Techs.Index("harpoon")), "the rest of the first era can still be studied later");
         int pottery = Techs.Index("pottery"), barter = Techs.Index("barter");
         Check(Techs.Open(gn, pottery) && !Techs.Open(gn, barter), "Древний мир: «Гончарный круг» opens (grain known), «Обмен» waits for it");
         Techs.Learn(gn, pottery);
@@ -82,7 +90,7 @@ public static class TechTests
         Check(!Techs.Open(fn, river) && !Techs.Open(fn, steppe) && Techs.ForkClosed(fn, river) && fn.TechPts[river] == 0, "a path learned closes the others forever");
         Check(Commands.Apply(w, fk, Cmd.Research(Me, steppe), null) == Commands.BadCommand, "a closed path cannot be chosen");
         int sci0 = Science.Of(fk, Me).Total;
-        Check(Techs.Sum(fn, TechFx.Science) >= 3 && Science.Of(fk, Me).Knowledge >= 3, $"«Храмовое царство» adds science (+{Science.Of(fk, Me).Knowledge})");
+        Check(Techs.Sum(fn, TechFx.Science) >= 2 && Science.Of(fk, Me).Knowledge >= 2, $"«Храмовое царство» adds science (+{Science.Of(fk, Me).Knowledge})");
 
         Section("technologies: effects");
         var fx = Fresh(w);
@@ -111,7 +119,7 @@ public static class TechTests
         Section("technologies: the debug era jump grants what came before");
         var j = Fresh(w);
         Simulation.JumpToEra(j, 3);
-        Check(j.Nat.All(x => x.Era == 3 && Techs.KnownIn(x, 0) == 6), "--era=3: every nation there, all first-era technologies known");
+        Check(j.Nat.All(x => x.Era == 3 && Techs.KnownIn(x, 0) == Techs.CountIn(0)), "--era=3: every nation there, all first-era technologies known");
     }
 
     static void Cycles(WorldData w, GameState s, int cycles)

@@ -178,8 +178,9 @@ public partial class TopBar : PanelContainer
         {
             var g = Game.I;
             var sp = g.ScienceParts;
-            t.Title("Наука").Line($"Мудрецы +{sp.Sages} · Земли +{sp.Lands} · Святилища +{sp.Shrines}" + (sp.Knowledge > 0 ? $" · Знания +{sp.Knowledge}" : "") + (sp.CatchUp > 0 ? $" · Догоняем +{sp.CatchUp}" : ""))
-             .Kv("За цикл", "+" + g.ScienceRate, Pal.Ok);
+            t.Title("Наука").Line($"Мудрецы +{sp.Sages} · Земли +{sp.Lands} · Святилища +{sp.Shrines}" + (sp.Knowledge > 0 ? $" · Знания +{sp.Knowledge} к исследованиям" : "") + (sp.CatchUp > 0 ? $" · Догоняем +{sp.CatchUp}" : ""))
+             .Kv("За цикл", "+" + g.ScienceRate, Pal.Ok)
+             .Kv("Исследования", $"+{g.ResearchRate} за цикл", Pal.Ok);
             if (g.NextEraName != "") t.Kv($"До эпохи «{g.NextEraName}»", $"{g.EraProgressPermille / 10}%", Pal.Hi);
             int r = g.Researching;
             t.Kv("Изучается", r >= 0 ? Techs.All[r].Name : "ничего", r >= 0 ? Pal.Ok : Pal.Bad);

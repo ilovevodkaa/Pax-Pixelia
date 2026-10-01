@@ -237,14 +237,21 @@ public partial class Game : ISimSink
                 : nat.Researching == t ? TechState.Studying
                 : Techs.ForkClosed(nat, t) ? TechState.Closed
                 : Techs.Open(nat, t) ? TechState.Open
-                : d.Era <= nat.Era || Techs.PrereqsKnown(nat, t) ? TechState.Locked   // its era has come, or it is the next step
-                : TechState.Hidden;
+                : Techs.PrereqsKnown(nat, t) || AnyPrereqKnown(nat, t) ? TechState.Locked   // the next step, or half-way to it
+                : TechState.Hidden;                                                       // nothing known leads there yet
             int secs = -1;
-            if (st == TechState.Studying && nat.ScienceRate > 0)
-                secs = (int)Math.Ceiling(CyclesToSeconds((int)((cost - nat.TechPts[t] + nat.ScienceRate - 1) / nat.ScienceRate)));
+            int rate = Techs.ResearchRate(nat);
+            if (st == TechState.Studying && rate > 0)
+                secs = (int)Math.Ceiling(CyclesToSeconds((int)((cost - nat.TechPts[t] + rate - 1) / rate)));
             list.Add(new TechView(t, d, st, st == TechState.Known ? cost : nat.TechPts[t], cost, secs));
         }
         return list;
+    }
+
+    static bool AnyPrereqKnown(NationState nat, int t)
+    {
+        foreach (int r in Techs.Requires(t)) if (Techs.Known(nat, r)) return true;
+        return false;
     }
 
     /// <summary>Why t cannot be studied now (for a locked card), or null.</summary>

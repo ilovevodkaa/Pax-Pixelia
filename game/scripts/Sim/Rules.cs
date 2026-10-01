@@ -59,7 +59,7 @@ public static class Rules
         int m = s.CapitalOf[p] >= 0 ? CapitalMaterials : 0;
         foreach (var b in s.Buildings[p])
             m += b switch { Bld.Lumber => LumberMaterials, Bld.Quarry => QuarryMaterials, _ => 0 };
-        if (IsMine(s, p)) m += MineMaterials;
+        if (IsMine(s, p)) m += MineMaterials + (s.Owner[p] >= 0 ? Techs.Sum(s.Nat[s.Owner[p]], TechFx.MineMaterials) : 0);
         if (s.Owner[p] >= 0)
         {
             m += Nomads.MythMaterials(s, s.Owner[p], p);

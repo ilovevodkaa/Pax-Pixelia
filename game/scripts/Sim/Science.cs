@@ -5,7 +5,8 @@ namespace PaxPixelia.Sim;
 /// <summary>A nation's science per rules cycle, split by source (the top-bar tooltip shows the same parts the rules add up).</summary>
 public readonly record struct ScienceParts(int Sages, int Lands, int Shrines, int CatchUp, int Knowledge = 0)
 {
-    public int Total => Sages + Lands + Shrines + Knowledge + CatchUp;
+    /// <summary>The era stock per cycle (knowledge only speeds the studies, see Techs.ResearchRate).</summary>
+    public int Total => Sages + Lands + Shrines + CatchUp;
 }
 
 /// <summary>
@@ -23,7 +24,7 @@ public static class Science
         if (provinces <= 0 && !nomad) return default;   // a tribe still has its sages (the shamans)
         int lands = System.Math.Min(LandsMax, provinces / ProvincesPerPoint);
         int temples = System.Math.Min(ShrinesMax, shrines / ShrinesPerPoint);
-        int sum = Sages + lands + temples + knowledge;
+        int sum = Sages + lands + temples;
         return new ScienceParts(Sages, lands, temples, behindLeader ? sum * CatchUpPermille / 1000 : 0, knowledge);
     }
 

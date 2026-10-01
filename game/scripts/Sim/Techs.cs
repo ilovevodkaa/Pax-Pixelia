@@ -14,9 +14,10 @@ public enum TechFx : byte
     QuarryMaterials,  // materials per quarry per cycle
     MaterialDiscount, // % off the materials a building takes
     CityInfluence,    // influence a city gathers per cycle
-    Science,          // science per cycle
+    Science,          // research points per cycle (technologies only: the era stock and the calendar keep their pace)
     TaxPermille,      // taxes, ‰ extra
     ScoutRange,       // scouts see this many provinces further
+    MineMaterials,    // materials per mine (a quarry on a surveyed metal vein)
 }
 
 /// <summary>One technology: era, tree position (lane = branch row, order = column inside its era), cost in science at
@@ -32,7 +33,8 @@ public sealed record TechDef(string Id, string Name, int Era, int Lane, int Orde
 /// when its prerequisites are known and its era has come; of a fork (the Great Fork of Древний мир) only one can ever
 /// be learned. Techs are kept as a bit set (NationState.TechsDone) and per-tech points (NationState.TechPts); points
 /// made while nothing is chosen wait in NationState.TechPool and go to the next choice, so a slow click loses nothing.
-/// The first six ids never move (saves and tests refer to them).
+/// Ids never move (saves keep the bit set; new technologies are appended): the tree's shape is Lane/Order. The root
+/// «Огонь» is known by everyone from the start.
 /// </summary>
 public static class Techs
 {
@@ -44,74 +46,143 @@ public static class Techs
 
     public static readonly TechDef[] All =
     {
-        // ---- Первобытная (0): six, four needed; no prerequisites — the tribe learns what its land teaches
-        new("wild_grain", "Дикие злаки", 0, 0, 0, 3000, None, -1, Bld.Farm, NoFx, "plant",
+        // ids 0..19 never move (saves keep the bit set); the tree's shape is Lane/Order, not the id
+        // ---- Первобытная (0): from the fire the tribe's knowledge branches out
+        new("wild_grain", "Дикие злаки", 0, 0, 2, 800, new[] { "gathering" }, -1, Bld.Farm, NoFx, "plant",
             "Открывает ферму",
             "Кто-то рассыпал зёрна у стоянки, а весной там выросла еда. Совпадение? Старейшины решили, что нет."),
-        new("stone_axe", "Каменный топор", 0, 3, 0, 3000, None, -1, Bld.Lumber, NoFx, "trees",
+        new("stone_axe", "Каменный топор", 0, 3, 2, 800, new[] { "stone_tools" }, -1, Bld.Lumber, NoFx, "trees",
             "Открывает лесопилку",
             "Острый камень на крепкой палке. Деревья впервые боятся людей."),
-        new("flint", "Кремень", 0, 2, 0, 3000, None, -1, Bld.Quarry, NoFx, "pick",
+        new("flint", "Кремень", 0, 2, 2, 800, new[] { "stone_tools" }, -1, Bld.Quarry, NoFx, "pick",
             "Открывает каменоломню и геологов",
             "Один камень высекает искру из другого. Тот, кто это заметил, три дня ходил гордый."),
-        new("harpoon", "Острога и сеть", 0, 1, 0, 3000, None, -1, Bld.Fishery, NoFx, "anchor",
+        new("harpoon", "Острога и сеть", 0, 1, 2, 800, new[] { "hunting" }, -1, Bld.Fishery, NoFx, "anchor",
             "Открывает рыбацкую пристань",
             "Рыба долго считала реку своей. Потом кто-то сплёл сеть."),
-        new("taming", "Приручение", 0, 1, 1, 3000, None, -1, Bld.Pasture, NoFx, "paw",
+        new("taming", "Приручение", 0, 1, 3, 800, new[] { "hunting" }, -1, Bld.Pasture, NoFx, "paw",
             "Открывает пастбище",
             "Волчонок остался у костра и не ушёл. Козы пришли сами — посмотреть на волчонка."),
-        new("ancestors", "Духи предков", 0, 8, 0, 3000, None, -1, Bld.Shrine, NoFx, "sun",
+        new("ancestors", "Духи предков", 0, 8, 2, 800, new[] { "speech" }, -1, Bld.Shrine, NoFx, "sun",
             "Открывает святилище: наука и довольство",
             "Шаман сказал, что предки смотрят. С тех пор у костра говорят тише и спорят реже."),
 
-        // ---- Древний мир (1): «осесть и освятить»; seven needed, then the Great Fork
-        new("irrigation", "Ирригация", 1, 0, 0, 9000, new[] { "wild_grain" }, -1, null, new[] { (TechFx.RiverCap, 150) }, "droplet-off",
+        // ---- Древний мир (1): «осесть и освятить»
+        new("irrigation", "Ирригация", 1, 0, 0, 2000, new[] { "wild_grain" }, -1, null, new[] { (TechFx.RiverCap, 150) }, "droplet-off",
             "Провинции на реках: предел населения +15%",
             "Кто-то прокопал канаву от реки к полю. Сосед сказал, что это глупость, а потом прокопал свою."),
-        new("pottery", "Гончарный круг", 1, 3, 0, 9000, new[] { "wild_grain" }, -1, Bld.Granary, NoFx, "home",
+        new("pottery", "Гончарный круг", 1, 3, 0, 2000, new[] { "wild_grain" }, -1, Bld.Granary, NoFx, "home",
             "Открывает амбар: зерно не пропадает до весны",
             "Глина крутилась, крутилась — и вышел горшок. Мыши ушли искать другую деревню."),
-        new("bronze", "Бронза", 1, 2, 0, 9000, new[] { "flint" }, -1, null, new[] { (TechFx.QuarryMaterials, 1) }, "pick",
-            "Каменоломни: +1 материал за цикл",
+        new("bronze", "Бронза", 1, 2, 1, 2000, new[] { "copper" }, -1, null, new[] { (TechFx.QuarryMaterials, 1) }, "pick",
+            "Каменоломни: ещё +1 материал за цикл",
             "Медь мягкая, олово мягкое, а вместе — нет. Кузнец не может объяснить почему и берёт за это втрое."),
-        new("masonry", "Каменное строительство", 1, 4, 0, 9000, new[] { "flint", "stone_axe" }, -1, null, new[] { (TechFx.MaterialDiscount, 25) }, "building-warehouse",
-            "Постройки требуют на 25% меньше материалов",
+        new("masonry", "Каменное строительство", 1, 4, 0, 2000, new[] { "flint", "stone_axe" }, -1, null, new[] { (TechFx.MaterialDiscount, 20) }, "building-warehouse",
+            "Постройки требуют на 20% меньше материалов",
             "Камень на камень, и стена стоит. Строители третий год спорят, кто придумал раствор."),
-        new("wheel", "Колесо", 1, 1, 0, 9000, new[] { "taming" }, -1, null, new[] { (TechFx.CityInfluence, 3) }, "compass",
+        new("wheel", "Колесо", 1, 1, 0, 2000, new[] { "taming" }, -1, null, new[] { (TechFx.CityInfluence, 3) }, "compass",
             "Города растут быстрее: +3 влияния за цикл",
             "Бревно катилось под гору, и все смеялись. Потом смеяться перестали: бревно везло мешок."),
-        new("barter", "Обмен", 1, 5, 0, 9000, new[] { "pottery" }, -1, Bld.Market, NoFx, "coins",
+        new("barter", "Обмен", 1, 5, 1, 2000, new[] { "pottery" }, -1, Bld.Market, NoFx, "coins",
             "Открывает рынок",
             "Горшок за рыбу, рыбу за шкуру, шкуру за горшок. К вечеру все остались при своём, но довольные."),
-        new("chief_law", "Закон вождя", 1, 7, 0, 9000, new[] { "ancestors" }, -1, null, new[] { (TechFx.TaxPermille, 100) }, "crown",
+        new("chief_law", "Закон вождя", 1, 7, 0, 2000, new[] { "elders" }, -1, null, new[] { (TechFx.TaxPermille, 100) }, "crown",
             "Налоги +10%",
             "Вождь сказал: «Так будет». Так и стало. Некоторым даже понравилось."),
-        new("calendar", "Календарь", 1, 6, 0, 9000, new[] { "ancestors" }, -1, null, new[] { (TechFx.Science, 1) }, "hourglass",
-            "Наука +1 за цикл",
+        new("calendar", "Календарь", 1, 6, 0, 2000, new[] { "tally" }, -1, null, new[] { (TechFx.Science, 1) }, "hourglass",
+            "Исследования +1 очко за цикл",
             "Жрецы сосчитали дни от разлива до разлива. Вышло 365, но один жрец настаивает на 366."),
-        new("writing", "Письменность", 1, 6, 1, 9000, new[] { "calendar" }, -1, null, new[] { (TechFx.Science, 2) }, "book",
-            "Наука +2 за цикл",
+        new("writing", "Письменность", 1, 6, 1, 2000, new[] { "calendar" }, -1, null, new[] { (TechFx.Science, 1) }, "book",
+            "Исследования +1 очко за цикл",
             "Первая запись: «Три козы — долг». Литература началась с бухгалтерии."),
-        new("priesthood", "Жречество", 1, 8, 0, 9000, new[] { "ancestors" }, -1, null, new[] { (TechFx.ShrineMood, 4) }, "sun",
+        new("priesthood", "Жречество", 1, 8, 0, 2000, new[] { "ancestors" }, -1, null, new[] { (TechFx.ShrineMood, 4) }, "sun",
             "Святилища: довольство ещё +4",
             "Шаманов стало много, и им понадобился главный. Главный первым делом построил себе крышу."),
-        new("first_cities", "Первые города", 1, 7, 1, 9000, new[] { "pottery", "chief_law" }, -1, null, new[] { (TechFx.CityInfluence, 2) }, "building-bank",
+        new("first_cities", "Первые города", 1, 7, 3, 2000, new[] { "brick", "chief_law" }, -1, null, new[] { (TechFx.CityInfluence, 2) }, "building-bank",
             "Города растут быстрее (+2 влияния) и открывают Великую развилку",
             "Люди поставили дома тесно, чтобы было теплее. Оказалось, так ещё и веселее. И шумнее."),
-        new("temple_kingdom", "Храмовое царство", 1, 3, 2, 12000, new[] { "first_cities" }, 1, null, new[] { (TechFx.Science, 3), (TechFx.ShrineMood, 3) }, "sun",
-            "Великая развилка. Наука +3, святилища: довольство ещё +3",
+        new("temple_kingdom", "Храмовое царство", 1, 3, 4, 3000, new[] { "first_cities" }, 1, null, new[] { (TechFx.Science, 2), (TechFx.ShrineMood, 3) }, "sun",
+            "Великая развилка. Исследования +2 очка за цикл, святилища: довольство ещё +3",
             "Правит тот, кого слушают боги. Боги, по слухам, слушают того, кто строит им храмы."),
-        new("river_realm", "Речная держава", 1, 4, 2, 12000, new[] { "first_cities" }, 1, null, new[] { (TechFx.CapPermille, 100), (TechFx.RiverCap, 100) }, "droplet-off",
+        new("river_realm", "Речная держава", 1, 4, 4, 3000, new[] { "first_cities" }, 1, null, new[] { (TechFx.CapPermille, 100), (TechFx.RiverCap, 100) }, "droplet-off",
             "Великая развилка. Предел населения +10%, у рек ещё +10%",
             "Река кормит, река возит, река решает споры о границах. Кто держит реку, держит всё."),
-        new("steppe_union", "Степной союз", 1, 5, 2, 12000, new[] { "first_cities" }, 1, null, new[] { (TechFx.CityInfluence, 5), (TechFx.ScoutRange, 1) }, "paw",
+        new("steppe_union", "Степной союз", 1, 5, 4, 3000, new[] { "first_cities" }, 1, null, new[] { (TechFx.CityInfluence, 5), (TechFx.ScoutRange, 1) }, "paw",
             "Великая развилка. Города растут быстрее (+5 влияния), разведчики видят дальше",
             "Сто родов, один курултай. Спорят три дня, зато потом скачут в одну сторону."),
+
+        // ---- Первобытная: the root and the first steps (ids 20..28)
+        new("fire", "Огонь", 0, 4, 0, 0, None, -1, null, NoFx, "torch",
+            "С него всё начинается: знают все роды",
+            "Кто-то не испугался молнии и унёс горящую ветку. С тех пор у людей есть вечер."),
+        new("gathering", "Собирательство", 0, 0, 1, 800, new[] { "fire" }, -1, null, new[] { (TechFx.CapPermille, 30) }, "plant",
+            "Предел населения +3%",
+            "Эти ягоды можно, эти нельзя. Знание стоило роду двух дядюшек."),
+        new("hunting", "Охота", 0, 1, 1, 800, new[] { "fire" }, -1, null, new[] { (TechFx.CapPermille, 20) }, "paw",
+            "Предел населения +2%",
+            "Загонная охота: двадцать человек кричат, один бросает копьё. Мамонт против."),
+        new("stone_tools", "Каменные орудия", 0, 3, 1, 800, new[] { "fire" }, -1, null, new[] { (TechFx.MaterialDiscount, 10) }, "pick",
+            "Постройки требуют на 10% меньше материалов",
+            "Скол, ещё скол — и камень режет. Первые инструменты лежали в руке лучше, чем у нас мышка."),
+        new("speech", "Речь и предания", 0, 6, 1, 800, new[] { "fire" }, -1, null, new[] { (TechFx.Science, 1) }, "book",
+            "Исследования +1 очко за цикл",
+            "Старики рассказывают у огня, дети запоминают. Так знание пережило своих хозяев."),
+        new("hides", "Шкуры и иглы", 0, 3, 3, 800, new[] { "hunting" }, -1, null, new[] { (TechFx.Mood, 2) }, "user",
+            "Довольство везде +2: зимой больше не холодно",
+            "Костяная игла и жила. Одежда по размеру — первая роскошь человечества."),
+        new("tally", "Счёт по зарубкам", 0, 6, 2, 800, new[] { "speech" }, -1, null, new[] { (TechFx.TaxPermille, 30) }, "hourglass",
+            "Налоги +3%: зерно и шкуры теперь считают",
+            "Зарубка на кости — одна луна. Через год кость кончилась, пришлось взять вторую."),
+        new("rafts", "Плоты", 0, 5, 3, 800, new[] { "stone_axe" }, -1, null, new[] { (TechFx.ScoutRange, 1) }, "anchor",
+            "Разведчики видят на 1 провинцию дальше",
+            "Три бревна, верёвка — и река уже не стена, а дорога."),
+        new("elders", "Совет старейшин", 0, 7, 2, 800, new[] { "speech" }, -1, null, new[] { (TechFx.TaxPermille, 50) }, "users",
+            "Налоги +5%",
+            "Самые старые садятся в круг и решают. Самые молодые ворчат, но слушаются."),
+
+        // ---- Древний мир: the rest of the branches (ids 29..39)
+        new("plough", "Плуг", 1, 0, 1, 2000, new[] { "irrigation", "taming" }, -1, null, new[] { (TechFx.CapPermille, 80) }, "plant",
+            "Предел населения +8%",
+            "Бык тянет, человек держит. Поле стало втрое больше, а спина болит так же."),
+        new("crop_rotation", "Севооборот", 1, 0, 2, 2000, new[] { "plough" }, -1, null, new[] { (TechFx.CapPermille, 70) }, "plant",
+            "Предел населения +7%",
+            "Год пшеница, год бобы, год отдых. Земля сказала спасибо урожаем."),
+        new("riding", "Верховая езда", 1, 1, 1, 2000, new[] { "wheel" }, -1, null, new[] { (TechFx.ScoutRange, 1), (TechFx.CityInfluence, 1) }, "compass",
+            "Разведчики видят дальше, города растут быстрее (+1)",
+            "Сначала конь возил телегу. Потом кто-то сел сверху — и мир стал меньше."),
+        new("copper", "Медь", 1, 2, 0, 2000, new[] { "flint" }, -1, null, new[] { (TechFx.QuarryMaterials, 1) }, "pick",
+            "Каменоломни: +1 материал за цикл",
+            "Зелёный камень потёк в костре. Первый металл был мягким, но блестел."),
+        new("mining", "Рудники", 1, 2, 2, 2000, new[] { "bronze" }, -1, null, new[] { (TechFx.MineMaterials, 2) }, "pick",
+            "Рудники на жилах: ещё +2 материала за цикл",
+            "Копали вглубь, пока не нашли жилу. Потом копали, пока не нашли воду. Потом думали."),
+        new("weaving", "Ткачество", 1, 3, 1, 2000, new[] { "hides" }, -1, null, new[] { (TechFx.Mood, 2) }, "user",
+            "Довольство везде +2",
+            "Нить через нить, и вышла ткань. Шкуры остались охотникам и упрямцам."),
+        new("brick", "Кирпич", 1, 4, 1, 2000, new[] { "pottery", "masonry" }, -1, null, new[] { (TechFx.CityInfluence, 2) }, "building-warehouse",
+            "Города растут быстрее: +2 влияния",
+            "Глина, солома, солнце. Дом, который не уносит дождём, сделал из деревни город."),
+        new("sail", "Парус", 1, 5, 0, 2000, new[] { "rafts" }, -1, null, new[] { (TechFx.TaxPermille, 40) }, "anchor",
+            "Налоги +4%: товары идут по воде",
+            "Ветер дул и раньше, но теперь он работает на нас. Гребцы впервые отдохнули."),
+        new("weights", "Меры и весы", 1, 5, 2, 2000, new[] { "barter", "tally" }, -1, null, new[] { (TechFx.TaxPermille, 50) }, "scale",
+            "Налоги +5%",
+            "Мешок мешку рознь, а гиря гире — нет. Купцы приуныли, казна обрадовалась."),
+        new("mathematics", "Математика", 1, 6, 3, 2000, new[] { "writing", "weights" }, -1, null, new[] { (TechFx.Science, 1) }, "atom",
+            "Исследования +1 очко за цикл",
+            "Писцы считали зерно и вдруг стали считать просто так. Так родилась наука."),
+        new("temples", "Храмы", 1, 8, 1, 2000, new[] { "priesthood", "masonry" }, -1, null, new[] { (TechFx.ShrineMood, 3) }, "building-bank",
+            "Святилища: довольство ещё +3",
+            "Богам — каменный дом. Жрецам — комнаты при нём. Писцам — угол, где можно писать."),
     };
 
-    /// <summary>Technologies of an era a nation needs to leave it (Первобытная 4 of 6, Древний мир 7; later eras have
-    /// no tree yet).</summary>
-    public static int Required(int era) => era switch { 0 => 4, 1 => 7, _ => 0 };
+    /// <summary>Technologies of an era a nation needs to leave it, the root included (Первобытная 9 of 15, Древний мир
+    /// 14 of 25; later eras have no tree yet).</summary>
+    public static int Required(int era) => era switch { 0 => 9, 1 => 14, _ => 0 };
+
+    /// <summary>The root of the tree («Огонь»): every nation knows it from the start.</summary>
+    public static readonly int Root = Array.FindIndex(All, d => d.Id == "fire");
+    public static long RootMask => 1L << Root;
 
     /// <summary>The technology that opens geologists (Кремень).</summary>
     public const int SurveyTech = 2;
@@ -154,6 +225,9 @@ public static class Techs
         int t = For(b);
         return t < 0 || Known(nat, t);
     }
+
+    /// <summary>Research points a cycle: the nation's science plus what its knowledge adds (Речь, Календарь, Письменность…).</summary>
+    public static int ResearchRate(NationState nat) => nat.ScienceRate + (nat.ScienceRate > 0 ? Sum(nat, TechFx.Science) : 0);
 
     /// <summary>Sum of one effect over the nation's known technologies.</summary>
     public static int Sum(NationState nat, TechFx fx)

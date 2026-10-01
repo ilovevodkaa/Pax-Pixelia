@@ -265,9 +265,10 @@ public partial class SelfTest : Node
         await Frames(3);
         Check("techs: the card opens from the atom", Hud.Tech.Visible);
         await Shot("techs");
-        G.Research(0);
+        int firstStep = Techs.Index("gathering");
+        G.Research(firstStep);
         await Frames(2);
-        Check("techs: a study chosen (a journaled command)", G.Researching == 0 && G.Journal.Any(c => c.Type == CmdType.Research));
+        Check("techs: a study chosen (a journaled command)", G.Researching == firstStep && G.Journal.Any(c => c.Type == CmdType.Research));
         Hud.DebugToggleTech();
         G.Issue(Cmd.CheatTech(G.Viewer, -1));   // the rest of the test builds and surveys
         await Frames(2);
