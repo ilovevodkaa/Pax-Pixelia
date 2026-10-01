@@ -62,8 +62,10 @@ public partial class ProvinceTipView : VBoxContainer
 
         if (f == 0)
         {
-            _title.Text = "Неизведанные земли";
-            _sub.Text = picking ? "Что там — узнают разведчики" : "Отправьте туда разведчиков из столицы";
+            var rumor = g.RumorAt(p);
+            _title.Text = rumor != null ? "Слухи" : "Неизведанные земли";
+            _sub.Text = rumor is { } r ? g.RumorText(r) + (picking ? "" : ". Проверьте: отправьте разведчиков")
+                : picking ? "Что там — узнают разведчики" : "Отправьте туда разведчиков из столицы";
             _row.Visible = false;
             return true;
         }

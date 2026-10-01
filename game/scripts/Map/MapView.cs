@@ -33,6 +33,7 @@ public partial class MapView : Node2D
     NameOverlay _names;
     LabelOverlay _labels;
     ScoutOverlay _scouts;
+    RumorOverlay _rumors;
     ShaderMaterial _mapMat, _riverCasingMat, _riverMat, _routeCasingMat, _routeMat;
     readonly List<ShaderMaterial> _mats = new();       // all map materials: they share the province/fog uniforms
     static readonly StringName UZoom = "zoom", UHovered = "hovered", USelected = "selected", UFogOn = "fog_on", UWater = "water_color", UAnim = "anim_t";
@@ -71,7 +72,8 @@ public partial class MapView : Node2D
         _names = new NameOverlay { Name = "Names", Map = this };
         _labels = new LabelOverlay { Name = "Labels", Map = this };
         _scouts = new ScoutOverlay { Name = "Scouts", Map = this };
-        AddChild(_sprites); AddChild(_life); AddChild(_names); AddChild(_labels); AddChild(_scouts);
+        _rumors = new RumorOverlay { Name = "Rumors", Map = this };
+        AddChild(_sprites); AddChild(_life); AddChild(_names); AddChild(_labels); AddChild(_rumors); AddChild(_scouts);
 
         var g = Game.I;
         g.WorldReady += OnWorldReady;
@@ -271,7 +273,7 @@ public partial class MapView : Node2D
         View = v;
         _world.Transform = new Transform2D(new Vector2(v.Zoom, 0), new Vector2(0, v.Zoom), v.Origin);
         if (zoomChanged) foreach (var m in _mats) m.SetShaderParameter(UZoom, v.Zoom);
-        _sprites.UpdateView(); _names.UpdateView(); _labels.QueueRedraw(); _scouts.QueueRedraw();
+        _sprites.UpdateView(); _names.UpdateView(); _labels.QueueRedraw(); _scouts.QueueRedraw(); _rumors.QueueRedraw();
     }
 
     /// <summary>Province id under a world position (x is wrapped), or -1 outside the world.</summary>

@@ -233,8 +233,12 @@ public partial class ProvincePanel : PanelContainer
     /// <summary>Unexplored: nothing about the place is told — not even whether it is land (the scouts will find out).</summary>
     void FogBody(Flow flow, int p, bool land)
     {
-        flow.Add(Kit.Para("Здесь могут быть племена, ресурсы и чужие державы. Туман рассеивается там, где проходят ваши разведчики, границы и торговые пути."), 10);
-        var send = Ui.Button("Отправить разведчиков сюда", "map-search", "Pri", () => Game.I.SendScout(p), 1, 34);
+        var heard = Game.I.RumorAt(p);
+        bool rumor = heard != null;
+        if (heard is { } r) flow.Add(Kit.Para("«" + Game.I.RumorText(r) + "»", false), 0, 10);
+        flow.Add(Kit.Para(rumor ? "Слухам верят не все. Разведчики узнают, правда ли там живёт чужой народ."
+            : "Здесь могут быть племена, ресурсы и чужие державы. Туман рассеивается там, где проходят ваши разведчики, границы и торговые пути."), 10);
+        var send = Ui.Button(rumor ? "Проверить слух" : "Отправить разведчиков сюда", "map-search", "Pri", () => Game.I.SendScout(p), 1, 34);
         flow.Add(Kit.Acts(send), 14);
         var fine = flow.Add(Kit.Para("", true, UiFonts.Small), 8);
         void Sync()

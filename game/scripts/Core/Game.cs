@@ -161,7 +161,7 @@ public partial class Game : Node
     public void Select(int p) { Selected = ValidOrNone(p); ProvinceSelected?.Invoke(Selected); }
     int ValidOrNone(int p) => World != null && (uint)p < (uint)World.P ? p : -1;
     public void RaiseProvincesChanged(IReadOnlyList<int> ps) => ProvincesChanged?.Invoke(ps);
-    public void RaiseFogChanged(IReadOnlyList<int> ps) => FogChanged?.Invoke(ps);
+    public void RaiseFogChanged(IReadOnlyList<int> ps) { MarkRumorsDirty(); FogChanged?.Invoke(ps); }
     public void Notify(string icon, string text) => Notified?.Invoke(icon, text);
     public void ShowToast(string text, float seconds = 3.8f, ToastKind kind = ToastKind.Info) => Toast?.Invoke(text, seconds, kind);
     /// <summary>A refused action: red toast with the reason.</summary>
@@ -223,7 +223,7 @@ public partial class Game : Node
         if (r.ScoutSteps > 0 || r.ScoutsFinished > 0) RaiseScoutsChanged();
         if (r.Tribes) RaiseTribeChanged();
         if (r.EraChanged) CheckEra();
-        if (r.Cycle) { CycleTick?.Invoke(); CheckResearch(); }
+        if (r.Cycle) { RumorsCycle(); CycleTick?.Invoke(); CheckResearch(); }
         if (r.MonthChanged) MonthTick?.Invoke();
         if (r.YearChanged) YearTick?.Invoke();
         if (r.DayChanged) RaiseDateChanged();

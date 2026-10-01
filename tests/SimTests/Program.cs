@@ -48,6 +48,7 @@ public static class Program
         MaterialTests.Run(w);
         TechTests.Run(w);
         NomadTests.Run(w);
+        RumorTests.Run(w);
         PacingTests.Run(w, full: pacing);
 
         return Report();
