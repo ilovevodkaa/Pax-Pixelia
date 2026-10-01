@@ -57,6 +57,7 @@ public static partial class Simulation
         Firsts.Init(s);
         Wonders.Init(s);
         Wonders.Refresh(s);
+        for (int n = 0; n < s.Nat.Length; n++) Eurekas.Baseline(w, s, n);
         for (int n = 0; n < s.Nat.Length; n++)
         {
             var nat = s.Nat[n];
@@ -115,6 +116,7 @@ public static partial class Simulation
         Character.Cycle(w, s, cycle, sink);
         Firsts.Cycle(w, s, cycle, sink);
         Wonders.Cycle(w, s, cycle, sink);
+        Eurekas.Cycle(w, s, cycle, sink);
         PlanDate(s);
 
         if (changed != null)

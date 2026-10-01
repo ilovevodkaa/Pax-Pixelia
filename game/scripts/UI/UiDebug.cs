@@ -66,6 +66,8 @@ public static class UiDebug
         var tip = Cli.Str("tipui");
         if (tip != null) hud.ForcedTip = hud.DebugTarget(tip);
         if (Cli.Has("lead")) hud.DebugToggleLead();
+        if (Cli.Has("learn-e0"))   // the first era known: the next era's cards (and their eurekas) show
+            for (int t = 0; t < Techs.Count; t++) if (Techs.All[t].Era == 0) g.Issue(Cmd.CheatTech(GameState.LocalPlayer, t));
         if (Cli.Has("techs")) hud.DebugToggleTech();
         if (Cli.Has("policy")) hud.DebugTogglePolicy();
         if (Cli.Has("wonders")) hud.DebugToggleWonders();

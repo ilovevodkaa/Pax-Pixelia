@@ -32,6 +32,7 @@ internal sealed class SimScratch
     // world firsts (Firsts.Cycle): per-nation provinces, mines, peoples met (contact masks), and people per city
     public int[] FirstProvinces = System.Array.Empty<int>(), FirstMines = System.Array.Empty<int>(), FirstPeoples = System.Array.Empty<int>();
     public ulong[] Contact = System.Array.Empty<ulong>();
+    public int[] EurekaCounts = System.Array.Empty<int>();   // Eurekas.Count: nations × EurekaCount
     public readonly long[] CityPop;
     int _stamp, _seenStamp;
 

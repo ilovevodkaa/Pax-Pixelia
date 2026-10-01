@@ -24,7 +24,6 @@ Settings="*res://scripts/Core/Settings.cs"
 Sfx="*res://scripts/Core/Audio/Sfx.cs"
 Music="*res://scripts/Core/Audio/Music.cs"
 Game="*res://scripts/Core/Game.cs"
-DiscordPresence="*res://scripts/Core/Discord/DiscordPresence.cs"
 
 [display]
 

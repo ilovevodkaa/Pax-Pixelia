@@ -78,6 +78,8 @@ public sealed partial class GameState
             nat.Add(NationCapital[n]);
             if (Events?.Mem[n] is { } m) { nat.Add(m.Total); nat.Add(m.NextDue); nat.Add(m.NextChoice); nat.Add(m.Pending?.Event ?? -1); }
         }
+        foreach (var x in Nat)
+            if (!Eurekas.IsBlank(x)) foreach (ulong v in x.Eurekas) nat.Add(v);   // none struck yet hashes as before
         if (!Firsts.IsBlank(this))   // no first taken yet hashes as the layouts before them did
             for (int f = 0; f < FirstHolder.Length; f++) { nat.Add(FirstHolder[f]); nat.Add(FirstCycle[f]); }
         if (!Wonders.IsBlank(this))  // no glory, no wonder: hashes as before wonders

@@ -302,6 +302,7 @@ public static class Nomads
         nat.TribePop = 0;
         if (s.City != null) Cities.Reassign(w, s, n);
         Simulation.SyncQueue(s, n);
+        Eurekas.Baseline(w, s, n);   // the land it settles on is no deed
 
         if (sink == null) return;
         if (nat.Human)

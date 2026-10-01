@@ -46,6 +46,7 @@ public static class Program
         BotTests.Run(w);
         CharacterTests.Run(w);
         FirstsTests.Run(w);
+        EurekaTests.Run(w);
         MaterialTests.Run(w);
         PolicyTests.Run(w);
         WonderTests.Run(w);

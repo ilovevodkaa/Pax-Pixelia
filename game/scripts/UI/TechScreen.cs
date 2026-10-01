@@ -328,6 +328,15 @@ public partial class TechScreen : Control
             if (st == Game.TechState.Hidden)
                 for (float y = 4; y < Size.Y - 4; y += 4)
                     for (float x = 4 + (y / 4 % 2) * 2; x < Size.X - 4; x += 4) DrawRect(new Rect2(x, y, 1, 1), new Color(Pal.Haze, .07f));
+            if (st != Game.TechState.Known && st != Game.TechState.Hidden && Eurekas.Of(_v.Id) is var e and >= 0 && Game.I.IsReady)
+            {
+                // the eureka spark, top right: an outline while it waits, filled once it struck
+                bool fired = Eurekas.Fired(Game.I.State.Nat[GameState.LocalPlayer], e);
+                var c = fired ? Pal.Ok : Pal.Warn;
+                float x = Size.X - 14, y = 6;
+                DrawRect(new Rect2(x + 2, y, 2, 6), c); DrawRect(new Rect2(x, y + 2, 6, 2), c);
+                if (fired) { DrawRect(new Rect2(x + 1, y + 1, 4, 4), c); }
+            }
             if (st is Game.TechState.Studying or Game.TechState.Open && _v.Points > 0)
             {
                 float w = (Size.X - 8) * Mathf.Clamp(_v.Points / (float)Math.Max(1, _v.Cost), 0, 1);
@@ -346,6 +355,14 @@ public partial class TechScreen : Control
             }
             var d = v.Def;
             t.Title(d.Name).Line(d.Lore).Kv("Даёт", d.Effect);
+            if (Eurekas.Of(v.Id) is var e and >= 0 && v.State != Game.TechState.Known && Game.I.IsReady)
+            {
+                var g = Game.I;
+                var ed = Eurekas.All[e];
+                if (Eurekas.Fired(g.State.Nat[GameState.LocalPlayer], e)) t.Kv("Озарение", "условие выполнено", Pal.Mu);
+                else t.Kv("Озарение", $"{ed.Trigger} · {Eurekas.Progress(g.World, g.State, GameState.LocalPlayer, e)}/{ed.Need}", Pal.Warn)
+                      .Mu($"Условие: {ed.Trigger}. Тогда изучение сразу продвинется на {Eurekas.Permille / 10}%");
+            }
             if (d.Fork >= 0) t.Kv("Развилка", "один путь из трёх, навсегда", Pal.Warn);
             var req = Techs.Requires(v.Id);
             if (req.Length > 0)

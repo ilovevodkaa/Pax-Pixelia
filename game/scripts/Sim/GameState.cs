@@ -60,6 +60,7 @@ public sealed class NationState
     public int Wonder = -1;             // Wonders.All index being built in the capital, -1 = none
     public long WonderGold, WonderMats; // put into it so far (gold in hundredths, materials whole)
     public int[] WonderFx;              // derived: bonuses of the wonders this nation owns per TechFx (Wonders.Refresh), never saved
+    public ulong[] Eurekas;             // bit e: Eurekas.All[e] has struck (or its technology was known before the deed)
     public NationFog Fog;
 
     public bool Human => Control == NationControl.Human;
