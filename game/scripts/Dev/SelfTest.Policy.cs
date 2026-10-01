@@ -6,42 +6,72 @@ using PaxPixelia.Sim;
 
 namespace PaxPixelia.Dev;
 
-/// <summary>«Политика» through the real UI: the bank button opens the card, «Издать» issues an edict through a command,
-/// the full slots disable the rest, «Отменить» repeals it, Esc closes the card.</summary>
+/// <summary>«Правительство» through the real UI: the bank button opens the screen, a real click on «Основы государства»
+/// starts it through a command, once laid the ring shows its ways, a mouse drag moves the field and «В центр» brings it
+/// back, the «Законы» tab lists the laws, Esc closes the screen.</summary>
 public partial class SelfTest
 {
     async Task PolicyFlow()
     {
         var me = G.State.Nat[GameState.LocalPlayer];
-        int before = me.Edicts;
-        for (int e = 0; e < Policy.Count; e++) if (Policy.On(me, e)) G.SetEdict(e, false);   // a clean start
-        await Frames(2);
         Hud.Top.PolicyButton.EmitSignal(BaseButton.SignalName.Pressed);
         await Frames(4);
-        Check("policy: the bank button opens the card", Hud.Policy.Visible);
-        Check("policy: the card shows the budget and the limit", FindText(Hud.Policy, "Бюджет за цикл") && FindText(Hud.Policy, "Провинции"));
-        var issue = AllButtons(Hud.Policy).Where(b => Caption(b) == "Издать").ToList();
-        Check("policy: every edict has its button", issue.Count == Policy.Count, $"{issue.Count} of {Policy.Count}");
-        if (issue.Count == 0) return;
-        int notes = _notes.Count, journal = G.Journal.Count;
-        issue[0].EmitSignal(BaseButton.SignalName.Pressed);
+        Check("government: the bank button opens the screen", Hud.Policy.Visible);
+        Check("government: the header shows the budget and the realm", FindText(Hud.Policy, "за цикл"));
+        var root = LabelOf(Hud.Policy, "Основы государства")?.GetParent<Control>();
+        Check("government: «Основы государства» stand in the middle, the ways around are «?»", root != null && !FindText(Hud.Policy, "Единоначалие"));
+        if (root == null) return;
+        await Seconds(.8);   // the first opening glides in
+
+        // a real click (press and release without a drag) starts the course
+        int journal = G.Journal.Count;
+        var at = root.GetGlobalRect().GetCenter();
+        MouseAt(at); MouseAt(at, MouseButton.Left, true); MouseAt(at, MouseButton.Left, false);
+        await Frames(3);
+        Check("government: a click on the card starts it through a command", me.CourseNow == Politics.Root && G.Journal.Skip(journal).Any(c => c.Type == CmdType.Course));
+        G.RunTicks((Politics.Total(Politics.Root, G.State.Pace) + 1) * Clock.CycleTicks);
+        await Frames(3);
+        Check("government: laid, the ring shows its ways", Politics.Has(me, Politics.Root) && FindText(Hud.Policy, "Единоначалие") && FindText(Hud.Policy, "Вече"));
+        await Shot("government");
+
+        // drag the field by its empty part, then back to the centre
+        var view = Hud.Policy.GetViewportRect().Size;
+        var from = new Vector2(view.X * .5f, view.Y * .5f + 120);
+        var rootAt = root.GetGlobalRect().Position;
+        MouseAt(from); MouseAt(from, MouseButton.Left, true);
+        for (int k = 1; k <= 10; k++) { MouseAt(from + new Vector2(k * 18, k * -6), held: true); await Frames(1); }
+        var mid = root.GetGlobalRect().Position - rootAt;
+        MouseAt(from + new Vector2(180, -60), MouseButton.Left, false);
         await Frames(4);
-        Check("policy: «Издать» puts the edict in force through a command", Policy.On(me, 0) && G.Journal.Count > journal);
-        Check("policy: the chronicle notes it", _notes.Skip(notes).Any(n => n.text.StartsWith("Издан указ")));
-        Hud.Policy.Refresh();
-        await Frames(2);
-        var after = AllButtons(Hud.Policy).ToList();
-        bool full = me.Era == 0 || Policy.Active(me) >= Policy.Slots(me.Era);
-        Check("policy: with the slots full the other edicts wait", !full || after.Where(b => Caption(b) == "Издать").All(b => b.Disabled));
-        await Shot("policy");
-        var repeal = after.FirstOrDefault(b => Caption(b) == "Отменить");
-        Check("policy: the edict in force can be repealed", repeal != null);
-        repeal?.EmitSignal(BaseButton.SignalName.Pressed);
-        await Frames(4);
-        Check("policy: «Отменить» repeals it", !Policy.On(me, 0));
+        var moved = root.GetGlobalRect().Position - rootAt;
+        Check("government: a drag moves the field (and it glides on)", mid.X > 120 && mid.Y < -30 && moved.X >= mid.X, $"held {mid}, after {moved}");
+        Check("government: a drag is not a click", me.CourseNow < 0);
+        var home = AllButtons(Hud.Policy).FirstOrDefault(b => Caption(b) == "В центр");
+        home?.EmitSignal(BaseButton.SignalName.Pressed);
+        await Seconds(1.2);
+        Check("government: «В центр» brings it back", home != null && (root.GetGlobalRect().Position - rootAt).Length() < 6, $"{root.GetGlobalRect().Position - rootAt}");
+
+        var laws = AllButtons(Hud.Policy).FirstOrDefault(b => Caption(b) == "Законы");
+        laws?.EmitSignal(BaseButton.SignalName.Pressed);
+        await Frames(3);
+        Check("government: the «Законы» tab lists the laws", FindText(Hud.Policy, "Глава государства") && FindText(Hud.Policy, "Крепостное право"));
+        await Shot("government_laws");
+        AllButtons(Hud.Policy).FirstOrDefault(b => Caption(b) == "Политика")?.EmitSignal(BaseButton.SignalName.Pressed);
         PressKey(Key.Escape);
         await Frames(3);
-        Check("policy: Esc closes the card", !Hud.Policy.Visible);
-        for (int e = 0; e < Policy.Count; e++) if ((before >> e & 1) != 0) G.SetEdict(e, true);
+        Check("government: Esc closes the screen", !Hud.Policy.Visible);
     }
+
+    static Label LabelOf(Node root, string text)
+    {
+        foreach (var n in root.FindChildren("*", "Label", true, false))
+            if (n is Label l && l.Text == text && l.IsVisibleInTree()) return l;
+        return null;
+    }
+
+    static void MouseAt(Vector2 at, bool held = false) =>
+        Input.ParseInputEvent(new InputEventMouseMotion { Position = at, GlobalPosition = at, ButtonMask = held ? MouseButtonMask.Left : 0 });
+
+    static void MouseAt(Vector2 at, MouseButton b, bool down) =>
+        Input.ParseInputEvent(new InputEventMouseButton { Position = at, GlobalPosition = at, ButtonIndex = b, Pressed = down, ButtonMask = down ? MouseButtonMask.Left : 0 });
 }

@@ -82,6 +82,20 @@ public partial class SimDriver : Node
             foreach (var j in s.Builds) if (j.Nation == g.Viewer) j.Work = (int)((long)j.Total * pct / 100);   // debug only: screenshots
         }
 
+        // --courses[=id,id,…]: adopt these courses of the policy tree in turn (the centre first; screenshots), the last one
+        // left half-way (default: the centre, «Единоначалие» and «Знать и род» under way)
+        if (Cli.Has("courses"))
+        {
+            var ids = (Cli.Str("courses") is { Length: > 1 } list ? list : "foundations,one_rule,noble_kin").Split(',');
+            for (int k = 0; k < ids.Length; k++)
+            {
+                int c = Politics.Index(ids[k].Trim());
+                if (c < 0 || g.Issue(Cmd.Course(g.Viewer, c, true)) != 0) continue;
+                int total = Politics.Total(c, s.Pace) * Clock.CycleTicks;
+                g.FastForward(k == ids.Length - 1 ? total / 2 : total + Clock.CycleTicks);
+            }
+        }
+
         if (Cli.Has("speed")) g.SetSpeed(Cli.Int("speed", 2));
         if (Cli.Str("research") is { } study && Techs.Index(study) is var t and >= 0) g.Issue(Cmd.Research(g.Viewer, t));
 

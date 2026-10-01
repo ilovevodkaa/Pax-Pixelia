@@ -18,9 +18,27 @@ public static class PolicyTests
     {
         Prices(w);
         Administration(w);
-        Edicts(w);
-        Effects(w);
-        SavedAndBots(w);
+        Closed(w);
+        // the edicts are put aside in the game; their rules stay covered for when they come back
+        Policy.EdictsOpen = true;
+        try { Edicts(w); Effects(w); SavedAndBots(w); }
+        finally { Policy.EdictsOpen = false; }
+    }
+
+    static void Closed(WorldData w)
+    {
+        Section("policy: the edicts are put aside for now");
+        var s = Fresh(w);
+        s.Nat[Me].Era = 1;
+        Check(Commands.Apply(w, s, Cmd.Edict(Me, Policy.Index("feasts"), true), null) == (int)EdictError.Closed && s.Nat[Me].Edicts == 0, "no edict can be issued");
+        Policy.Set(s.Nat[Me], Policy.Index("sages"), true);   // as an older save would have it
+        RunCycles(w, s, 1);
+        Check(s.Nat[Me].Edicts == 0, "an older save's edicts are repealed");
+        var b = NationGen.CreateInitialState(w);
+        foreach (var n in b.Nat) n.Control = NationControl.Bot;
+        Simulation.Begin(w, b);
+        RunCycles(w, b, 400);
+        Check(b.Nat.All(n => n.Edicts == 0), "bots issue none either");
     }
 
     static void Prices(WorldData w)

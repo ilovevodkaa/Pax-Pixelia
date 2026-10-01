@@ -24,7 +24,7 @@ public partial class Hud : CanvasLayer
     ProvincePanel _panel;
     Leaderboard _lead;
     TechScreen _tech;
-    PolicyCard _policy;
+    GovernmentScreen _policy;
     WondersCard _wonders;
     DiplomacyCard _diplo;
     FaithCard _faith;
@@ -62,7 +62,7 @@ public partial class Hud : CanvasLayer
     internal Control DebugTarget(string name) => _top.DebugTarget(name) ?? _modes.DebugTarget(name) ?? _mini.DebugTarget(name);
     internal void DebugToggleLead() => ToggleLeaderboard();
     internal void DebugTogglePolicy() => TogglePolicy();
-    internal PolicyCard Policy => _policy;
+    internal GovernmentScreen Policy => _policy;
     internal void DebugToggleWonders() => ToggleWonders();
     internal WondersCard WondersView => _wonders;
     internal void DebugToggleDiplomacy() => ToggleDiplomacy();
@@ -114,8 +114,6 @@ public partial class Hud : CanvasLayer
         _root.AddChild(_panel);
         _lead = new Leaderboard();
         _root.AddChild(_lead);
-        _policy = new PolicyCard();
-        _root.AddChild(_policy);
         _wonders = new WondersCard();
         _root.AddChild(_wonders);
         _diplo = new DiplomacyCard();
@@ -124,6 +122,8 @@ public partial class Hud : CanvasLayer
         _root.AddChild(_faith);
         _tech = new TechScreen { Hud = this };
         _root.AddChild(_tech);
+        _policy = new GovernmentScreen { Hud = this };   // «Правительство»: full screen like the technologies
+        _root.AddChild(_policy);
         _events = new EventWindow();
         _root.AddChild(_events);
         _root.AddChild(new BlitzCard());   // «Блиц недели»: the score when the time is up
@@ -167,6 +167,7 @@ public partial class Hud : CanvasLayer
             g.ResearchChanged += OnResearchChanged;
             g.TribeChanged += OnTribeChanged;
             g.UnitSelected += OnUnitSelected;
+            g.PoliticsChanged += OnPoliticsChanged;
         }
         else
         {
@@ -178,6 +179,7 @@ public partial class Hud : CanvasLayer
             g.ResearchChanged -= OnResearchChanged;
             g.TribeChanged -= OnTribeChanged;
             g.UnitSelected -= OnUnitSelected;
+            g.PoliticsChanged -= OnPoliticsChanged;
         }
     }
 
@@ -372,10 +374,18 @@ public partial class Hud : CanvasLayer
         if (!_policy.Visible) CloseOthers(_policy);
         bool open = _policy.Toggle();
         _top.SetPolicyOpen(open);
-        if (open) { _policyCooldown = .5; PlacePolicy(); }
+        if (open) { _policyCooldown = .5; HideTip(); }
     }
 
-    void PlacePolicy() => _policy.Place(_top.PolicyButton.GetGlobalRect(), _root.Size);
+    /// <summary>The screen's × button.</summary>
+    internal void ClosePolicy() { if (_policy.Visible) TogglePolicy(); }
+
+    /// <summary>A course was started, dropped or adopted: the screen and the tips follow.</summary>
+    void OnPoliticsChanged()
+    {
+        _policy.Refresh();
+        _liveDirty = _tipDirty = true;
+    }
 
     void ToggleTech()
     {
@@ -452,12 +462,15 @@ public partial class Hud : CanvasLayer
             case Key.T:
                 if (Game.I.IsReady && !_loading.Visible) ToggleTech();
                 break;
+            case Key.P:
+                if (Game.I.IsReady && !_loading.Visible) TogglePolicy();
+                break;
             case Key.Escape:
                 if (_tech.Visible) ToggleTech();
+                else if (_policy.Visible) TogglePolicy();
                 else if (Game.I.IsTargeting) Game.I.CancelScoutTargeting();
                 else if (Game.I.SelectedUnit.Any) Game.I.DeselectUnit();
                 else if (_lead.Visible) ToggleLeaderboard();
-                else if (_policy.Visible) TogglePolicy();
                 else if (_wonders.Visible) ToggleWonders();
                 else if (_diplo.Visible) ToggleDiplomacy();
                 else if (_faith.Visible) ToggleFaith();
@@ -482,7 +495,6 @@ public partial class Hud : CanvasLayer
         _modes.SetWidth(mw + 16);
         _panel.SetViewport(size);
         if (_lead.Visible) Callable.From(PlaceLeaderboard).CallDeferred();
-        if (_policy.Visible) Callable.From(PlacePolicy).CallDeferred();
         if (_wonders.Visible) Callable.From(PlaceWonders).CallDeferred();
         if (_diplo.Visible) Callable.From(PlaceDiplomacy).CallDeferred();
         if (_faith.Visible) Callable.From(PlaceFaith).CallDeferred();
@@ -520,7 +532,6 @@ public partial class Hud : CanvasLayer
         {
             _policyCooldown -= delta;
             if (_policyDirty && _policyCooldown <= 0) { _policyDirty = false; _policyCooldown = .5; _policy.Refresh(); }
-            PlacePolicy();
         }
         if (_lead.Visible)
         {

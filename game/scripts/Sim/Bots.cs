@@ -25,12 +25,13 @@ public static class Bots
             if (nat.Control != NationControl.Bot || count[n] == 0) continue;
             TryClaim(w, s, n, cycle, count, sink, ref changed);
             if (WantsToBuild(w.Seed, n, cycle)) TryBuild(w, s, n, tally.Shrines[n], sink, ref changed);
-            if (WantsEdicts(w.Seed, n, cycle)) ChooseEdicts(w, s, n, tally.OverPct[n], sink);
+            if (Policy.EdictsOpen && WantsEdicts(w.Seed, n, cycle)) ChooseEdicts(w, s, n, tally.OverPct[n], sink);
             Wonders.BotChoose(w, s, n, cycle);
             Wonders.BotInvest(w, s, n, cycle);
             Unrest.BotCare(w, s, n, cycle);
             Diplomacy.BotAct(w, s, n, cycle, sink);
             Faith.BotChoose(w, s, n, cycle);
+            Politics.BotChoose(w, s, n, cycle);
         }
     }
 
@@ -112,7 +113,9 @@ public static class Bots
     static void TryBuild(WorldData w, GameState s, int n, int shrines, ISimSink sink, ref List<int> changed)
     {
         var nat = s.Nat[n];
-        if (nat.LastTaxes - nat.LastUpkeep < Rules.UpkeepPerBuilding * 3) return;   // cannot carry another building yet
+        long pending = 0;   // buildings going up will cost upkeep too once they stand
+        foreach (var j in s.Builds) if (j.Nation == n) pending++;
+        if (nat.LastTaxes - nat.LastUpkeep - pending * Rules.UpkeepPerBuilding < Rules.UpkeepPerBuilding * 3) return;   // cannot carry another building yet
         long spare = nat.Treasury - Rules.ClaimPrice(s, n) * Rules.Cents;
         if (spare < Rules.SurveyPrice(nat) * Rules.Cents) return;   // the cheapest thing a bot can order
         if (WantsToSurvey(w.Seed, n, Clock.CycleOf(s.Tick)) && Techs.Known(nat, Techs.SurveyTech) && SurveySite(w, s, n) is var q and >= 0)

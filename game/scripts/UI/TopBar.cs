@@ -104,7 +104,7 @@ public partial class TopBar : PanelContainer
     Control BuildScreens()
     {
         _screens = Ui.HBox(2);
-        (string icon, string name)[] screens = { ("atom", "Технологии"), ("building-bank", "Политика и законы"), ("building-store", "Рынок"), ("affiliate", "Дипломатия"), ("sun", "Религия") };
+        (string icon, string name)[] screens = { ("atom", "Технологии"), ("building-bank", "Правительство"), ("building-store", "Рынок"), ("affiliate", "Дипломатия"), ("sun", "Религия") };
         for (int i = 0; i < screens.Length; i++)
         {
             var (icon, name) = screens[i];
@@ -129,13 +129,15 @@ public partial class TopBar : PanelContainer
             });
             else if (i == 1) b.Tip(t =>
             {
-                t.Title("Политика").Mu("Бюджет, предел управления и указы");
+                t.Title("Правительство").Mu("Курсы державы и законы · клавиша P");
                 var g = Game.I;
                 if (!g.IsReady) return;
                 var (prov, limit, over) = g.Admin;
                 t.Kv("Провинции", $"{prov} из {limit}", over > 0 ? Pal.Bad : Pal.Hi);
                 if (over > 0) t.Kv("Перерасширение", $"{over}%", Pal.Bad);
-                t.Kv("Указы", $"{g.EdictsActive} из {g.EdictSlots}", g.EdictsActive < g.EdictSlots ? Pal.Warn : Pal.Hi);
+                int now = g.CourseNow;
+                t.Kv("Курс", now >= 0 ? $"принимается «{Politics.All[now].Name}»" : g.StateFounded ? "можно выбрать следующий" : "начните с «Основ государства»",
+                    now >= 0 ? Pal.Ok : Pal.Warn);
             });
             else if (i == 3) b.Tip(t =>
             {
@@ -230,10 +232,10 @@ public partial class TopBar : PanelContainer
             var s = Game.I.State;
             var b = Game.I.BudgetLines;
             t.Line($"Налоги {Fmt.Signed(b.Taxes / 100.0, 1)} · Постройки {Fmt.Signed(-b.Buildings / 100.0, 1)}")
-             .Line($"Управление {Fmt.Signed(-b.Admin / 100.0, 1)} · Указы {Fmt.Signed(-b.Edicts / 100.0, 1)}")
+             .Line($"Управление {Fmt.Signed(-b.Admin / 100.0, 1)}")
              .Kv("Итого за цикл", Fmt.Signed(s.LastIncome, 1), s.LastIncome >= 0 ? Pal.Ok : Pal.Bad)
              .Kv("В минуту", Fmt.Signed(s.LastIncome * Game.CyclesPerMinute(s.Speed)), s.LastIncome >= 0 ? Pal.Ok : Pal.Bad)
-             .Mu("Цикл — полсекунды при скорости 3. Золото тратится на земли, города, постройки, геологов и указы. Подробно — в «Политике»");
+             .Mu("Цикл — полсекунды при скорости 3. Золото тратится на земли, города, постройки, геологов и чудеса. Подробно — в «Правительстве»");
         });
         _res[1].Root.Tip(t =>
         {

@@ -88,6 +88,7 @@ public static class UnrestTests
     static void ReliefAndDebt(WorldData w)
     {
         Section("unrest: bread and an empty treasury");
+        Policy.EdictsOpen = true;   // the edicts are put aside in the game; the debt rule for them stays covered
         var s = Fresh(w);
         int p = Own(w, s, q => s.CapitalOf[q] < 0);
         s.Mood[p] = 70;
@@ -118,6 +119,7 @@ public static class UnrestTests
 
     static void Plague(WorldData w)
     {
+        Policy.EdictsOpen = false;
         Section("crises: the plague");
         var s = Fresh(w);
         int p = Own(w, s, q => s.Pop[q] > 5000 && w.Adj[q].Count(r => w.PLand[r] == 1) >= 3);
@@ -136,6 +138,7 @@ public static class UnrestTests
             var a = Fresh(w); var b = Fresh(w);
             RunCycles(w, a, k * 7); RunCycles(w, b, k * 7);   // different rolls
             b.Nat[Me].Era = 1;
+            Policy.EdictsOpen = true;   // «Карантин» is put aside with the other edicts: its rule stays covered
             Policy.Set(b.Nat[Me], Policy.Index("quarantine"), true);
             int pa = Own(w, a, q => a.Pop[q] > 5000), pb = pa;
             a.Plague[pa] = Unrest.PlagueCycles / Unrest.PlagueStep; b.Plague[pb] = Unrest.PlagueCycles / Unrest.PlagueStep;
@@ -143,6 +146,7 @@ public static class UnrestTests
             sickFree += Enumerable.Range(0, w.P).Count(q => a.Plague[q] != 0);
             sickQuarantine += Enumerable.Range(0, w.P).Count(q => b.Plague[q] != 0);
         }
+        Policy.EdictsOpen = false;
         Check(sickQuarantine < sickFree, $"«Карантин» holds it back: {sickQuarantine} provinces touched against {sickFree} without (6 outbreaks)");
 
         var o = NationGen.CreateInitialState(w);

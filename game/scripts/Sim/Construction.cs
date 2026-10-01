@@ -111,6 +111,7 @@ public static class Construction
             j.Work = (int)Math.Min(j.Total, (long)j.Work + rate[i]);
             if (j.Work < j.Total) continue;
             s.Buildings[j.Province].Add(j.Building);
+            Character.OnBuild(s, j.Nation, j.Building);   // the deed counts once it stands: an order called off shapes nobody
             (changed ??= new List<int>()).Add(j.Province);
             done++;
             if (s.Nat[j.Nation].Human) sink?.Notify("hammer", $"Стройка окончена: «{Data.BldName[(int)j.Building]}» в провинции {w.PName[j.Province]}");

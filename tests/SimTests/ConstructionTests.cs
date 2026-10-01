@@ -70,6 +70,17 @@ public static class ConstructionTests
         }
         else Check(true, "no province with two free plots (skip)");
 
+        Section("construction: the people's deed comes when it stands");
+        var s5 = Fresh(w);
+        s5.Nat[Me].Treasury = 100_000 * Rules.Cents; s5.Nat[Me].Materials = 10_000;
+        var (dp, db) = Site(w, s5);
+        if (dp >= 0)
+        {
+            var a0 = (int[])s5.Nat[Me].CharA.Clone(); var b0 = (int[])s5.Nat[Me].CharB.Clone();
+            for (int k = 0; k < 5; k++) { Commands.Apply(w, s5, Cmd.Build(Me, dp, db), null); Commands.Apply(w, s5, Cmd.CancelBuild(Me, dp, db), null); }
+            Check(s5.Nat[Me].CharA.SequenceEqual(a0) && s5.Nat[Me].CharB.SequenceEqual(b0), "ordered and called off five times: the people are not shaped by it");
+        }
+
         Section("construction: strikes and lost land");
         var s3 = Fresh(w);
         s3.Nat[Me].Treasury = 100_000 * Rules.Cents; s3.Nat[Me].Materials = 10_000;

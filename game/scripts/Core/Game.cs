@@ -201,6 +201,7 @@ public partial class Game : Node
         if (State.Day256 / Calendar.DayUnit != day) RaiseDateChanged();   // a console jump moves the calendar between ticks
         CheckEra();
         CheckResearch();
+        CheckPolitics();
         return r;
     }
 
@@ -223,7 +224,7 @@ public partial class Game : Node
         if (r.ScoutSteps > 0 || r.ScoutsFinished > 0) RaiseScoutsChanged();
         if (r.Tribes) RaiseTribeChanged();
         if (r.EraChanged) CheckEra();
-        if (r.Cycle) { RumorsCycle(); ClimateCycle(); CommonsCycle(); CycleTick?.Invoke(); CheckResearch(); }
+        if (r.Cycle) { RumorsCycle(); ClimateCycle(); CommonsCycle(); CycleTick?.Invoke(); CheckResearch(); CheckPolitics(); }
         if (r.MonthChanged) MonthTick?.Invoke();
         if (r.YearChanged) YearTick?.Invoke();
         if (r.DayChanged) RaiseDateChanged();

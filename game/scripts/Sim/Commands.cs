@@ -40,6 +40,8 @@ public enum CmdType : byte
     ScoutMove,
     // call off the building B going up in province A (half the price back)
     CancelBuild,
+    // adopt course A of the policy tree (B = 1), or drop the one under way (B = 0)
+    Course,
 }
 
 /// <summary>
@@ -71,6 +73,7 @@ public readonly record struct Cmd(int Tick, byte Nation, ushort Seq, CmdType Typ
     public static Cmd Dogma(int n, int dogma) => new(0, (byte)n, 0, CmdType.Dogma, dogma);
     public static Cmd ScoutMove(int n, int scoutId, int province) => new(0, (byte)n, 0, CmdType.ScoutMove, scoutId, province);
     public static Cmd CancelBuild(int n, int province, Bld b) => new(0, (byte)n, 0, CmdType.CancelBuild, province, (int)b);
+    public static Cmd Course(int n, int course, bool on) => new(0, (byte)n, 0, CmdType.Course, course, on ? 1 : 0);
     public static Cmd Pact(int n, int with, bool on) => new(0, (byte)n, 0, CmdType.Pact, with, on ? 1 : 0);
     public static Cmd DemandTribute(int n, int from) => new(0, (byte)n, 0, CmdType.DemandTribute, from);
     public static Cmd AnswerDemand(int n, bool pay) => new(0, (byte)n, 0, CmdType.AnswerDemand, pay ? 1 : 0);
@@ -122,8 +125,7 @@ public static class Commands
             {
                 var e = Rules.CheckBuild(w, s, c.A, (Bld)c.B, n);
                 if (e != BuildError.None) return (int)e;
-                Rules.Build(s, c.A, (Bld)c.B, n);
-                Character.OnBuild(s, n, (Bld)c.B);
+                Rules.Build(s, c.A, (Bld)c.B, n);   // the people's deed (Character.OnBuild) counts once it stands
                 Simulation.SyncQueue(s, n);   // building the capital's current project by hand moves its queue on
                 Changed(w, s, c.A, sink, batch, fog: false);
                 return 0;
@@ -145,6 +147,20 @@ public static class Commands
                 return (int)Scouts.Send(w, s, n, -1, sink, out _);
             case CmdType.ScoutMove:
                 return (int)Scouts.Redirect(w, s, n, c.A, c.B);
+            case CmdType.Course:
+            {
+                var nat = s.Nat[n];
+                if (c.B == 0)
+                {
+                    if (nat.CourseNow < 0) return (int)CourseError.NotAdopting;
+                    Politics.Stop(nat);
+                    return 0;
+                }
+                var e = Politics.CheckStart(s, n, c.A);
+                if (e != CourseError.None) return (int)e;
+                Politics.Start(nat, c.A);
+                return 0;
+            }
             case CmdType.CancelBuild:
             {
                 var e = Construction.CheckCancel(s, c.A, (Bld)c.B, n);

@@ -75,6 +75,11 @@ public sealed class NationState
     public long ChallengeGoal;          // the measure to reach
     public int ChallengeEnd;            // rules cycle it must be met by
     public int ChallengesWon;
+    // ---- the policy tree (Politics.cs) ----
+    public ulong[] Courses;             // bit c of word c / 64: Politics.All[c] adopted (null = none yet)
+    public int CourseNow = -1;          // the course being adopted, -1 = none
+    public int CourseCycles;            // rules cycles it has been under way
+    public int[] CourseFx;              // derived: the bonuses of the adopted courses per TechFx, never saved
     public NationFog Fog;
 
     public bool Human => Control == NationControl.Human;

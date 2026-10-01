@@ -60,7 +60,7 @@ public static partial class Simulation
         for (int n = 0; n < s.Nat.Length; n++) Eurekas.Baseline(w, s, n);
         Unrest.Init(w, s);
         Diplomacy.Init(s);
-        for (int n = 0; n < s.Nat.Length; n++) { if (s.Nat[n].Rulers == 0) Leader.Crown(w, s, n); Faith.Refresh(s.Nat[n]); }
+        for (int n = 0; n < s.Nat.Length; n++) { if (s.Nat[n].Rulers == 0) Leader.Crown(w, s, n); Faith.Refresh(s.Nat[n]); Politics.Refresh(s.Nat[n]); }
         for (int n = 0; n < s.Nat.Length; n++)
         {
             var nat = s.Nat[n];
@@ -127,6 +127,7 @@ public static partial class Simulation
         Wonders.Cycle(w, s, cycle, sink);
         Leader.Cycle(w, s, cycle, sink);
         Faith.Cycle(w, s, cycle, sink);
+        Politics.Cycle(w, s, cycle, sink);
         Challenges.Cycle(w, s, cycle, sink);
         Archaeology.Cycle(w, s, cycle, sink);
         Eurekas.Cycle(w, s, cycle, sink);

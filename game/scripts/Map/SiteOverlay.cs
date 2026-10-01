@@ -21,6 +21,7 @@ internal partial class SiteOverlay : MapOverlay
     readonly List<Data.Bld> _kinds = new();
     readonly List<(int Era, int Permille)> _jobs = new();
     readonly List<int> _provinces = new();
+    readonly List<int> _mine = new();
     readonly HashSet<int> _seenP = new();
     // where each job stood last frame (province, building) → plot, to puff when it is gone and the building stands
     Dictionary<long, Vector2> _was = new(), _now = new();
@@ -71,12 +72,20 @@ internal partial class SiteOverlay : MapOverlay
             if (FogOn && s.Fog[p] != 2) continue;
             var w = Game.I.World;
             float sy = v.ScreenY(w.PCY[p] + .5f);
-            if (sy < -80 || sy > v.Screen.Y + 80) continue;
+            if (sy < -400 || sy > v.Screen.Y + 400) continue;   // far off screen: no plot of it can reach
             var standing = Map.Memory.Buildings(p);
             _kinds.Clear(); _jobs.Clear();
             foreach (var b in standing) _kinds.Add(b);
-            foreach (var j in s.Builds)
-                if (j.Province == p) { _kinds.Add(j.Building); _jobs.Add((j.Era, Construction.PermilleDone(j))); }
+            // the jobs of a province share their builders, so they finish in the order of the work they still need:
+            // listed that way the next to stand is always first, and joining the standing ones it keeps its plot
+            _mine.Clear();
+            for (int i = 0; i < s.Builds.Count; i++) if (s.Builds[i].Province == p) _mine.Add(i);
+            _mine.Sort((a, b) =>
+            {
+                int c = (s.Builds[a].Total - s.Builds[a].Work).CompareTo(s.Builds[b].Total - s.Builds[b].Work);
+                return c != 0 ? c : a.CompareTo(b);
+            });
+            foreach (int i in _mine) { var j = s.Builds[i]; _kinds.Add(j.Building); _jobs.Add((j.Era, Construction.PermilleDone(j))); }
             int owner = s.Owner[p];
             if (owner >= 0 && s.NationCapital[owner] == p && s.Nat[owner].ProjectIndex >= 0
                 && Simulation.Projects[s.Nat[owner].ProjectIndex].Building is Data.Bld pb && !_kinds.Contains(pb))
@@ -90,12 +99,13 @@ internal partial class SiteOverlay : MapOverlay
             {
                 var (era, pm) = _jobs[k - standing.Count];
                 _now[Key(p, _kinds[k])] = at[k];
+                float y = at[k].Y * v.Zoom + v.Origin.Y;
+                if (y < -16 * bs || y > v.Screen.Y + 16 * bs) continue;   // the scaffold reaches 9 sprite px above and below its plot
                 int frame = still ? 0 : (int)(ms / FrameMs) + p * 3 + k;
                 int icon = MapAtlas.Building((int)_kinds[k]), site = MapAtlas.Site(era, frame);
                 int rows = Math.Clamp(pm * MapAtlas.Size(icon).Y / 1000, 0, MapAtlas.Size(icon).Y - 1);
                 for (float sx = v.FirstX(at[k].X, 40); sx < v.Screen.X + 40; sx += v.WZ)
                 {
-                    float y = at[k].Y * v.Zoom + v.Origin.Y;
                     MapAtlas.DrawBottom(this, icon, nation, sx, y, bs, rows);
                     // the scaffold is 4 sprite px taller than the icon and stands on the same ground row
                     DrawSprite(site, nation, sx, y - 2 * bs, bs);

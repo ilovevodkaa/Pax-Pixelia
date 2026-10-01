@@ -22,7 +22,7 @@ namespace PaxPixelia.Sim;
 public sealed partial class GameState
 {
     /// <summary>Layout version of the snapshot (the save file carries it; older layouts are read field by field).</summary>
-    public const int SnapshotVersion = 16;   // 2: materials · 3: technologies · 4: the nomad phase · 5: techs past 64 · 6: character · 7: edicts · 8: world firsts · 9: wonders and glory · 10: eurekas · 11: unrest · 12: challenges · 13: diplomacy · 14: ruins dug · 15: ruler and dogmas · 16: construction
+    public const int SnapshotVersion = 17;   // 2: materials · 3: technologies · 4: the nomad phase · 5: techs past 64 · 6: character · 7: edicts · 8: world firsts · 9: wonders and glory · 10: eurekas · 11: unrest · 12: challenges · 13: diplomacy · 14: ruins dug · 15: ruler and dogmas · 16: construction · 17: the policy tree
 
     const int MaxNations = 255;
 
@@ -165,6 +165,15 @@ public sealed partial class GameState
         {
             w.Write(j.Province); w.Write((byte)j.Building); w.Write((byte)j.Nation); w.Write((byte)j.Era);
             w.Write(j.Work); w.Write(j.Total); w.Write(j.Gold); w.Write(j.Materials);
+        }
+
+        // ---- the policy tree (17) ----
+        foreach (var x in Nat)
+        {
+            int words = x.Courses?.Length ?? 0;
+            w.Write((byte)words);
+            for (int i = 0; i < words; i++) w.Write(x.Courses[i]);
+            w.Write(x.CourseNow); w.Write(x.CourseCycles);
         }
     }
 
@@ -422,7 +431,20 @@ public sealed partial class GameState
                 s.Builds.Add(j);
             }
         }
-        foreach (var x in s.Nat) { Sim.Leader.Refresh(x); Sim.Faith.Refresh(x); }
+        if (version >= 17)
+            foreach (var x in s.Nat)
+            {
+                int words = r.ReadByte();
+                Require(words <= 64, "courses");
+                if (words > 0)
+                {
+                    x.Courses = new ulong[words];
+                    for (int i = 0; i < words; i++) x.Courses[i] = r.ReadUInt64();
+                }
+                x.CourseNow = r.ReadInt32(); x.CourseCycles = r.ReadInt32();
+                Require(x.CourseNow >= -1 && x.CourseNow < Sim.Politics.Count && x.CourseCycles >= 0, "course");
+            }
+        foreach (var x in s.Nat) { Sim.Leader.Refresh(x); Sim.Faith.Refresh(x); Sim.Politics.Refresh(x); }
         return s;
     }
 

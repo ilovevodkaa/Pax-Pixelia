@@ -160,7 +160,7 @@ public static class ScenarioTests
 
         // ------------------------------------------------------------ buildings
         Section("buildings (commands)");
-        int bp = Enumerable.Range(0, w.P).Where(p => s.Owner[p] == Me && s.Buildings[p].Count < s.Slots[p]).OrderBy(p => p).FirstOrDefault(-1);
+        int bp = Enumerable.Range(0, w.P).Where(p => s.Owner[p] == Me && s.CapitalOf[p] < 0 && s.Buildings[p].Count < s.Slots[p]).OrderBy(p => p).FirstOrDefault(-1);
         Check(bp >= 0, "an own province with a free plot");
         if (Techs.OnlyRoot(s.Nat[Me]))
         {

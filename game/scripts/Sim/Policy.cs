@@ -4,7 +4,7 @@ using PaxPixelia.World;
 
 namespace PaxPixelia.Sim;
 
-public enum EdictError { None, Unknown, TooEarly, NoSlot, NotOn }
+public enum EdictError { None, Unknown, TooEarly, NoSlot, NotOn, Closed }
 
 /// <summary>
 /// One edict: a standing order of the realm. Most cost a share of the taxes every rules cycle (<see cref="CostPct"/>);
@@ -22,6 +22,11 @@ public sealed record EdictDef(string Id, string Name, string Icon, int MinEra, i
 /// </summary>
 public static class Policy
 {
+    /// <summary>Edicts are put aside for now (the «Правительство» screen took the policy button: the course tree and
+    /// the laws). The rules stay for later; nobody can issue one, bots do not, and old saves have theirs repealed. The
+    /// tests open them for a moment to keep the rules covered; the game never changes it.</summary>
+    public static bool EdictsOpen = false;
+
     public static readonly EdictDef[] Edicts =
     {
         new("feasts", "Праздники", "music", 0, 15, 6, 0, 0, 0, 0,
@@ -68,6 +73,7 @@ public static class Policy
     {
         if ((uint)e >= (uint)Edicts.Length) return EdictError.Unknown;
         if (!on) return On(nat, e) ? EdictError.None : EdictError.NotOn;
+        if (!EdictsOpen) return EdictError.Closed;
         if (On(nat, e)) return EdictError.None;
         if (nat.Era < Edicts[e].MinEra) return EdictError.TooEarly;
         if (Active(nat) >= Slots(nat.Era)) return EdictError.NoSlot;
@@ -96,6 +102,7 @@ public static class Policy
     {
         for (int n = 0; n < s.Nat.Length; n++)
         {
+            if (!EdictsOpen) s.Nat[n].Edicts = 0;   // an older save's edicts are repealed
             int bits = s.Nat[n].Edicts;
             for (int e = 0; bits != 0 && e < Edicts.Length; e++, bits >>= 1)
                 if ((bits & 1) != 0) Character.DeedPermille(s, n, Edicts[e].CharScale, Edicts[e].CharRight, EdictDeedPermille);

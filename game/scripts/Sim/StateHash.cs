@@ -103,6 +103,8 @@ public sealed partial class GameState
         if (RuinsDug != null && Array.Exists(RuinsDug, v => v != 0)) { nat.Add(-14L); foreach (ulong v in RuinsDug) nat.Add(v); }   // nothing dug hashes as before
         foreach (var x in Nat)   // no challenge yet hashes as before challenges
             if (x.ChallengeKind >= 0 || x.ChallengesWon > 0) { nat.Add(-12L); nat.Add(x.ChallengeKind); nat.Add(x.ChallengeGoal); nat.Add(x.ChallengeEnd); nat.Add(x.ChallengesWon); }
+        foreach (var x in Nat)   // no course adopted or under way hashes as before the policy tree
+            if (!Politics.IsBlank(x)) { nat.Add(-17L); nat.Add(x.CourseNow); nat.Add(x.CourseCycles); foreach (ulong v in x.Courses ?? Array.Empty<ulong>()) nat.Add(v); }
 
         var prov = new Fnv(); var bld = new Fnv();
         for (int p = 0; p < Owner.Length; p++)

@@ -207,14 +207,14 @@ public partial class QaTest : Node
             G.Select(bp); await Frames(3); await Shot("build_full");
             Check("panel: no «Свободный участок» when full", FindClickPanel(Hud.Panel) == null);
         }
-        int inland = First(q => s.Owner[q] == 0 && w.PCoast[q] == 0 && s.Buildings[q].Count < s.Slots[q]);
+        int inland = First(q => s.Owner[q] == 0 && w.PCoast[q] == 0 && q != bp && Construction.Occupied(G.State, q) < s.Slots[q]);
         if (inland >= 0)
         {
             t0 = _toasts.Count; G.Build(inland, Bld.Fishery);
             Check("fishery inland refused", !s.Buildings[inland].Contains(Bld.Fishery) && ErrorSince(t0, "Местность"), ToastsSince(t0));
             s.Gold = 10; t0 = _toasts.Count;
             G.Build(inland, Bld.Shrine);
-            Check("build poor refused", !s.Buildings[inland].Contains(Bld.Shrine) || ErrorSince(t0, "золота"), ToastsSince(t0));
+            Check("build poor refused", !Construction.Has(G.State, inland, Bld.Shrine) && !s.Buildings[inland].Contains(Bld.Shrine) && ErrorSince(t0, "золота"), ToastsSince(t0));
             s.Gold = 100000; s.Materials = 0; t0 = _toasts.Count;
             G.Build(inland, Bld.Shrine);
             Check("build without materials refused", !s.Buildings[inland].Contains(Bld.Shrine) && ErrorSince(t0, "материалов"), ToastsSince(t0));
@@ -679,10 +679,11 @@ public partial class QaTest : Node
                 await Shot("build_menu_real_click");
                 if (menu.Count > 0)
                 {
-                    int nb = s.Buildings[own].Count;
+                    int nb = Construction.Occupied(G.State, own);
                     var br = menu[0].GetGlobalRect();
                     ClickAt(br.GetCenter()); await Frames(4);
-                    Check("build menu click builds, selection kept", s.Buildings[own].Count == nb + 1 && G.Selected == own, $"buildings {nb}→{s.Buildings[own].Count} selected={G.Selected}");
+                    Check("build menu click lays a foundation, selection kept", Construction.Occupied(G.State, own) == nb + 1 && G.Selected == own,
+                        $"plots {nb}→{Construction.Occupied(G.State, own)} selected={G.Selected}");
                 }
             }
             else Info("free slot", "no ClickPanel found");

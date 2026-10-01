@@ -302,10 +302,10 @@ public partial class SelfTest : Node
         Check("build: it stands when its time is up", s.Buildings[p].Contains(b) && !Construction.Has(G.State, p, b));
         await Shot("built");
 
-        int toasts = _toasts.Count;
+        int toasts = _toasts.Count, jobs0 = G.State.Builds.Count;
         int foreign = First(q => s.Owner[q] > 0);
         G.Build(foreign, Data.Bld.Shrine);
-        Check("build refused abroad (red toast)", !s.Buildings[foreign].Contains(Data.Bld.Shrine) || _toasts.Skip(toasts).Any(t => t.kind == ToastKind.Error));
+        Check("build refused abroad (red toast)", G.State.Builds.Count == jobs0 && _toasts.Skip(toasts).Any(t => t.kind == ToastKind.Error));
 
         int ore = First(q => s.Owner[q] == GameState.LocalPlayer && !s.OreFound[q] && G.MayHaveOre(q));
         if (ore < 0) ore = ClaimTowardsHills();

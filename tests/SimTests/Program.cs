@@ -54,6 +54,7 @@ public static class Program
         UnrestTests.Run(w);
         DiplomacyTests.Run(w);
         LeaderFaithTests.Run(w);
+        PoliticsTests.Run(w);
         TechTests.Run(w);
         NomadTests.Run(w);
         ScoutOrderTests.Run(w);
